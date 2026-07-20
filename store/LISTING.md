@@ -14,6 +14,7 @@ Source: `https://github.com/CorsenAI/hermes-connector`
 
 - Icon: `store/store-icon-128.png` (128×128)
 - Small promo: `store/promo-small-440x280.png` (440×280)
+- Marquee promo: `store/promo-marquee-1400x560.png` (1400×560)
 - Product screenshot: `store/screenshot-product-1280x800.png` (1280×800)
 
 ## Item name
@@ -25,7 +26,7 @@ Hermes Connector — by Corsen AI
 ## Summary
 
 ```text
-Attach exact local Hermes sessions to chosen tabs and let them read, click, type, navigate, and manage scoped tabs.
+Attach real Hermes sessions to chosen tabs in your signed-in Chrome profile. Local, unofficial, by Corsen AI.
 ```
 
 ## Category and language
@@ -38,36 +39,54 @@ English (United States)
 ## Detailed description
 
 ```text
-Hermes Connector brings your own locally installed Hermes agent into Chrome's side panel and lets the exact Hermes session you select act in the tabs you explicitly attach.
+Connect Hermes Agent to the Chrome tabs you choose.
 
-Use your normal signed-in Chrome profile and existing site sessions—no hidden automation profile and no guessing which tab should be controlled.
+Hermes Connector is a local AI browser automation bridge for Hermes Agent. It embeds your local Hermes dashboard in Chrome’s side panel and routes each selected Hermes session only to the tabs you explicitly attach.
 
-Core capabilities:
+Use your normal signed-in Chrome profile and existing website sessions—without a hidden automation profile and without guessing which tab an agent should control.
+
+WHAT YOU CAN DO
+
 • Choose a real local Hermes profile and session
-• Attach one or more tabs to that exact session
-• Navigate, inspect, read, click, type, scroll, screenshot, hover, use keys, select, drag, find, and use browser history
-• Open, list, switch, and close tabs only inside the session's own scope
-• Run simultaneous Hermes projects without crossing their tabs
-• Refuse browser actions when a session has no attached target
+• Attach one or more Chrome tabs to that exact session
+• Let Hermes navigate, inspect, read, click, type, scroll, hover, select, drag, use keyboard shortcuts, take screenshots, search the page, and use browser history
+• Open, list, switch, and close tabs only within the selected session’s scope
+• Run multiple Hermes projects at the same time without crossing their tabs
+• Automatically refuse browser actions when a session has no attached target
 
-Local architecture:
-• The extension connects to the separately installed Hermes Connector companion on 127.0.0.1
-• There is no Corsen AI relay, account, analytics, tracking, or telemetry
+BUILT FOR PRECISE, LOCAL CONTROL
+
+Hermes Connector links Chrome to the separately installed Hermes Connector companion on 127.0.0.1. Session-to-tab bindings are explicit, isolated, and revocable. If ownership of a tab moves to another Hermes session or Chrome profile, the previous owner is revoked.
+
+PRIVATE BY ARCHITECTURE
+
+• No Corsen AI relay, cloud account, analytics, advertising, tracking, or telemetry
 • The pairing secret uses mutual authentication and is never sent over the connection
-• The real local Hermes dashboard is embedded in an isolated side-panel frame
+• The local Hermes dashboard runs inside an isolated side-panel frame
+• All browser-control logic is bundled with the extension; no remote control code is downloaded or evaluated
 
-Data disclosure:
-To perform its user-facing function, the extension handles visible website content, requested screenshots, and the URLs/titles of tabs you attach. Opening “Choose tabs” displays current tab titles and URLs locally so you can select them. This data is sent to your local Hermes installation, not to Corsen AI. If you configured Hermes to use a remote model provider, Hermes may send the content to that provider under your configuration and the provider's terms.
+DATA HANDLING
 
-Sensitive field values such as passwords, one-time-code inputs, and payment fields are redacted from accessibility snapshots. Visible page text or screenshots can still contain sensitive information, so attach only tabs you are comfortable sharing with your Hermes configuration.
+To provide browser automation, the extension handles visible website content, requested screenshots, and the URLs and titles of tabs you attach. Opening “Choose tabs” displays current tab titles and URLs locally so you can select them. This data goes to your local Hermes installation—not to Corsen AI.
 
-Trusted input is off by default. When enabled, it uses Chrome's debugger transport for reliable input and dialogs; Chrome displays its debugging banner while attached.
+If you configured Hermes to use a remote AI model provider, Hermes may send relevant content to that provider under your configuration and that provider’s terms.
 
-Requirements:
+Sensitive form values such as passwords, one-time codes, and payment fields are redacted from accessibility snapshots. Visible page text or screenshots can still contain sensitive information, so attach only tabs you are comfortable sharing with your Hermes configuration.
+
+TRUSTED INPUT
+
+Trusted input is disabled by default. When you enable it, Chrome’s debugger transport is used only for reliable input events and page-dialog handling in the selected attached tab. Chrome displays its debugging banner while attached.
+
+REQUIREMENTS
+
 • A local Hermes Agent installation and dashboard
-• The matching Hermes Connector companion (same version), available from the support/download page
+• The matching Hermes Connector companion, available from the support and download page
+• Chrome on a supported desktop system
 
-Unofficial community extension by Corsen AI. Not affiliated with or endorsed by Nous Research or Google.
+Hermes Connector is an unofficial community extension by Corsen AI. It is not affiliated with or endorsed by Nous Research or Google.
+
+Open-source project: https://github.com/CorsenAI/hermes-connector
+Support and setup: https://corsenai.github.io/hermes-connector/support/
 ```
 
 ## Single purpose

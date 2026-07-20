@@ -65,6 +65,7 @@ def metadata_gate() -> None:
     expected_artwork = {
         ROOT / "store" / "store-icon-128.png": (128, 128),
         ROOT / "store" / "promo-small-440x280.png": (440, 280),
+        ROOT / "store" / "promo-marquee-1400x560.png": (1400, 560),
         ROOT / "store" / "screenshot-product-1280x800.png": (1280, 800),
     }
     for artwork, expected in expected_artwork.items():

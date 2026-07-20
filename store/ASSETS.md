@@ -4,6 +4,7 @@
 
 - `store-icon-128.png` — 128×128 Store icon.
 - `promo-small-440x280.png` — 440×280 small promotional tile.
+- `promo-marquee-1400x560.png` — 1400×560 marquee promotional banner.
 - `screenshot-product-1280x800.png` — 1280×800 actual-product screenshot.
 
 The fast release gate reads each PNG's IHDR and refuses dimensions that do not
@@ -50,3 +51,27 @@ python tests/capture_store_screenshot.py
 
 The script refuses to overwrite the final screenshot unless `--force` is
 provided.
+
+## Marquee promotional banner
+
+The marquee banner was generated with OpenAI's built-in image generation tool,
+using `promo-small-440x280.png` only as the existing style and brand reference.
+The selected result was downscaled to the exact 1400×560 Store size and saved
+as a 24-bit RGB PNG.
+
+Prompt:
+
+```text
+Use case: ads-marketing
+Asset type: Chrome Web Store marquee promotional banner, final target 1400 x 560 pixels, wide 5:2 composition.
+Input image: the provided 440 x 280 Hermes Connector promotional tile is a style and brand reference.
+Primary request: create a premium wide promotional banner for the public Chrome extension Hermes Connector.
+Scene/backdrop: deep near-black navy background with refined cyan, electric blue, violet, and magenta light trails; subtle depth and glow, uncluttered.
+Subject: preserve the recognizable circular circuit-style C mark from the reference on the left, with elegant connection lines flowing toward a small group of browser-tab outlines on the right.
+Composition/framing: wide cinematic layout; brand mark on the left third, headline centered-left, browser-tab symbols on the right; generous safe margins; strong readability at small size.
+Style/medium: polished high-end technology product marketing, crisp vector-like geometry, restrained neon, professional rather than game-like.
+Text (verbatim): "HERMES CONNECTOR"
+Secondary text (verbatim): "LOCAL AI. YOUR TABS."
+Small attribution (verbatim): "BY CORSEN AI"
+Constraints: spell every text string exactly; no other words; no fake UI; no people; no robots; no Google or Chrome logo; no watermark; no gradients behind text that reduce contrast; preserve the existing cyan-to-magenta brand palette and visual identity; make the result suitable for a trustworthy developer tool listing.
+```
