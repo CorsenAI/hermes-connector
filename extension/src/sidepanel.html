@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hermes</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b0f14; color: #eaeaee;
+      font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; flex-direction: column; overflow: hidden; }
+    header { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+      border-bottom: 1px solid #23262b; font-size: 13px; flex: none; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #666; flex: none; }
+    .dot.on { background: #39d353; } .dot.off { background: #666; } .dot.err { background: #e5534b; }
+    #status { color: #9a9aa2; font-size: 12px; margin-left: auto; }
+    #gear { background: none; border: 0; color: #9a9aa2; cursor: pointer; font-size: 14px; padding: 2px 4px; }
+    #cfg { display: none; flex-direction: column; gap: 6px; padding: 8px 10px;
+      border-bottom: 1px solid #23262b; flex: none; max-height: 55vh; overflow: auto; }
+    #cfg.open { display: flex; }
+    #cfg label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #9a9aa2; }
+    #cfg input { background: #1a1f27; color: #eaeaee; border: 1px solid #23262b;
+      border-radius: 6px; padding: 5px 8px; font: inherit; }
+    #cfg label.chk { flex-direction: row; align-items: flex-start; gap: 6px; color: #c7cdda; line-height: 1.35; }
+    #cfg label.chk input { width: auto; margin-top: 2px; flex: none; }
+    #cfg button { background: #3159d8; color: #fff; border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; margin-top: 2px; }
+    #scope { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
+      border-bottom: 1px solid #23262b; background: #10151d; flex: none; }
+    .scopeRow { display: flex; gap: 5px; }
+    #sessionSelect { flex: 1; min-width: 0; background: #1a1f27; color: #eaeaee;
+      border: 1px solid #343b48; border-radius: 6px; padding: 6px; }
+    .smallBtn { background: #283142; color: #eaeaee; border: 1px solid #3b4658;
+      border-radius: 6px; padding: 5px 7px; cursor: pointer; white-space: nowrap; }
+    .smallBtn.primary { background: #3159d8; border-color: #3159d8; }
+    .smallBtn:disabled { opacity: .45; cursor: default; }
+    #scopeInfo { color: #9a9aa2; font-size: 11px; min-height: 14px; }
+    #privacyNote { color: #8b95a8; font-size: 10px; line-height: 1.35; }
+    #attachedTabs, #tabPicker { display: flex; flex-direction: column; gap: 4px; max-height: 128px; overflow: auto; }
+    #tabPicker { border-top: 1px solid #23262b; padding-top: 5px; }
+    .tabRow { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11px; }
+    .tabTitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c7cdda; }
+    .tabRow.current .tabTitle { color: #7ee787; font-weight: 600; }
+    iframe { width: 100%; min-height: 0; flex: 1; border: 0; display: block; background: #fff; }
+    #hint { padding: 20px; color: #9a9aa2; font-size: 13px; line-height: 1.5; flex: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <span id="dot" class="dot off" title="browser pairing"></span>
+    <strong>Hermes</strong>
+    <button id="gear" title="Set your Hermes address">⚙</button>
+    <span id="status">connecting…</span>
+  </header>
+  <div id="cfg">
+    <label>This Chrome profile name
+      <input id="browserName" type="text" spellcheck="false" placeholder="Work Chrome" /></label>
+    <label>Hermes dashboard address
+      <input id="hermesUrl" type="text" spellcheck="false" placeholder="http://127.0.0.1:9119" /></label>
+    <label>Bridge address
+      <input id="bridgeUrl" type="text" spellcheck="false" placeholder="ws://127.0.0.1:8765" /></label>
+    <label>Pairing code (from companion installer)
+      <input id="pairingCode" type="password" spellcheck="false" placeholder="paste the installer's private code" /></label>
+    <label class="chk"><input id="trustedInput" type="checkbox" />
+      Trusted input — more reliable clicks &amp; typing (and handles pop-ups), but Chrome shows a
+      “debugging this browser” banner while active.</label>
+    <button id="save">Save</button>
+  </div>
+  <section id="scope">
+    <div class="scopeRow">
+      <select id="sessionSelect" aria-label="Hermes session">
+        <option value="">Choose a Hermes session…</option>
+      </select>
+      <button id="refreshSessions" class="smallBtn" title="Refresh Hermes sessions">↻</button>
+    </div>
+    <div class="scopeRow">
+      <button id="attachActive" class="smallBtn primary" disabled>Attach active tab</button>
+      <button id="manageTabs" class="smallBtn" disabled>Choose tabs</button>
+    </div>
+    <div id="scopeInfo">Choose the Hermes project/session that should own browser tabs.</div>
+    <div id="privacyNote">Only tabs you attach can be read or controlled. Their URL, visible content and
+      requested screenshots are shared with your locally configured Hermes session. “Choose tabs” shows tab
+      titles locally so you can select them.</div>
+    <div id="attachedTabs"></div>
+    <div id="tabPicker" hidden></div>
+  </section>
+  <!-- The user's real Hermes dashboard (sessions, agent picker, model, chat). src is set at runtime
+       from the saved address (default the Hermes dashboard port 9119) — never hardcoded in the page. -->
+  <iframe id="hermes" title="Hermes dashboard"></iframe>
+  <div id="hint" hidden>
+    Start Hermes and open its dashboard (<code>hermes dashboard</code>), then this panel shows it here.
+    If your dashboard runs on a different port, set its address with the ⚙ button.
+  </div>
+  <script type="module" src="sidepanel.js"></script>
+</body>
+</html>

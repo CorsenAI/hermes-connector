@@ -1,0 +1,8 @@
+{
+  "name": "hermes-connector",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:js": "node --test tests/*.test.mjs"
+  }
+}

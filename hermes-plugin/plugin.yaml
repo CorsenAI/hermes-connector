@@ -1,0 +1,30 @@
+name: hermes-connector
+version: 0.2.0
+manifest_version: 1
+description: >-
+  Attach exact Hermes profiles and sessions to user-selected tabs in paired,
+  real Chrome profiles through one authenticated local broker.
+author: Corsen AI
+kind: standalone
+platforms:
+  - windows
+  - macos
+  - linux
+provides_tools:
+  - bridge_status
+  - bridge_open
+  - bridge_snapshot
+  - bridge_read
+  - bridge_click
+  - bridge_type
+  - bridge_screenshot
+  - bridge_scroll
+  - bridge_key
+  - bridge_hover
+  - bridge_select
+  - bridge_drag
+  - bridge_find
+  - bridge_nav
+  - bridge_tab
+  - bridge_wait
+  - bridge_current_url

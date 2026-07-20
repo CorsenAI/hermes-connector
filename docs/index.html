@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Hermes Connector links exact local Hermes sessions to user-selected Chrome tabs.">
+<title>Hermes Connector — by Corsen AI</title>
+<style>
+  :root{--bg:#080c18;--card:#0f1629;--bd:#26345c;--tx:#edf2ff;--mut:#aab6d3;--cyan:#38d9ff;--pink:#df4cff}
+  *{box-sizing:border-box} body{margin:0;background:radial-gradient(900px 540px at 12% -5%,#112c4d 0%,transparent 62%),radial-gradient(850px 520px at 95% 5%,#351346 0%,transparent 60%),var(--bg);color:var(--tx);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  main{max-width:940px;margin:0 auto;padding:64px 22px 48px}.eyebrow{color:var(--cyan);font-weight:700;letter-spacing:.12em;text-transform:uppercase}.hero{padding:30px 0 38px}h1{font-size:clamp(40px,7vw,72px);line-height:1.02;margin:8px 0 18px;letter-spacing:-.04em}.lead{font-size:20px;max-width:710px;color:#ced8ee}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{display:inline-block;padding:12px 18px;border-radius:10px;border:1px solid var(--bd);color:var(--tx);text-decoration:none;font-weight:700;background:#121c34}.primary{border:0;background:linear-gradient(100deg,#217eff,#c348ed)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}.card{background:linear-gradient(160deg,rgba(18,28,53,.94),rgba(10,15,29,.94));border:1px solid var(--bd);border-radius:16px;padding:24px}h2{font-size:20px;margin:0 0 10px}p,li{color:#d5def1}code{background:#182242;border:1px solid #2d3a66;border-radius:6px;padding:2px 6px}.steps{margin-top:18px}.mut{color:var(--mut)}footer{border-top:1px solid #1d2847;margin-top:42px;padding-top:22px;color:var(--mut)}a{color:#82cfff}
+</style>
+</head>
+<body><main>
+  <section class="hero">
+    <div class="eyebrow">Local AI · exact tab control</div>
+    <h1>Hermes Connector</h1>
+    <p class="lead">Attach an exact local Hermes profile and session to only the Chrome tabs you choose. Run simultaneous projects without crossing their browser scopes.</p>
+    <div class="actions">
+      <a class="button primary" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Download companion 0.2.0</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector">View source</a>
+      <a class="button" href="support/">Setup &amp; support</a>
+    </div>
+  </section>
+  <section class="grid">
+    <div class="card"><h2>Explicit scope</h2><p>Hermes can read or control only tabs you deliberately attach to the selected session. Unbound sessions fail closed.</p></div>
+    <div class="card"><h2>Local transport</h2><p>The extension and companion communicate over an authenticated loopback connection. Corsen AI operates no relay or telemetry endpoint.</p></div>
+    <div class="card"><h2>Your Chrome profile</h2><p>Use your normal signed-in Chrome profile and its existing site sessions—no hidden automation profile.</p></div>
+  </section>
+  <section class="card steps" id="install"><h2>Install the companion</h2>
+    <p>Extract the companion ZIP, then run <code>.\install.ps1</code> on Windows or <code>./install.sh</code> on macOS/Linux. Restart Hermes, open the extension side panel, and paste the pairing code printed locally by the installer.</p>
+    <p class="mut">Hermes Connector is an unofficial community project by Corsen AI and is not affiliated with or endorsed by Nous Research or Google.</p>
+  </section>
+  <footer><a href="privacy/">Privacy policy</a> · <a href="support/">Support</a> · <a href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.0">Release 0.2.0</a> · <a href="mailto:hello@corsen.ai">hello@corsen.ai</a></footer>
+</main></body>
+</html>

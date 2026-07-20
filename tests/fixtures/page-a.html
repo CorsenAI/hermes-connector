@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Connector Page A</title>
+<style>#find-target-a{margin-top:1200px}#drag-a,#drop-a{display:inline-block;padding:8px;border:1px solid #555}</style></head>
+<body>
+  <main>
+    <h1>Connector Page A</h1>
+    <label>Project A input <input id="project-a" value="alpha"></label>
+    <button id="button-a" onclick="this.dataset.clicked='yes'">Action A</button>
+    <button id="confirm-a" onclick="if(confirm('Proceed with A?')) this.dataset.confirmed='yes'">Confirm A</button>
+    <button id="hover-a" onmouseenter="this.dataset.hovered='yes'">Hover A</button>
+    <label>Project A choice
+      <select id="choice-a" aria-label="Project A choice" onchange="this.dataset.changed='yes'">
+        <option value="one">One</option><option value="two">Two</option>
+      </select>
+    </label>
+    <div id="drag-a" role="button" tabindex="0" draggable="true"
+      ondragstart="event.dataTransfer.setData('text/plain','drag-a')">Drag A</div>
+    <div id="drop-a" role="button" tabindex="0" ondragover="event.preventDefault()"
+      ondrop="event.preventDefault();this.dataset.dropped=event.dataTransfer.getData('text/plain')">Drop A</div>
+    <p id="find-target-a">Unique searchable target A</p>
+  </main>
+</body>
+</html>

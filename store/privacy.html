@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Hermes Connector (unofficial · by Corsen AI)</title>
+<style>
+  :root{--bg:#0a0e1a;--card:#0f1424;--bd:#26315a;--tx:#e7ecf7;--mut:#a7b2cf;--acc:#7aa2ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 600px at 80% -10%,#16204a 0%,var(--bg) 60%),var(--bg);
+    color:var(--tx);font:16px/1.65 -apple-system,Segoe UI,Roboto,sans-serif;padding:48px 20px}
+  .wrap{max-width:780px;margin:0 auto} h1{font-size:30px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 28px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:26px 30px;margin:0 0 18px}
+  h2{font-size:19px;margin:0 0 10px} p,li{color:#dbe3f7}.mut{color:var(--mut)} strong{color:#fff}
+  a{color:var(--acc)} code{background:#182140;border:1px solid var(--bd);border-radius:6px;padding:1px 6px;font-size:14px}
+  footer{color:var(--mut);font-size:14px;text-align:center;margin-top:22px}
+</style>
+</head>
+<body><div class="wrap">
+  <h1>Privacy Policy</h1>
+  <p class="sub">Hermes Connector (unofficial · by Corsen AI) · last updated 2026-07-20</p>
+
+  <div class="card">
+    <p>Hermes Connector lets a Hermes agent running on your computer read and control Chrome tabs that you
+      explicitly attach. <strong>Corsen AI does not operate a relay, analytics service, account system, or
+      telemetry endpoint for the extension.</strong></p>
+  </div>
+
+  <div class="card"><h2>Data the extension handles</h2>
+    <ul>
+      <li>Visible website content, accessibility structure, element labels, and requested screenshots from
+        attached tabs.</li>
+      <li>URLs and titles of attached tabs. Opening <strong>Choose tabs</strong> displays current tab titles and
+        URLs locally so you can decide what to attach.</li>
+      <li>Instructions from your local Hermes agent and local Hermes profile/session identifiers and titles.</li>
+      <li>A random browser identifier, local addresses, pairing settings, and tab bindings stored in Chrome
+        local storage.</li>
+    </ul>
+    <p>The extension does not read cookies or authentication storage. Password, one-time-code, and payment-field
+      values are redacted from accessibility snapshots. Visible text and screenshots can still contain sensitive
+      information, so attach only tabs you are comfortable sharing with your Hermes configuration.</p>
+  </div>
+
+  <div class="card"><h2>Where data goes</h2>
+    <p>The extension communicates with the separately installed companion over an authenticated loopback
+      WebSocket (<code>ws://127.0.0.1</code> or <code>ws://localhost</code>) and loads the user-selected local
+      Hermes dashboard over HTTP loopback. Page data is sent only to that local Hermes installation to perform
+      requested actions. It is not sent to Corsen AI.</p>
+    <p>What Hermes does next depends on the user's Hermes configuration. A local model can keep processing
+      on-device. If the user configured a remote model or service, Hermes may transmit content to that chosen
+      provider under the provider's terms. Corsen AI does not select or receive that transmission.</p>
+  </div>
+
+  <div class="card"><h2>Storage and retention</h2>
+    <p>Chrome local storage retains the browser identifier, local addresses, pairing preference, and tab bindings
+      until extension data is cleared or the extension is removed. The extension does not persist page snapshots,
+      text, screenshots, or form content. The companion retains its pairing credential and browser-binding
+      preference under the user's Hermes home. Hermes may retain chats or tool results under the user's settings.</p>
+  </div>
+
+  <div class="card"><h2>Publisher access and Limited Use</h2>
+    <p>Corsen AI does not receive, sell, rent, monetize, or use this data for advertising, profiling,
+      creditworthiness, or unrelated purposes. Corsen AI personnel cannot access locally processed data.</p>
+    <p><strong>Hermes Connector's use of information received from Chrome APIs adheres to the Chrome Web Store
+      User Data Policy, including the Limited Use requirements.</strong></p>
+  </div>
+
+  <div class="card"><h2>Security</h2>
+    <p>The companion binds only to loopback. It uses a high-entropy secret with role-bound mutual HMAC
+      authentication; the secret is never sent over the WebSocket. Each Hermes profile/session is routed only to
+      its explicitly attached tabs. An unbound session is rejected rather than sent to another tab.</p>
+  </div>
+
+  <div class="card"><h2>Permissions</h2><ul>
+    <li><code>&lt;all_urls&gt;</code> and <code>scripting</code>: read and act on any web origin the user attaches;
+      Chrome also requires broad host access for a requested visible-tab screenshot.</li>
+    <li><code>storage</code>: retain local identity, settings, and bindings.</li>
+    <li><code>sidePanel</code>: provide connector controls and the local Hermes dashboard.</li>
+    <li><code>alarms</code>: keep the local WebSocket available during an active task.</li>
+    <li><code>debugger</code>: Chrome does not permit this as an optional permission. The extension attaches it
+      only when the user enables <strong>Trusted input</strong>, for reliable input and dialogs in the selected tab.
+      Chrome displays its debugging banner while attached.</li>
+  </ul></div>
+
+  <div class="card"><h2>User control</h2>
+    <p>Tabs are inaccessible until the user attaches them to a specific Hermes session. The user can detach a tab,
+      disable Trusted input, clear extension storage, disable the companion plugin, or uninstall the extension at
+      any time.</p>
+    <h2 style="margin-top:18px">Contact</h2><p><a href="mailto:hello@corsen.ai">hello@corsen.ai</a></p>
+  </div>
+
+  <footer>Unofficial community extension · not affiliated with or endorsed by Nous Research or Google.</footer>
+</div></body></html>

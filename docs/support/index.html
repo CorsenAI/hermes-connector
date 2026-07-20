@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Setup and support for Hermes Connector by Corsen AI.">
+<title>Support — Hermes Connector</title>
+<style>
+  :root{--bg:#090d19;--card:#11182b;--bd:#29375f;--tx:#edf2ff;--mut:#aeb9d2;--acc:#79cfff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#281442 0%,var(--bg) 62%);color:var(--tx);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:52px 20px}main{max-width:800px;margin:auto}h1{font-size:38px;margin:0 0 8px}.sub{color:var(--mut);margin:0 0 28px}.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:25px 29px;margin:0 0 17px}h2{font-size:20px;margin:0 0 10px}li,p{color:#d9e1f2}code{background:#192341;border:1px solid var(--bd);border-radius:6px;padding:2px 6px}a{color:var(--acc)}nav{margin-top:24px;color:var(--mut)}
+</style>
+</head>
+<body><main>
+  <h1>Hermes Connector support</h1>
+  <p class="sub">Current public version: 0.2.0 · protocol 3</p>
+  <div class="card"><h2>Install</h2><ol>
+    <li><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Download the 0.2.0 companion</a> and extract it.</li>
+    <li>Run <code>.\install.ps1</code> on Windows or <code>./install.sh</code> on macOS/Linux.</li>
+    <li>Restart any running Hermes dashboard, gateway, or chat process.</li>
+    <li>Open the Chrome side panel, paste the private pairing code printed locally, select a Hermes session, and attach only the tabs it may control.</li>
+  </ol></div>
+  <div class="card"><h2>Troubleshooting</h2><ul>
+    <li><strong>Companion offline:</strong> confirm Hermes restarted after installation and port <code>127.0.0.1:8765</code> is available.</li>
+    <li><strong>Pairing rejected:</strong> open companion settings and generate/show the current local code, then save it again in the extension.</li>
+    <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted web tab. Restricted Chrome pages cannot be controlled.</li>
+    <li><strong>Debugging banner:</strong> disable Trusted input unless native input or dialog handling is needed.</li>
+  </ul></div>
+  <div class="card"><h2>Contact</h2><p>Report reproducible defects in the <a href="https://github.com/CorsenAI/hermes-connector/issues">public issue tracker</a>. For privacy or security questions, email <a href="mailto:hello@corsen.ai">hello@corsen.ai</a>.</p></div>
+  <nav><a href="../">Home</a> · <a href="../privacy/">Privacy policy</a> · <a href="https://github.com/CorsenAI/hermes-connector">Source code</a></nav>
+</main></body>
+</html>

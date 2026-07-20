@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Hermes Connector — by Corsen AI",
+  "version": "0.2.0",
+  "description": "Attach real Hermes sessions to chosen tabs in your signed-in Chrome profile. Local, unofficial, by Corsen AI.",
+  "homepage_url": "https://corsenai.github.io/hermes-connector/",
+  "minimum_chrome_version": "120",
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src http://127.0.0.1:* http://localhost:*; child-src http://127.0.0.1:* http://localhost:*;"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel.html"
+  },
+  "action": {
+    "default_title": "Open Hermes"
+  },
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "scripting",
+    "alarms",
+    "debugger"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "icons": {
+    "16": "assets/icon-16.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Ctrl+Shift+H", "mac": "Command+Shift+H" }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+name: Release gate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  fast-gate:
+    name: Fast gate (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install test dependency
+        run: python -m pip install websockets==15.0.1
+      - name: Run release gate
+        run: python tests/run_all.py
+      - name: Exercise POSIX installer
+        if: runner.os != 'Windows'
+        shell: sh
+        run: sh tests/e2e_installer_posix.sh
