@@ -40,4 +40,7 @@ jobs:
         run: python scripts/build_release.py --skip-tests
       - name: Run packaged Chrome acceptance
         if: runner.os == 'Linux'
-        run: python tests/e2e_packaged_release.py
+        shell: bash
+        run: |
+          chromium --version
+          CHROME_BINARY="$(command -v chromium)" python tests/e2e_packaged_release.py

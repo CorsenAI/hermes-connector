@@ -87,7 +87,6 @@ def find_chromium(explicit: str | None = None) -> Path:
     else:
         for name in (
             "google-chrome-for-testing",
-            "google-chrome",
             "chromium",
             "chromium-browser",
         ):
@@ -97,7 +96,10 @@ def find_chromium(explicit: str | None = None) -> Path:
     for candidate in candidates:
         if candidate.is_file():
             return candidate.resolve()
-    raise RuntimeError("Chrome for Testing or Chromium was not found; set CHROME_BINARY")
+    raise RuntimeError(
+        "Chrome for Testing or Chromium was not found; set CHROME_BINARY "
+        "(branded Google Chrome 137+ cannot load unpacked extensions)"
+    )
 
 
 class QuietHandler(SimpleHTTPRequestHandler):

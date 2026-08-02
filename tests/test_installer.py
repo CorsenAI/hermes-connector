@@ -194,7 +194,9 @@ class CompanionInstallerTests(unittest.TestCase):
             self.assertEqual(run.call_args_list[1].args[0], [
                 "hermes-test", "plugins", "enable", "hermes-connector", "--no-allow-tool-override",
             ])
-            self.assertEqual(run.call_args_list[1].kwargs["env"]["HERMES_HOME"], str(profile))
+            self.assertTrue(
+                Path(run.call_args_list[1].kwargs["env"]["HERMES_HOME"]).samefile(profile)
+            )
             self.assertTrue(run.call_args_list[1].kwargs["check"])
 
     def test_enable_migrates_the_conflicting_legacy_bridge(self):
