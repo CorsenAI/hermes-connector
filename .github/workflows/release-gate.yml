@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        os: [windows-latest, ubuntu-24.04, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,10 +43,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          EXPECTED_CHROME=/usr/local/share/chromium/chrome-linux/chrome
           CHROME_BINARY="$(/usr/bin/readlink -f -- /usr/bin/chromium)"
-          CHROME_DIR="${CHROME_BINARY%/*}"
-          SANDBOX_SOURCE="$CHROME_DIR/chrome_sandbox"
-          SANDBOX_DEST=/usr/local/sbin/chrome-devel-sandbox
+          test "$CHROME_BINARY" = "$EXPECTED_CHROME"
 
           root_owned_nonwritable() {
             local path="$1" mode
@@ -55,33 +54,51 @@ jobs:
             (( (8#$mode & 0022) == 0 ))
           }
 
+          for path in \
+            /usr/local \
+            /usr/local/share \
+            /usr/local/share/chromium \
+            /usr/local/share/chromium/chrome-linux
+          do
+            test -d "$path"
+            test ! -L "$path"
+            root_owned_nonwritable "$path"
+          done
+
           test -f "$CHROME_BINARY"
           test ! -L "$CHROME_BINARY"
           test -x "$CHROME_BINARY"
-          test -d "$CHROME_DIR"
-          test ! -L "$CHROME_DIR"
-          root_owned_nonwritable "$CHROME_DIR"
           root_owned_nonwritable "$CHROME_BINARY"
 
-          test -f "$SANDBOX_SOURCE"
-          test ! -L "$SANDBOX_SOURCE"
-          test -x "$SANDBOX_SOURCE"
-          root_owned_nonwritable "$SANDBOX_SOURCE"
-          root_owned_nonwritable /usr/local/sbin
+          test "$(< /sys/module/apparmor/parameters/enabled)" = Y
+          test "$(/usr/sbin/sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 1
+          test -x /usr/sbin/apparmor_parser
+          root_owned_nonwritable /etc
+          root_owned_nonwritable /etc/apparmor.d
 
-          test ! -e "$SANDBOX_DEST"
-          test ! -L "$SANDBOX_DEST"
-          /usr/bin/sudo /usr/bin/install -o root -g root -m 4755 -- \
-            "$SANDBOX_SOURCE" "$SANDBOX_DEST"
+          PROFILE=/etc/apparmor.d/hermes-connector-ci
+          test ! -e "$PROFILE"
+          test ! -L "$PROFILE"
+          /usr/bin/sudo /usr/bin/tee "$PROFILE" >/dev/null <<'APPARMOR'
+          abi <abi/4.0>,
+          include <tunables/global>
 
-          test -f "$SANDBOX_DEST"
-          test ! -L "$SANDBOX_DEST"
-          test -x "$SANDBOX_DEST"
-          test -u "$SANDBOX_DEST"
-          test "$(/usr/bin/stat -c '%u:%g:%a' -- "$SANDBOX_DEST")" = 0:0:4755
-          /usr/bin/cmp -s -- "$SANDBOX_SOURCE" "$SANDBOX_DEST"
+          profile hermes-connector-ci /usr/local/share/chromium/chrome-linux/chrome flags=(unconfined) {
+            userns,
+          }
+          APPARMOR
+          /usr/bin/sudo /usr/bin/chown root:root -- "$PROFILE"
+          /usr/bin/sudo /usr/bin/chmod 0644 -- "$PROFILE"
+          test -f "$PROFILE"
+          test ! -L "$PROFILE"
+          test "$(/usr/bin/stat -c '%u:%g:%a' -- "$PROFILE")" = 0:0:644
 
+          /usr/bin/sudo /usr/sbin/apparmor_parser -r "$PROFILE"
+          /usr/bin/sudo /usr/bin/grep -F -- \
+            'hermes-connector-ci' /sys/kernel/security/apparmor/profiles
+          test "$(/usr/sbin/sysctl -n kernel.apparmor_restrict_unprivileged_userns)" = 1
+
+          unset CHROME_DEVEL_SANDBOX
           export CHROME_BINARY
-          export CHROME_DEVEL_SANDBOX="$SANDBOX_DEST"
           "$CHROME_BINARY" --version
           python tests/e2e_packaged_release.py
