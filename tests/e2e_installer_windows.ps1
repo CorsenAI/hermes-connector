@@ -9,8 +9,45 @@ if (-not $TestRoot.StartsWith($TempRoot, [System.StringComparison]::OrdinalIgnor
   throw "Unsafe temporary installer test path"
 }
 
+$OriginalPath = $env:PATH
+$OriginalLocalAppData = $env:LOCALAPPDATA
 New-Item -ItemType Directory -Path $TestRoot | Out-Null
 try {
+  $RealPython = $null
+  foreach ($Candidate in @(Get-Command python -CommandType Application -All -ErrorAction SilentlyContinue)) {
+    try {
+      $CandidateFile = Get-Item -LiteralPath $Candidate.Source
+      if ($CandidateFile.Length -eq 0) { continue }
+      $Probe = & $Candidate.Source -c "import sys; print('hermes-python-ok' if sys.version_info >= (3, 10) else '')" 2>$null
+      if ($LASTEXITCODE -eq 0 -and $Probe -eq "hermes-python-ok") {
+        $RealPython = $Candidate.Source
+        break
+      }
+    }
+    catch {}
+  }
+  if (-not $RealPython) { throw "The installer test needs Python 3.10 or newer" }
+
+  # Reproduce a normal Windows PATH with more than one command of the same
+  # name. The installer must skip a broken candidate and use the next one.
+  $BadShimDir = Join-Path $TestRoot "bad-python"
+  $GoodShimDir = Join-Path $TestRoot "good-python"
+  New-Item -ItemType Directory -Path $BadShimDir, $GoodShimDir | Out-Null
+  [System.IO.File]::WriteAllBytes(
+    (Join-Path $BadShimDir "python3.exe"),
+    [byte[]]@()
+  )
+  [System.IO.File]::WriteAllText(
+    (Join-Path $BadShimDir "python3.cmd"),
+    "@echo off`r`nexit /b 1`r`n"
+  )
+  [System.IO.File]::WriteAllText(
+    (Join-Path $GoodShimDir "python3.cmd"),
+    ("@echo off`r`n`"{0}`" %*`r`n" -f $RealPython)
+  )
+  $env:PATH = "$BadShimDir;$GoodShimDir;$OriginalPath"
+  $env:LOCALAPPDATA = Join-Path $TestRoot "empty-localappdata"
+
   # A user-defined command named `hermes` must not make install.ps1 dereference
   # an empty .Source path. Only an actual application is a Python-location hint.
   function global:hermes { throw "the test function must never be invoked" }
@@ -41,6 +78,8 @@ try {
   Write-Host "PowerShell companion install passed: $Payload"
 }
 finally {
+  $env:PATH = $OriginalPath
+  $env:LOCALAPPDATA = $OriginalLocalAppData
   Remove-Item Env:\HERMES_CONNECTOR_NO_PAUSE -ErrorAction SilentlyContinue
   Remove-Item Function:\hermes -ErrorAction SilentlyContinue
   if ($TestRoot.StartsWith($TempRoot, [System.StringComparison]::OrdinalIgnoreCase) -and

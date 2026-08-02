@@ -54,10 +54,16 @@ def launch_profile(
     process = subprocess.Popen(
         args, stdin=subprocess.DEVNULL, stdout=log_handle, stderr=subprocess.STDOUT
     )
-    targets = live.wait_for_targets(debug_port, lambda items: any(
-        item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
-        for item in items
-    ))
+    targets = live.wait_for_targets(
+        debug_port,
+        lambda items: any(
+            item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
+            for item in items
+        ),
+        browser_process=process,
+        browser_log_path=temp_root / f"chrome-{label}.log",
+        browser_binary=binary,
+    )
     worker = live.service_worker(targets)
     cdp = live.Cdp(worker["webSocketDebuggerUrl"])
     try:
@@ -88,10 +94,16 @@ def launch_profile(
         )
     finally:
         cdp.close()
-    panels = live.wait_for_targets(debug_port, lambda items: any(
-        item.get("type") == "page" and item.get("url", "").endswith("/src/sidepanel.html")
-        for item in items
-    ))
+    panels = live.wait_for_targets(
+        debug_port,
+        lambda items: any(
+            item.get("type") == "page" and item.get("url", "").endswith("/src/sidepanel.html")
+            for item in items
+        ),
+        browser_process=process,
+        browser_log_path=temp_root / f"chrome-{label}.log",
+        browser_binary=binary,
+    )
     panel = next(item for item in panels
         if item.get("type") == "page" and item.get("url", "").endswith("/src/sidepanel.html"))
     return {

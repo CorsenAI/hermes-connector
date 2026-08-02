@@ -164,19 +164,49 @@ def http_json(url: str) -> Any:
         return json.loads(response.read().decode("utf-8"))
 
 
-def wait_for_targets(port: int, predicate, timeout: float = 15) -> list[dict]:
+def browser_log_tail(log_path: Path | None, limit: int = 8192) -> str:
+    if log_path is None:
+        return ""
+    try:
+        content = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return f"<browser log unavailable: {exc}>"
+    return content[-limit:]
+
+
+def wait_for_targets(
+    port: int,
+    predicate,
+    timeout: float = 15,
+    *,
+    browser_process: subprocess.Popen | None = None,
+    browser_log_path: Path | None = None,
+    browser_binary: Path | None = None,
+) -> list[dict]:
     deadline = time.time() + timeout
     last: list[dict] = []
+    last_error = "none"
     while time.time() < deadline:
+        if browser_process is not None and browser_process.poll() is not None:
+            break
         try:
             last = http_json(f"http://127.0.0.1:{port}/json/list")
             if predicate(last):
                 return last
-        except Exception:
-            pass
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
         time.sleep(0.1)
     kinds = [(item.get("type"), item.get("url")) for item in last]
-    raise RuntimeError(f"browser targets did not become ready: {kinds}")
+    exit_code = browser_process.poll() if browser_process is not None else None
+    process_state = f"exited with {exit_code}" if exit_code is not None else "still running"
+    log_tail = browser_log_tail(browser_log_path)
+    details = (
+        f"browser targets did not become ready; browser={browser_binary}; "
+        f"process={process_state}; last_cdp_error={last_error}; targets={kinds}"
+    )
+    if log_tail:
+        details += f"\n--- browser.log tail ---\n{log_tail}"
+    raise RuntimeError(details)
 
 
 class Cdp:
@@ -285,14 +315,22 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             ]
             if not headed:
                 arguments.insert(1, "--headless=new")
-            browser_log = (temp_root / "browser.log").open("w", encoding="utf-8")
+            browser_log_path = temp_root / "browser.log"
+            browser_log = browser_log_path.open("w", encoding="utf-8")
             browser_process = subprocess.Popen(
                 arguments,
                 stdin=subprocess.DEVNULL,
                 stdout=browser_log,
                 stderr=subprocess.STDOUT,
             )
-            targets = wait_for_targets(debug_port, lambda items: any(
+            wait_browser = functools.partial(
+                wait_for_targets,
+                debug_port,
+                browser_process=browser_process,
+                browser_log_path=browser_log_path,
+                browser_binary=browser_binary,
+            )
+            targets = wait_browser(lambda items: any(
                 item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
                 for item in items
             ))
@@ -346,11 +384,11 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 except Exception:
                     pass
 
-            targets = wait_for_targets(debug_port, lambda items: any(
+            targets = wait_browser(lambda items: any(
                 item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
                 for item in items
             ))
-            panel_targets = wait_for_targets(debug_port, lambda items: any(
+            panel_targets = wait_browser(lambda items: any(
                 item.get("type") == "page" and item.get("url", "").endswith("/src/sidepanel.html")
                 for item in items
             ))
@@ -579,7 +617,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if not disabled or not disabled.get("ok"):
                 raise AssertionError(f"could not disable Trusted input: {disabled}")
-            worker = service_worker(wait_for_targets(debug_port, lambda items: any(
+            worker = service_worker(wait_browser(lambda items: any(
                 item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
                 for item in items
             )))

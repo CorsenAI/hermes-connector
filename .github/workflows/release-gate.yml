@@ -42,5 +42,12 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          chromium --version
-          CHROME_BINARY="$(command -v chromium)" python tests/e2e_packaged_release.py
+          set -euo pipefail
+          export CHROME_BINARY="$(readlink -f "$(command -v chromium)")"
+          export CHROME_DEVEL_SANDBOX=/opt/google/chrome/chrome-sandbox
+          test -x "$CHROME_BINARY"
+          test -u "$CHROME_DEVEL_SANDBOX"
+          test "$(stat -c '%U:%G' "$CHROME_DEVEL_SANDBOX")" = root:root
+          test "$(stat -c '%a' "$CHROME_DEVEL_SANDBOX")" = 4755
+          "$CHROME_BINARY" --version
+          python tests/e2e_packaged_release.py
