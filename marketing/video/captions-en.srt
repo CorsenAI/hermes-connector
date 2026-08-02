@@ -1,0 +1,27 @@
+1
+00:00:00,500 --> 00:00:04,800
+Your Hermes agent. Your real Chrome tabs.
+
+2
+00:00:05,500 --> 00:00:10,300
+One Hermes session. The exact tabs you choose.
+
+3
+00:00:10,900 --> 00:00:15,800
+Work inside your signed-in Chrome profile.
+
+4
+00:00:16,400 --> 00:00:21,200
+Permission stays visible and scoped.
+
+5
+00:00:21,900 --> 00:00:26,800
+Read. Navigate. Click. Type.
+
+6
+00:00:27,400 --> 00:00:32,200
+Local-first by design. No Corsen AI relay. No telemetry.
+
+7
+00:00:32,900 --> 00:00:38,200
+Hermes Connector is available now on the Chrome Web Store.

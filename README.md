@@ -1,157 +1,207 @@
-# Hermes Connector
+# Hermes Connector — Chrome browser extension for Hermes Agent
 
-Hermes Connector attaches exact Hermes profiles and sessions to user-selected
-tabs in a real Google Chrome profile. The side panel embeds the real local
-Hermes dashboard; it does not create a second chat or a hidden automation
-browser.
+Hermes Connector is an open-source Chrome browser extension for Hermes Agent
+that connects an exact Hermes profile and session to the signed-in Chrome tabs
+you choose. Hermes can then read and control those tabs without using a hidden
+automation browser or guessing which tab belongs to which task.
 
-Unofficial community project by Corsen AI. Not affiliated with or endorsed by
-Nous Research or Google.
+![Hermes Connector — local AI, your tabs](store/promo-marquee-1400x560.png)
 
-Public links: [download and setup](https://corsenai.github.io/hermes-connector/),
-[support](https://corsenai.github.io/hermes-connector/support/), and
-[privacy policy](https://corsenai.github.io/hermes-connector/privacy/).
+[**Install from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
+· [Setup guide](https://corsenai.github.io/hermes-connector/)
+· [Download companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip)
+· [Get support](https://corsenai.github.io/hermes-connector/support/)
 
-## What it does
+> Unofficial community project by Corsen AI. Not affiliated with or endorsed
+> by Nous Research or Google.
 
-- Select a real Hermes profile/session from the local dashboard.
-- Attach one or more chosen Chrome tabs to that session.
-- Route every Hermes browser tool call to that exact session and active tab.
-- Keep simultaneous projects isolated, even when requests are interleaved.
-- Navigate, inspect, read, click, type, scroll, screenshot, hover, use keys,
-  select options, drag, find, use history, and manage scoped tabs.
-- Optionally use Chrome's debugger transport for trusted input and dialogs.
-- Use the user's normal signed-in Chrome profile and existing site sessions.
+![Hermes Connector demo showing explicit tab scope and browser actions](marketing/video/hermes-connector-demo.gif)
 
-There is no fallback to the globally active or most recently used tab. If a
-Hermes session has no attached target, its browser action fails visibly.
+## Your Hermes session, inside the Chrome you already use
 
-## Components
+Hermes Connector embeds the real local Hermes dashboard in Chrome's side panel.
+You decide which tabs each Hermes session may access, and the connector keeps
+that scope exact even when several projects, sessions, or Chrome profiles are
+running at the same time.
 
-```text
-real Hermes session
-  -> Hermes companion client
-  -> authenticated loopback broker (127.0.0.1:8766)
-  -> exact Chrome profile identity
-  -> exact attached session/tab scope
-  -> requested browser action
-```
+![Hermes Connector controlling an explicitly attached Chrome tab from the side panel](store/screenshot-product-1280x800.png)
 
-- `extension/`: reviewable Manifest V3 Chrome extension.
-- `hermes-plugin/`: cross-platform Hermes companion and single local broker.
-- `tests/`: protocol, routing, installer, packaging, UI-module, and live-browser
-  acceptance tests.
-- `docs/`: product contract, v2 architecture, and release acceptance gates.
-- `store/`: Chrome Web Store copy and hostable privacy page.
+With an attached tab, Hermes can:
 
-## Install a release
+- inspect and read the visible page;
+- navigate, click, type, scroll, hover, select, drag, and use keyboard actions;
+- find text, use browser history, and take requested screenshots;
+- open, list, switch, and close tabs inside that session's authorized scope;
+- keep concurrent Hermes projects isolated from one another.
 
-Two artifacts are published together and must have the same version:
+This is real browser control with an explicit boundary: a tab is unavailable to
+Hermes until you attach it. If a Hermes session has no attached target, its
+browser action fails visibly instead of falling back to the last active tab.
 
-- `hermes-connector-<version>-chrome.zip`: upload to the Chrome Web Store or
-  load unpacked during development.
-- `hermes-connector-<version>-companion.zip`: install once into the local Hermes
-  home.
+## Why the routing stays precise
 
-Version 0.2.1 companion:
-[download the versioned release artifact](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip).
+| You choose | Hermes Connector guarantees |
+| --- | --- |
+| A real Hermes profile and session | Every browser request is routed back to that exact session. |
+| One or more Chrome tabs | Only those attached tabs can be read or controlled. |
+| A named Chrome profile | Its local browser identity remains distinct from other Chrome profiles. |
+| Whether to enable Trusted input | Chrome's debugger transport stays off unless you explicitly enable it. |
 
-Chrome updates the extension automatically, but it cannot update this local
-companion. Users upgrading from an older version must run the 0.2.1 companion
-installer again and restart running Hermes processes; the extension displays a
-persistent notice until they confirm that step. Default installations migrate
-once from port 8765 to the release-isolated port 8766. Users who deliberately
-configured another port must also reboot once (or safely stop the known legacy
-broker) so the detached older broker cannot keep that custom port.
+The result is useful for everyday browsing as well as parallel agent workflows:
+your authenticated websites remain available in your normal Chrome profile,
+while each Hermes task receives only the tabs assigned to it.
 
-### 1. Install the companion
+## Quick start
 
-Extract the companion archive, then run:
+You need a local Hermes Agent installation, desktop Chrome 120 or newer, and the
+small Hermes Connector companion. The extension's first-run screen detects your
+operating system, checks whether the companion is already reachable, and shows
+the appropriate Windows, macOS, or Linux instructions.
 
-Windows PowerShell:
+### 1. Install the Chrome extension
 
-```powershell
-.\install.ps1
-```
+[Install Hermes Connector from the Chrome Web Store](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm),
+then click its toolbar icon or press `Ctrl+Shift+H` (`Command+Shift+H` on macOS)
+to open the side panel.
 
-For a normal Windows install, double-click `Install Hermes Connector.cmd`; it
-keeps the result and pairing code visible. The PowerShell command above is the
-advanced/manual equivalent.
+### 2. Let the extension check the companion
 
-macOS or Linux:
+On first launch, Hermes Connector checks only your computer's loopback address.
+It does not send this check to the internet.
+
+- If the panel says the companion is already reachable, do not reinstall it.
+- Otherwise, use the panel's **Download companion** button and extract the ZIP.
+
+The current matching download is
+[`hermes-connector-0.2.1-companion.zip`](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip).
+
+### 3. Install the companion once
+
+**Windows:** double-click `Install Hermes Connector.cmd` in the extracted
+folder. Keep the result window open so you can copy the pairing code.
+
+**macOS or Linux:** open a terminal in the extracted folder and run:
 
 ```sh
 ./install.sh
 ```
 
-The installer copies the plugin atomically into the shared Hermes home and all
-existing named profiles, preserves previous versions, enables
-`hermes-connector` in each scope, and prints one private pairing code. Re-run it
-after creating a new Hermes profile. Restart any already-running Hermes
-dashboard, gateway, or chat process afterward.
+Restart any Hermes dashboard, gateway, or chat process that was already
+running. The installer adds the connector plugin to the shared Hermes home and
+existing named profiles, then prints one private pairing code.
 
-### 2. Install and pair Chrome
+### 4. Pair Chrome and choose the tabs
 
-Install the Store extension. For local development, open
-`chrome://extensions`, enable Developer mode, choose **Load unpacked**, and
-select `extension/`.
+In the Hermes Connector side panel:
 
-Open the Hermes Connector side panel, then:
+1. Give this Chrome profile a recognizable name.
+2. Paste the pairing code printed by the installer and save.
+3. Select the Hermes profile and session you want to use.
+4. Choose **Attach active tab** or **Choose tabs**.
+5. Ask Hermes to work with the selected page.
 
-1. Open settings and name this Chrome profile.
-2. Paste the pairing code printed by the companion installer.
-3. Keep the default local dashboard and broker addresses unless Hermes uses
-   different loopback ports.
-4. Save, choose a real Hermes session, and attach the tabs it may control.
-5. Enable **Trusted input** only when reliable native input/dialog handling is
-   needed; Chrome displays its debugger banner while attached.
+For example:
 
-Only attached tabs can be read or controlled. Opening **Choose tabs** displays
-tab titles and URLs locally so the user can select them.
+```text
+Read the release checklist in my attached tab and tell me what remains.
+```
+
+or:
+
+```text
+Click the requested action in my attached tab, then explain what changed.
+```
+
+Tab titles and URLs are displayed locally when you open **Choose tabs** so that
+you can make the selection yourself.
+
+## Why a companion is required
+
+A Chrome extension cannot register browser tools directly inside a local Hermes
+installation. The companion installs that Hermes-side plugin and runs the
+authenticated loopback broker used by the extension. It is bundled in the
+public release archive and does not create a Corsen AI cloud relay.
+
+```text
+Hermes profile and session
+  -> Hermes Connector companion
+  -> authenticated broker on 127.0.0.1:8766
+  -> exact local Chrome profile identity
+  -> explicitly attached tabs
+  -> requested browser action
+```
+
+Chrome automatically updates the Store extension. It cannot update a local
+companion, so after an extension protocol upgrade the panel keeps a clear
+update notice visible until you confirm that the matching companion was
+installed. If you remove and reinstall the extension, or add it to another
+Chrome profile, the first-run check detects an already-running companion and
+avoids asking you to install it again.
+
+## Privacy and security
+
+Hermes Connector is designed to keep authority visible and local:
+
+- no Corsen AI relay, account, advertising, analytics, tracking, or telemetry;
+- loopback-only connector transport on `127.0.0.1`;
+- explicit tab attachment and exact session-to-tab authorization;
+- separate persistent identities for separate Chrome profiles;
+- role-bound mutual HMAC authentication without sending the pairing secret;
+- sensitive form-field and URL-secret redaction in browser snapshots;
+- bounded protocol messages and fail-closed routing;
+- Trusted input disabled by default, with Chrome's debugger banner visible when
+  you enable it for reliable native input or dialog handling.
+
+Page content is sent to the user's local Hermes installation. A remote model
+provider receives it only if the user has configured Hermes to use that
+provider. Attach only tabs you are comfortable sharing with that configuration.
+
+Read the full [privacy policy](PRIVACY.md), [product specification](docs/PRODUCT-SPEC.md),
+and [acceptance gates](docs/ACCEPTANCE.md).
+
+## Project structure
+
+- `extension/`: reviewable Manifest V3 Chrome extension.
+- `hermes-plugin/`: cross-platform Hermes companion and local broker.
+- `scripts/`: installation, packaging, and deterministic release tooling.
+- `tests/`: routing, installer, security, UI-module, and live-browser tests.
+- `docs/`: product contract, architecture, setup, and release acceptance gates.
+- `store/`: Chrome Web Store copy and approved visual assets.
 
 ## Build and verify
 
-Fast, isolated release gate:
+The normal Store installation does not require Developer mode. The following
+commands are only for contributors and release verification.
+
+Run the isolated test gate:
 
 ```powershell
 & "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" tests\run_all.py
 ```
 
-For a real release, `scripts/package.ps1` refuses an uncommitted source tree,
-runs all fast tests, produces deterministic allowlisted ZIPs, and records
-SHA-256 hashes in `dist/release-<version>.json`. Explicit development builds
-made with `-AllowDirty` are isolated under `dist/dev/` and are never suitable
-for Store upload.
-
-Live extension acceptance using Chromium or Chrome for Testing:
+Run live extension acceptance with Chromium or Chrome for Testing:
 
 ```powershell
 & "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" tests\e2e_chromium.py
 ```
 
-The live test loads the actual service worker and exercises the real Chrome
-APIs, companion broker, mutual pairing, exact two-profile routing, trusted
-click/type, scoped tab management, and fail-closed behavior. It uses temporary
-browser and Hermes homes and never touches the user's installed extension.
-
-Two simultaneous real isolated Chrome profiles and cross-profile ownership
-transfer:
+Run the two-profile isolation and ownership-transfer acceptance test:
 
 ```powershell
 & "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" tests\e2e_multi_browser.py
 ```
 
-## Privacy and security
+For a release, `scripts/package.ps1` refuses an uncommitted source tree, runs
+the fast tests, produces deterministic allowlisted ZIPs, and records SHA-256
+hashes in `dist/release-<version>.json`. Explicit `-AllowDirty` development
+builds are isolated under `dist/dev/` and must not be uploaded to the Store.
 
-- Loopback-only transport; no Corsen AI relay or telemetry.
-- Persistent random browser identities, not account emails or scanned Chrome
-  profile directories.
-- Role-bound mutual HMAC authentication; the pairing secret is never put on the
-  wire or exposed through Hermes tools.
-- URL secret redaction, sensitive form-field redaction, bounded messages, and
-  exact session/tab authorization.
-- Page content goes to the user's local Hermes. A remote model receives it only
-  if the user configured Hermes to use that provider.
+## Support and transparency
 
-See [PRIVACY.md](PRIVACY.md), [docs/PRODUCT-SPEC.md](docs/PRODUCT-SPEC.md), and
-[docs/ACCEPTANCE.md](docs/ACCEPTANCE.md).
+- [Chrome Web Store listing](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
+- [Setup and downloads](https://corsenai.github.io/hermes-connector/)
+- [Troubleshooting and support](https://corsenai.github.io/hermes-connector/support/)
+- [Privacy policy](https://corsenai.github.io/hermes-connector/privacy/)
+- [Source code and releases](https://github.com/CorsenAI/hermes-connector)
+
+Hermes Connector is released under the [MIT License](LICENSE).

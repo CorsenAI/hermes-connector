@@ -1,36 +1,427 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Hermes Connector links exact local Hermes sessions to user-selected Chrome tabs.">
-<title>Hermes Connector — by Corsen AI</title>
-<style>
-  :root{--bg:#080c18;--card:#0f1629;--bd:#26345c;--tx:#edf2ff;--mut:#aab6d3;--cyan:#38d9ff;--pink:#df4cff}
-  *{box-sizing:border-box} body{margin:0;background:radial-gradient(900px 540px at 12% -5%,#112c4d 0%,transparent 62%),radial-gradient(850px 520px at 95% 5%,#351346 0%,transparent 60%),var(--bg);color:var(--tx);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-  main{max-width:940px;margin:0 auto;padding:64px 22px 48px}.eyebrow{color:var(--cyan);font-weight:700;letter-spacing:.12em;text-transform:uppercase}.hero{padding:30px 0 38px}h1{font-size:clamp(40px,7vw,72px);line-height:1.02;margin:8px 0 18px;letter-spacing:-.04em}.lead{font-size:20px;max-width:710px;color:#ced8ee}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}.button{display:inline-block;padding:12px 18px;border-radius:10px;border:1px solid var(--bd);color:var(--tx);text-decoration:none;font-weight:700;background:#121c34}.primary{border:0;background:linear-gradient(100deg,#217eff,#c348ed)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}.card{background:linear-gradient(160deg,rgba(18,28,53,.94),rgba(10,15,29,.94));border:1px solid var(--bd);border-radius:16px;padding:24px}h2{font-size:20px;margin:0 0 10px}p,li{color:#d5def1}code{background:#182242;border:1px solid #2d3a66;border-radius:6px;padding:2px 6px}.steps{margin-top:18px}.mut{color:var(--mut)}footer{border-top:1px solid #1d2847;margin-top:42px;padding-top:22px;color:var(--mut)}a{color:#82cfff}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Connector — Chrome Browser Extension for Hermes Agent</title>
+  <meta name="description" content="Connect Hermes Agent to the Chrome tabs you choose. Use your real signed-in profile with exact session-to-tab routing and a local authenticated companion.">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <meta name="theme-color" content="#080c18">
+  <link rel="canonical" href="https://corsenai.github.io/hermes-connector/">
+  <link rel="icon" type="image/png" sizes="128x128" href="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/store-icon-128.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Hermes Connector">
+  <meta property="og:title" content="Hermes Connector — Chrome Browser Extension for Hermes Agent">
+  <meta property="og:description" content="Give exact local Hermes sessions access to only the Chrome tabs you choose—inside your real signed-in profile.">
+  <meta property="og:url" content="https://corsenai.github.io/hermes-connector/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/promo-marquee-1400x560.png">
+  <meta property="og:image:width" content="1400">
+  <meta property="og:image:height" content="560">
+  <meta property="og:image:alt" content="Hermes Connector — Local AI. Your tabs. By Corsen AI.">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Hermes Connector — Chrome Browser Extension for Hermes Agent">
+  <meta name="twitter:description" content="Connect exact Hermes sessions to the Chrome tabs you explicitly choose.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/promo-marquee-1400x560.png">
+  <meta name="twitter:image:alt" content="Hermes Connector — Local AI. Your tabs. By Corsen AI.">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Hermes Connector — by Corsen AI",
+    "alternateName": "Hermes Connector",
+    "url": "https://corsenai.github.io/hermes-connector/",
+    "installUrl": "https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm",
+    "downloadUrl": "https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip",
+    "applicationCategory": "BrowserApplication",
+    "operatingSystem": "Google Chrome 120+ on Windows, macOS, and Linux",
+    "softwareVersion": "0.2.1",
+    "description": "An unofficial Chrome browser extension that connects exact local Hermes Agent sessions to user-selected tabs in a real signed-in Chrome profile.",
+    "image": "https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/store-icon-128.png",
+    "softwareRequirements": "Google Chrome 120 or later, a local Hermes installation, and the Hermes Connector companion",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Corsen AI"
+    },
+    "sameAs": [
+      "https://github.com/CorsenAI/hermes-connector",
+      "https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm"
+    ],
+    "featureList": [
+      "Exact Hermes session-to-tab routing",
+      "User-selected Chrome tab scope",
+      "Authenticated loopback connection",
+      "Support for the user's signed-in Chrome profile"
+    ]
+  }
+  </script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070a13;
+      --surface: #0d1323;
+      --surface-2: #111a31;
+      --line: #253557;
+      --text: #f2f6ff;
+      --muted: #aebbd4;
+      --cyan: #22d3ee;
+      --blue: #4388ff;
+      --violet: #9b5cff;
+      --pink: #f14dc3;
+      --green: #5ee6a8;
+      --shadow: 0 24px 80px rgba(0, 0, 0, .34);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(850px 520px at 5% 0%, rgba(20, 115, 180, .24), transparent 66%),
+        radial-gradient(780px 480px at 96% 8%, rgba(145, 37, 173, .20), transparent 64%),
+        var(--bg);
+      color: var(--text);
+      font: 16px/1.65 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: #8edcff; }
+    img { display: block; max-width: 100%; }
+    code { padding: .14rem .4rem; border: 1px solid #314268; border-radius: 6px; background: #18223d; color: #f4f7ff; }
+    .wrap { width: min(1160px, calc(100% - 40px)); margin: 0 auto; }
+    .skip-link { position: absolute; left: 16px; top: -100px; z-index: 20; padding: 10px 14px; border-radius: 8px; background: #fff; color: #000; }
+    .skip-link:focus { top: 14px; }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(69, 91, 132, .45);
+      background: rgba(7, 10, 19, .82);
+      backdrop-filter: blur(18px);
+    }
+    nav { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .brand { display: inline-flex; align-items: center; gap: 11px; color: var(--text); text-decoration: none; font-weight: 800; letter-spacing: -.02em; }
+    .brand img { width: 38px; height: 38px; border-radius: 10px; box-shadow: 0 0 24px rgba(41, 194, 255, .24); }
+    .nav-links { display: flex; align-items: center; gap: 22px; }
+    .nav-links a { color: #c9d4e9; text-decoration: none; font-weight: 650; font-size: 14px; }
+    .nav-links a:hover { color: #fff; }
+
+    .hero { padding: 86px 0 54px; }
+    .hero-grid { display: grid; grid-template-columns: 1.02fr .98fr; align-items: center; gap: clamp(38px, 7vw, 88px); }
+    .eyebrow { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 18px; color: #8ce8fb; font-size: 13px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+    .eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--green); box-shadow: 0 0 17px var(--green); }
+    h1 { max-width: 790px; margin: 0; font-size: clamp(43px, 6.2vw, 76px); line-height: .98; letter-spacing: -.057em; }
+    .gradient-text { color: transparent; background: linear-gradient(98deg, #51dfff 7%, #6a8cff 45%, #ec65d0 93%); background-clip: text; -webkit-background-clip: text; }
+    .lead { max-width: 670px; margin: 25px 0 0; color: #c5d1e7; font-size: clamp(18px, 2vw, 21px); line-height: 1.55; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 31px; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 12px 19px; border: 1px solid #33466f; border-radius: 12px; background: rgba(17, 26, 49, .86); color: var(--text); text-decoration: none; font-weight: 800; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .button:hover { transform: translateY(-2px); border-color: #6a86b9; }
+    .button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #77d9ff; outline-offset: 3px; }
+    .button.primary { border-color: transparent; background: linear-gradient(100deg, #287eff, #a94cea 72%, #e647bd); box-shadow: 0 13px 36px rgba(94, 85, 246, .30); }
+    .button.primary:hover { box-shadow: 0 17px 44px rgba(115, 74, 240, .42); }
+    .microcopy { margin-top: 13px; color: var(--muted); font-size: 13px; }
+
+    .hero-visual { position: relative; }
+    .hero-visual::before { content: ""; position: absolute; inset: 8% -9% -8% 15%; z-index: -1; border-radius: 50%; background: radial-gradient(circle, rgba(74, 122, 255, .28), rgba(218, 51, 213, .10) 42%, transparent 70%); filter: blur(18px); }
+    .product-frame { overflow: hidden; border: 1px solid #344970; border-radius: 19px; background: #090f1c; box-shadow: var(--shadow); transform: perspective(1300px) rotateY(-3deg) rotateX(1deg); }
+    .product-frame img { width: 100%; height: auto; }
+    .product-frame figcaption { padding: 11px 15px; border-top: 1px solid #253454; color: #9facbf; font-size: 12px; }
+
+    .trust-strip { margin: 44px auto 0; padding: 17px 20px; border: 1px solid rgba(64, 87, 131, .65); border-radius: 15px; background: rgba(13, 19, 35, .72); display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .trust-item { text-align: center; color: #becbe0; font-size: 14px; }
+    .trust-item strong { display: block; color: #fff; font-size: 15px; }
+
+    section { scroll-margin-top: 98px; }
+    .section { padding: 84px 0; }
+    .section-head { max-width: 760px; margin-bottom: 34px; }
+    .kicker { margin: 0 0 7px; color: var(--cyan); font-size: 13px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    h2 { margin: 0; font-size: clamp(31px, 4vw, 48px); line-height: 1.08; letter-spacing: -.038em; }
+    .section-head p { margin: 16px 0 0; color: var(--muted); font-size: 18px; }
+    h3 { margin: 0 0 9px; font-size: 20px; letter-spacing: -.02em; }
+    p { color: #cbd6e9; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 17px; }
+    .card { border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(155deg, rgba(18, 28, 52, .95), rgba(10, 15, 28, .95)); box-shadow: 0 20px 55px rgba(0, 0, 0, .18); }
+    .step { position: relative; min-height: 260px; padding: 27px; overflow: hidden; }
+    .step-number { display: grid; place-items: center; width: 42px; height: 42px; margin-bottom: 39px; border: 1px solid #3c5a8a; border-radius: 12px; background: #142441; color: #92e7fb; font-weight: 900; }
+    .step p { margin-bottom: 0; }
+    .step a { font-weight: 700; }
+    .step::after { content: ""; position: absolute; width: 150px; height: 150px; right: -68px; bottom: -85px; border-radius: 50%; background: var(--glow, rgba(53, 208, 255, .14)); filter: blur(8px); }
+
+    .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .feature { min-height: 190px; padding: 27px; }
+    .icon { display: inline-grid; place-items: center; width: 38px; height: 38px; margin-bottom: 22px; border-radius: 11px; background: linear-gradient(145deg, rgba(58, 160, 255, .22), rgba(198, 67, 226, .19)); color: #a2e7ff; font-weight: 900; }
+    .feature p { margin-bottom: 0; }
+
+    .security { display: grid; grid-template-columns: .9fr 1.1fr; gap: 28px; align-items: stretch; }
+    .security-copy { padding: 34px; }
+    .security-copy h2 { font-size: clamp(30px, 4vw, 44px); }
+    .security-copy ul { margin: 25px 0 0; padding: 0; list-style: none; }
+    .security-copy li { position: relative; margin: 13px 0; padding-left: 28px; color: #cfdaed; }
+    .security-copy li::before { content: "✓"; position: absolute; left: 0; color: var(--green); font-weight: 900; }
+    .security-note { padding: 31px; border: 1px solid #384775; border-radius: var(--radius); background: radial-gradient(420px 220px at 90% 0%, rgba(171, 70, 219, .18), transparent 70%), #10172a; }
+    .security-note p:last-child { margin-bottom: 0; }
+
+    .requirements { overflow: hidden; }
+    .requirements-row { display: grid; grid-template-columns: 180px 1fr; gap: 26px; padding: 21px 26px; border-bottom: 1px solid #263653; }
+    .requirements-row:last-child { border-bottom: 0; }
+    .requirements-row strong { color: #fff; }
+    .requirements-row span { color: #c8d4e8; }
+
+    .faq { display: grid; grid-template-columns: .7fr 1.3fr; gap: 46px; align-items: start; }
+    .faq-list { display: grid; gap: 12px; }
+    details { border: 1px solid var(--line); border-radius: 15px; background: rgba(15, 23, 42, .78); }
+    summary { cursor: pointer; padding: 19px 21px; color: #f4f7ff; font-weight: 800; }
+    details p { margin: 0; padding: 0 21px 20px; }
+
+    .final-cta { padding: 48px; text-align: center; background: radial-gradient(520px 240px at 50% 0%, rgba(53, 151, 255, .23), transparent 70%), linear-gradient(145deg, #111a32, #0c1221); }
+    .final-cta p { max-width: 690px; margin: 14px auto 0; color: #bdc9df; font-size: 18px; }
+    .final-cta .actions { justify-content: center; }
+
+    footer { margin-top: 88px; border-top: 1px solid #202d48; padding: 31px 0 42px; color: var(--muted); font-size: 14px; }
+    .footer-grid { display: flex; justify-content: space-between; gap: 30px; align-items: flex-start; }
+    .footer-links { display: flex; flex-wrap: wrap; gap: 17px; }
+    footer a { color: #c5d4ea; }
+    .legal { max-width: 640px; margin: 12px 0 0; color: #8f9db5; font-size: 13px; }
+
+    @media (max-width: 900px) {
+      .hero-grid, .security, .faq { grid-template-columns: 1fr; }
+      .hero-visual { max-width: 740px; }
+      .product-frame { transform: none; }
+      .steps { grid-template-columns: 1fr; }
+      .step { min-height: auto; }
+      .step-number { margin-bottom: 24px; }
+      .trust-strip { grid-template-columns: repeat(2, 1fr); }
+      .faq { gap: 25px; }
+    }
+
+    @media (max-width: 640px) {
+      .wrap { width: min(100% - 28px, 1160px); }
+      .nav-links a:not(.nav-cta) { display: none; }
+      .hero { padding-top: 58px; }
+      h1 { font-size: clamp(42px, 14vw, 58px); }
+      .feature-grid, .trust-strip { grid-template-columns: 1fr; }
+      .trust-item { text-align: left; }
+      .section { padding: 65px 0; }
+      .security-copy, .security-note, .final-cta { padding: 26px; }
+      .requirements-row { grid-template-columns: 1fr; gap: 5px; }
+      .footer-grid { flex-direction: column; }
+      .button { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: .01ms !important; }
+    }
+  </style>
 </head>
-<body><main>
-  <section class="hero">
-    <div class="eyebrow">Local AI · exact tab control</div>
-    <h1>Hermes Connector</h1>
-    <p class="lead">Attach an exact local Hermes profile and session to only the Chrome tabs you choose. Run simultaneous projects without crossing their browser scopes.</p>
-    <div class="actions">
-      <a class="button primary" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Download companion 0.2.1</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector">View source</a>
-      <a class="button" href="support/">Setup &amp; support</a>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header>
+    <nav class="wrap" aria-label="Primary navigation">
+      <a class="brand" href="./" aria-label="Hermes Connector home">
+        <img src="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/store-icon-128.png" width="38" height="38" alt="">
+        <span>Hermes Connector</span>
+      </a>
+      <div class="nav-links">
+        <a href="#how-it-works">How it works</a>
+        <a href="#security">Security</a>
+        <a href="#faq">FAQ</a>
+        <a class="button nav-cta" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install for Chrome</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow">Chrome browser extension for Hermes Agent</p>
+          <h1>Your Hermes session. <span class="gradient-text">Your chosen tabs.</span></h1>
+          <p class="lead">Hermes Connector links exact local Hermes Agent sessions to only the Chrome tabs you attach—inside the signed-in browser profile you already use.</p>
+          <div class="actions">
+            <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Add to Chrome</a>
+            <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Download companion 0.2.1</a>
+          </div>
+          <p class="microcopy">Local companion required · Chrome 120+ · Windows, macOS, and Linux</p>
+        </div>
+
+        <figure class="product-frame hero-visual">
+          <img src="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/screenshot-product-1280x800.png" width="1280" height="800" alt="Hermes Connector side panel attached to the Project Atlas tab in Chrome" fetchpriority="high">
+          <figcaption>Hermes Connector routes the selected Hermes session to its explicitly attached tab.</figcaption>
+        </figure>
+      </div>
+
+      <div class="wrap trust-strip" role="list" aria-label="Product summary">
+        <div class="trust-item" role="listitem"><strong>Exact routing</strong>Session → chosen tab</div>
+        <div class="trust-item" role="listitem"><strong>Real Chrome profile</strong>Keep existing site sessions</div>
+        <div class="trust-item" role="listitem"><strong>Local connection</strong>Authenticated loopback</div>
+        <div class="trust-item" role="listitem"><strong>Fail closed</strong>No silent fallback tab</div>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Start in three steps</p>
+          <h2>Connect Chrome to Hermes without creating another browser.</h2>
+          <p>The side panel embeds your local Hermes dashboard. You keep your real Chrome profile, choose the Hermes session, and decide which tabs it may use.</p>
+        </div>
+        <div class="steps">
+          <article class="card step" style="--glow:rgba(42,211,238,.18)">
+            <div class="step-number">1</div>
+            <h3>Install the extension</h3>
+            <p><a href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Add Hermes Connector from the Chrome Web Store</a>, then open its side panel.</p>
+          </article>
+          <article class="card step" style="--glow:rgba(100,107,255,.20)">
+            <div class="step-number">2</div>
+            <h3>Install the local companion</h3>
+            <p>Download the companion, run the installer once, and restart any running Hermes dashboard, gateway, or chat process.</p>
+          </article>
+          <article class="card step" style="--glow:rgba(234,70,199,.18)">
+            <div class="step-number">3</div>
+            <h3>Pair, select, attach</h3>
+            <p>Paste the locally printed pairing code, select a real Hermes session, then attach only the tabs that session may read or control.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Built for real workflows</p>
+          <h2>Browser control with an explicit boundary.</h2>
+          <p>Run simultaneous projects without accidentally sending one Hermes session into another project's browser context.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="card feature">
+            <div class="icon" aria-hidden="true">↗</div>
+            <h3>Exact session-to-tab scope</h3>
+            <p>Attach one or more Chrome tabs to a specific Hermes profile and session. An unbound session is rejected instead of falling back to another tab.</p>
+          </article>
+          <article class="card feature">
+            <div class="icon" aria-hidden="true">◎</div>
+            <h3>Your signed-in browser</h3>
+            <p>Hermes works with the Chrome profile and site sessions you already use. Hermes Connector does not launch a hidden automation profile.</p>
+          </article>
+          <article class="card feature">
+            <div class="icon" aria-hidden="true">⌁</div>
+            <h3>Useful browser actions</h3>
+            <p>Navigate, inspect, read, click, type, scroll, take requested screenshots, use keys, select options, drag, search, and manage scoped tabs.</p>
+          </article>
+          <article class="card feature">
+            <div class="icon" aria-hidden="true">◫</div>
+            <h3>One side panel</h3>
+            <p>The local Hermes dashboard stays inside the Chrome side panel. There is no duplicate chat interface to keep in sync.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="security">
+      <div class="wrap security">
+        <div class="card security-copy">
+          <p class="kicker">Local by design</p>
+          <h2>Your tab data does not pass through a Corsen AI relay.</h2>
+          <ul>
+            <li>The companion binds to loopback on your computer.</li>
+            <li>The extension and companion use mutual HMAC authentication.</li>
+            <li>Passwords, one-time codes, and payment-field values are redacted from accessibility snapshots.</li>
+            <li>Tabs stay inaccessible until you attach them to a Hermes session.</li>
+          </ul>
+        </div>
+        <div class="security-note">
+          <h3>Know where your data goes</h3>
+          <p>Selected page content is sent to your local Hermes installation so it can perform the requested action. If you configured Hermes to use a remote model or service, Hermes may then send content to that chosen provider under its terms.</p>
+          <p>Corsen AI does not operate an analytics service, account system, telemetry endpoint, or content relay for the extension.</p>
+          <p><a href="privacy/">Read the complete privacy policy</a> or inspect the <a href="https://github.com/CorsenAI/hermes-connector">public source code</a>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="requirements">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">Requirements</p>
+          <h2>What you need before pairing.</h2>
+        </div>
+        <div class="card requirements">
+          <div class="requirements-row"><strong>Browser</strong><span>Google Chrome 120 or later.</span></div>
+          <div class="requirements-row"><strong>Hermes</strong><span>A working local Hermes installation on the same computer.</span></div>
+          <div class="requirements-row"><strong>Companion</strong><span>The Hermes Connector companion, installed once for existing profiles and again after creating a new named Hermes profile.</span></div>
+          <div class="requirements-row"><strong>Operating system</strong><span>Windows, macOS, or Linux. Windows includes a double-click installer; macOS and Linux use <code>./install.sh</code>.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq">
+      <div class="wrap faq">
+        <div>
+          <p class="kicker">Questions, answered</p>
+          <h2>Hermes Connector FAQ</h2>
+          <p>For step-by-step installation and troubleshooting, use the <a href="support/">setup and support guide</a>.</p>
+        </div>
+        <div class="faq-list">
+          <details>
+            <summary>What is Hermes Connector?</summary>
+            <p>Hermes Connector is an unofficial Chrome browser extension by Corsen AI. It connects exact local Hermes Agent profiles and sessions to the Chrome tabs selected by the user.</p>
+          </details>
+          <details>
+            <summary>Do I need to install anything besides the Chrome extension?</summary>
+            <p>Yes. Hermes must already run locally, and the Hermes Connector companion must be installed once. The companion contains the local broker that securely connects Hermes and Chrome.</p>
+          </details>
+          <details>
+            <summary>Can Hermes access every open tab?</summary>
+            <p>No. Hermes can read or control only tabs you explicitly attach to the selected session. Restricted Chrome pages cannot be controlled.</p>
+          </details>
+          <details>
+            <summary>Does it work with websites where I am already signed in?</summary>
+            <p>Yes. Hermes Connector uses your selected, normal Chrome profile and its existing site sessions. It does not read website cookies or browser login storage directly.</p>
+          </details>
+          <details>
+            <summary>Does Chrome update Hermes Connector automatically?</summary>
+            <p>Chrome updates the Web Store extension automatically. It cannot update the separately installed local companion, so companion upgrades must be installed manually.</p>
+          </details>
+          <details>
+            <summary>Is this an official Nous Research extension?</summary>
+            <p>No. Hermes Connector is an unofficial community project by Corsen AI and is not affiliated with or endorsed by Nous Research or Google.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap card final-cta" aria-labelledby="get-started-title">
+      <p class="kicker">Ready to connect?</p>
+      <h2 id="get-started-title">Put Hermes in the Chrome profile you already use.</h2>
+      <p>Install the extension, run the companion once, then choose exactly which Hermes session can use which tab.</p>
+      <div class="actions">
+        <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install from Chrome Web Store</a>
+        <a class="button" href="support/">Open the setup guide</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-grid">
+      <div>
+        <strong>Hermes Connector — by Corsen AI</strong>
+        <p class="legal">Unofficial community project. Not affiliated with or endorsed by Nous Research or Google.</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Chrome Web Store</a>
+        <a href="support/">Support</a>
+        <a href="privacy/">Privacy</a>
+        <a href="https://github.com/CorsenAI/hermes-connector">GitHub</a>
+        <a href="mailto:hello@corsen.ai">Contact</a>
+      </div>
     </div>
-  </section>
-  <section class="grid">
-    <div class="card"><h2>Explicit scope</h2><p>Hermes can read or control only tabs you deliberately attach to the selected session. Unbound sessions fail closed.</p></div>
-    <div class="card"><h2>Local transport</h2><p>The extension and companion communicate over an authenticated loopback connection. Corsen AI operates no relay or telemetry endpoint.</p></div>
-    <div class="card"><h2>Your Chrome profile</h2><p>Use your normal signed-in Chrome profile and its existing site sessions—no hidden automation profile.</p></div>
-  </section>
-  <section class="card steps" id="install"><h2>Install the companion</h2>
-    <p>Extract the companion ZIP. On Windows, double-click <code>Install Hermes Connector.cmd</code>; advanced users may run <code>.\install.ps1</code>. On macOS/Linux, run <code>./install.sh</code>. The installer covers the shared home and existing named profiles; run it again after creating a profile. Restart Hermes, open the extension side panel, and paste the pairing code printed locally by the installer.</p>
-    <p class="mut">Hermes Connector is an unofficial community project by Corsen AI and is not affiliated with or endorsed by Nous Research or Google.</p>
-  </section>
-  <footer><a href="privacy/">Privacy policy</a> · <a href="support/">Support</a> · <a href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.1">Release 0.2.1</a> · <a href="mailto:hello@corsen.ai">hello@corsen.ai</a></footer>
-</main></body>
+  </footer>
+</body>
 </html>
