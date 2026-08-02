@@ -247,11 +247,17 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
                 stdout=browser_log,
                 stderr=subprocess.STDOUT,
             )
-            targets = live.wait_for_targets(debug_port, lambda items: any(
-                item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
-                for item in items
-            ))
+            targets = live.wait_for_targets(
+                debug_port,
+                lambda items: any(
+                    item.get("type") == "service_worker"
+                    and item.get("url", "").endswith("/src/background.js")
+                    for item in items
+                ),
+                timeout=45,
+            )
             worker = live.service_worker(targets)
+            extension_id = worker["url"].split("/")[2]
             browser_id = "store-capture-browser"
             initial_state = {
                 "hermesUrl": f"http://127.0.0.1:{http_port}/",
@@ -268,7 +274,7 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
             }
             worker_cdp = live.Cdp(worker["webSocketDebuggerUrl"])
             try:
-                worker_cdp.call("Runtime.enable")
+                live.wait_for_extension_apis(worker_cdp, extension_id)
                 setup = worker_cdp.evaluate(
                     "(async()=>{"
                     "const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});"

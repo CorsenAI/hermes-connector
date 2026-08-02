@@ -244,6 +244,49 @@ class Cdp:
         return remote.get("value")
 
 
+def wait_for_extension_apis(
+    cdp: Cdp,
+    expected_extension_id: str | None = None,
+    timeout: float = 15,
+    poll_interval: float = 0.1,
+) -> dict:
+    cdp.call("Runtime.enable")
+    cdp.call("Runtime.runIfWaitingForDebugger")
+    deadline = time.monotonic() + timeout
+    last: dict = {"ready": False, "namespaces": []}
+    last_error = "none"
+    while True:
+        try:
+            value = cdp.evaluate(
+                "(()=>{const c=globalThis.chrome;return {"
+                "ready:typeof c?.tabs?.create==='function'&&"
+                "typeof c?.storage?.local?.set==='function',"
+                "runtimeId:c?.runtime?.id||'',"
+                "namespaces:c?Object.keys(c).sort().slice(0,128):[]};})()"
+            )
+            if isinstance(value, dict):
+                last = value
+                right_extension = (
+                    expected_extension_id is None
+                    or value.get("runtimeId") == expected_extension_id
+                )
+                if value.get("ready") and right_extension:
+                    return value
+        except Exception as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        if poll_interval:
+            time.sleep(min(poll_interval, remaining))
+    raise RuntimeError(
+        "Chrome extension APIs did not become ready; "
+        f"expected_extension_id={expected_extension_id}; "
+        f"runtime_id={last.get('runtimeId', '')}; last_error={last_error}; "
+        f"namespaces={last.get('namespaces', [])}"
+    )
+
+
 def service_worker(targets: list[dict]) -> dict:
     for target in targets:
         if target.get("type") == "service_worker" and target.get("url", "").endswith("/src/background.js"):
@@ -330,15 +373,19 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 browser_log_path=browser_log_path,
                 browser_binary=browser_binary,
             )
-            targets = wait_browser(lambda items: any(
-                item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
-                for item in items
-            ))
+            targets = wait_browser(
+                lambda items: any(
+                    item.get("type") == "service_worker"
+                    and item.get("url", "").endswith("/src/background.js")
+                    for item in items
+                ),
+                timeout=45,
+            )
             worker = service_worker(targets)
             extension_id = worker["url"].split("/")[2]
             cdp = Cdp(worker["webSocketDebuggerUrl"])
             try:
-                cdp.call("Runtime.enable")
+                wait_for_extension_apis(cdp, extension_id)
                 if cdp.evaluate("1 + 1") != 2:
                     raise RuntimeError("extension service worker evaluation is unavailable")
                 base = f"http://127.0.0.1:{http_port}"
@@ -545,6 +592,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             worker = service_worker(targets)
             cdp = Cdp(worker["webSocketDebuggerUrl"])
             try:
+                wait_for_extension_apis(cdp, extension_id)
                 trusted_attached = cdp.evaluate(
                     f"(async()=>{{const t=await chrome.debugger.getTargets();return t.some(x=>x.tabId==={tabs['a']}&&x.attached);}})()"
                 )
@@ -573,6 +621,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             worker = service_worker(targets)
             cdp = Cdp(worker["webSocketDebuggerUrl"])
             try:
+                wait_for_extension_apis(cdp, extension_id)
                 observed = cdp.evaluate(
                     f"(async()=>{{const a=await chrome.tabs.get({tabs['a']});const b=await chrome.tabs.get({tabs['b']});"
                     f"const av=await chrome.scripting.executeScript({{target:{{tabId:{tabs['a']}}},func:()=>({{value:document.querySelector('#project-a').value,clicked:document.querySelector('#button-a').dataset.clicked||'',hovered:document.querySelector('#hover-a').dataset.hovered||'',choice:document.querySelector('#choice-a').value,choiceChanged:document.querySelector('#choice-a').dataset.changed||'',dropped:document.querySelector('#drop-a').dataset.dropped||''}})}});"
@@ -623,6 +672,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             )))
             cdp = Cdp(worker["webSocketDebuggerUrl"])
             try:
+                wait_for_extension_apis(cdp, extension_id)
                 detached_after = cdp.evaluate(
                     f"(async()=>{{for(let i=0;i<40;i++){{const t=await chrome.debugger.getTargets();"
                     f"if(!t.some(x=>x.tabId==={tabs['a']}&&x.attached)){{return true;}}"

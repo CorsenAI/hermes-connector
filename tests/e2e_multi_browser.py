@@ -60,13 +60,16 @@ def launch_profile(
             item.get("type") == "service_worker" and item.get("url", "").endswith("/src/background.js")
             for item in items
         ),
+        timeout=45,
         browser_process=process,
         browser_log_path=temp_root / f"chrome-{label}.log",
         browser_binary=binary,
     )
     worker = live.service_worker(targets)
+    extension_id = worker["url"].split("/")[2]
     cdp = live.Cdp(worker["webSocketDebuggerUrl"])
     try:
+        live.wait_for_extension_apis(cdp, extension_id)
         base = f"http://127.0.0.1:{http_port}"
         page = "page-a.html" if label == "a" else "page-b.html"
         tab_id = cdp.evaluate(
