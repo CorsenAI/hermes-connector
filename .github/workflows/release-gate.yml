@@ -43,11 +43,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export CHROME_BINARY="$(readlink -f "$(command -v chromium)")"
-          export CHROME_DEVEL_SANDBOX=/opt/google/chrome/chrome-sandbox
+          CHROME_BINARY="$(/usr/bin/readlink -f -- /usr/bin/chromium)"
+          CHROME_DIR="${CHROME_BINARY%/*}"
+          SANDBOX_SOURCE="$CHROME_DIR/chrome_sandbox"
+          SANDBOX_DEST=/usr/local/sbin/chrome-devel-sandbox
+
+          root_owned_nonwritable() {
+            local path="$1" mode
+            test "$(/usr/bin/stat -c '%u:%g' -- "$path")" = 0:0
+            mode="$(/usr/bin/stat -c '%a' -- "$path")"
+            (( (8#$mode & 0022) == 0 ))
+          }
+
+          test -f "$CHROME_BINARY"
+          test ! -L "$CHROME_BINARY"
           test -x "$CHROME_BINARY"
-          test -u "$CHROME_DEVEL_SANDBOX"
-          test "$(stat -c '%U:%G' "$CHROME_DEVEL_SANDBOX")" = root:root
-          test "$(stat -c '%a' "$CHROME_DEVEL_SANDBOX")" = 4755
+          test -d "$CHROME_DIR"
+          test ! -L "$CHROME_DIR"
+          root_owned_nonwritable "$CHROME_DIR"
+          root_owned_nonwritable "$CHROME_BINARY"
+
+          test -f "$SANDBOX_SOURCE"
+          test ! -L "$SANDBOX_SOURCE"
+          test -x "$SANDBOX_SOURCE"
+          root_owned_nonwritable "$SANDBOX_SOURCE"
+          root_owned_nonwritable /usr/local/sbin
+
+          test ! -e "$SANDBOX_DEST"
+          test ! -L "$SANDBOX_DEST"
+          /usr/bin/sudo /usr/bin/install -o root -g root -m 4755 -- \
+            "$SANDBOX_SOURCE" "$SANDBOX_DEST"
+
+          test -f "$SANDBOX_DEST"
+          test ! -L "$SANDBOX_DEST"
+          test -x "$SANDBOX_DEST"
+          test -u "$SANDBOX_DEST"
+          test "$(/usr/bin/stat -c '%u:%g:%a' -- "$SANDBOX_DEST")" = 0:0:4755
+          /usr/bin/cmp -s -- "$SANDBOX_SOURCE" "$SANDBOX_DEST"
+
+          export CHROME_BINARY
+          export CHROME_DEVEL_SANDBOX="$SANDBOX_DEST"
           "$CHROME_BINARY" --version
           python tests/e2e_packaged_release.py
