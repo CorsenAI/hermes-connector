@@ -52,6 +52,8 @@ class BridgeClient:
         self._counter = 0
         self._ready = threading.Event()
         self._stop = threading.Event()
+        self._broker_start_guard = threading.Lock()
+        self._next_broker_start = 0.0
 
     # -- properties ------------------------------------------------------
 
@@ -72,7 +74,10 @@ class BridgeClient:
                 self.last_error = "the websockets package is not installed"
             return self
         if self.auto_start_broker:
-            self._ensure_broker_process()
+            try:
+                self._ensure_broker_process()
+            except Exception as exc:
+                self.last_error = f"could not start broker: {type(exc).__name__}"
         self.thread = threading.Thread(
             target=self._thread_main,
             name=f"hermes-connector-{self.profile_id}",
@@ -109,48 +114,146 @@ class BridgeClient:
                 pass
             self.loop.close()
 
-    def _port_open(self) -> bool:
+    def _port_claimed(self) -> bool:
+        """Return whether another process currently owns the broker address.
+
+        Probing with a raw TCP connection makes a WebSocket server log a noisy
+        invalid-handshake traceback. A short exclusive bind probe answers the
+        launch question without sending malformed traffic to the broker.
+        """
+
+        family = socket.AF_INET6 if ":" in self.host else socket.AF_INET
         try:
-            with socket.create_connection((self.host, self.port), timeout=0.25):
-                return True
+            with socket.socket(family, socket.SOCK_STREAM) as probe:
+                if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                else:
+                    # POSIX keeps an actively closed server port in TIME_WAIT.
+                    # SO_REUSEADDR lets a real replacement server reclaim it;
+                    # listen() still fails while a live listener owns the port.
+                    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                probe.bind((self.host, self.port))
+                probe.listen(1)
+            return False
+        except OSError:
+            return True
+
+    def _port_accepting(self) -> bool:
+        """Return whether a process is accepting TCP connections on the port.
+
+        Unlike the exclusive bind probe used immediately before spawning, this
+        check never owns the broker port and therefore cannot race the child
+        process while its WebSocket server is binding.
+        """
+
+        family = socket.AF_INET6 if ":" in self.host else socket.AF_INET
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as probe:
+                probe.settimeout(0.2)
+                return probe.connect_ex((self.host, self.port)) == 0
         except OSError:
             return False
 
     def _ensure_broker_process(self) -> None:
-        if self._port_open():
+        if self._stop.is_set():
             return
-        directory = broker.connector_dir(self.root)
-        directory.mkdir(parents=True, exist_ok=True)
-        log_file = open(broker.log_path(self.root), "a", encoding="utf-8")
-        command = [
-            sys.executable,
-            str(Path(broker.__file__).resolve()),
-            "--serve",
-            "--root", str(self.root),
-            "--host", self.host,
-            "--port", str(self.port),
-        ]
-        kwargs: dict[str, Any] = {
-            "stdin": subprocess.DEVNULL,
-            "stdout": log_file,
-            "stderr": log_file,
-            "cwd": str(directory),
-            "close_fds": True,
-        }
-        if sys.platform == "win32":
-            kwargs["creationflags"] = (
-                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-                | getattr(subprocess, "CREATE_NO_WINDOW", 0)
-                | getattr(subprocess, "DETACHED_PROCESS", 0)
-            )
-        else:
-            kwargs["start_new_session"] = True
-        try:
-            subprocess.Popen(command, **kwargs)
-        except Exception as exc:
-            self.last_error = f"could not start broker: {type(exc).__name__}"
-        finally:
-            log_file.close()
+        now = time.monotonic()
+        if now < self._next_broker_start:
+            return
+        with self._broker_start_guard:
+            if self._stop.is_set():
+                return
+            now = time.monotonic()
+            if now < self._next_broker_start:
+                return
+            directory = broker.connector_dir(self.root)
+            directory.mkdir(parents=True, exist_ok=True)
+            lock_path = directory / "broker-start.lock"
+            lock_fd = None
+            for _ in range(2):
+                try:
+                    lock_fd = os.open(lock_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                    os.write(lock_fd, f"{os.getpid()}\n".encode("ascii"))
+                    break
+                except FileExistsError:
+                    try:
+                        if time.time() - lock_path.stat().st_mtime > 15:
+                            lock_path.unlink()
+                            continue
+                    except OSError:
+                        pass
+                    # Another Hermes profile is already launching the shared
+                    # broker. Recheck shortly instead of spawning a herd.
+                    self._next_broker_start = now + 1.0
+                    return
+            if lock_fd is None:
+                self._next_broker_start = now + 1.0
+                return
+
+            log_file = None
+            keep_lock = False
+            try:
+                if self._stop.is_set() or self._port_claimed():
+                    return
+                log_file = open(broker.log_path(self.root), "a", encoding="utf-8")
+                command = [
+                    sys.executable,
+                    str(Path(broker.__file__).resolve()),
+                    "--serve",
+                    "--root", str(self.root),
+                    "--host", self.host,
+                    "--port", str(self.port),
+                ]
+                kwargs: dict[str, Any] = {
+                    "stdin": subprocess.DEVNULL,
+                    "stdout": log_file,
+                    "stderr": log_file,
+                    "cwd": str(directory),
+                    "close_fds": True,
+                }
+                if sys.platform == "win32":
+                    kwargs["creationflags"] = (
+                        getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                        | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                        | getattr(subprocess, "DETACHED_PROCESS", 0)
+                    )
+                else:
+                    kwargs["start_new_session"] = True
+                if self._stop.is_set():
+                    return
+                process = subprocess.Popen(command, **kwargs)
+                # Keep the interprocess lock until the new broker claims the
+                # port. Otherwise a second profile can acquire the lock in the
+                # short spawn-to-bind gap and launch a duplicate process.
+                deadline = time.monotonic() + 5.0
+                accepting = self._port_accepting()
+                while not accepting and time.monotonic() < deadline:
+                    if process.poll() is not None:
+                        break
+                    if self._stop.wait(0.05):
+                        break
+                    accepting = self._port_accepting()
+                finished_at = time.monotonic()
+                self._next_broker_start = finished_at + (2.0 if accepting else 5.0)
+                # A healthy but unusually slow Python/AV launch keeps the file
+                # marker until its 15-second stale timeout. Other profiles then
+                # wait instead of spawning another broker after our local wait.
+                keep_lock = not accepting and process.poll() is None
+            except Exception as exc:
+                self.last_error = f"could not start broker: {type(exc).__name__}"
+                self._next_broker_start = time.monotonic() + 2.0
+            finally:
+                if log_file is not None:
+                    log_file.close()
+                try:
+                    os.close(lock_fd)
+                except OSError:
+                    pass
+                if not keep_lock:
+                    try:
+                        lock_path.unlink()
+                    except OSError:
+                        pass
 
     # -- websocket -------------------------------------------------------
 
@@ -170,6 +273,14 @@ class BridgeClient:
                 self._fail_pending("broker disconnected")
                 self._ready.set()
             if not self._stop.is_set():
+                # The broker is deliberately detached and shared across Hermes
+                # profiles. If it crashes or is killed with a launcher/job,
+                # reconnecting alone can never recover; supervise it here.
+                if self.auto_start_broker:
+                    try:
+                        self._ensure_broker_process()
+                    except Exception as exc:
+                        self.last_error = f"could not start broker: {type(exc).__name__}"
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 5.0)
 

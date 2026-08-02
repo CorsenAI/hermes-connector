@@ -7,14 +7,14 @@
 //   agent -> ext  : commands the agent originates (navigate, snapshot, click, ...)
 
 // Where the local agent's bridge listens. Overridable in settings if the user changed the port.
-export const DEFAULT_BRIDGE_URL = "ws://127.0.0.1:8765";
+export const DEFAULT_BRIDGE_URL = "ws://127.0.0.1:8766";
 
-// v3: role-bound mutual auth + stable browserId + exact profile/session/tab routing.
-export const PROTOCOL_VERSION = 3;
+// v4: v3 routing/auth plus release-isolated broker startup and hardened in-flight authorization.
+export const PROTOCOL_VERSION = 4;
 
 // Direct-connection flow: the extension opens a WebSocket to the local agent. The agent's bridge
-// authenticates the caller by Origin (only this extension's chrome-extension:// origin is accepted;
-// the browser sets Origin and extensions cannot spoof it, so a malicious web page is rejected).
+// requires a chrome-extension:// Origin and then authenticates the paired extension with role-bound
+// HMAC. Ordinary web-page origins are rejected; Origin alone is not treated as the identity proof.
 
 // Messages the extension sends toward the agent (over the bridge).
 export const OUT = {
@@ -70,6 +70,8 @@ export const STORE = {
   SETTINGS: "settings",           // { bridgeUrl, pairingCode, trustedInput, showOverlay }
   BINDINGS: "bindings",           // scopeKey -> { profileId, sessionId, tabIds, activeTabId }
   SELECTED_SCOPE: "selectedScope",// { profileId, sessionId }
+  UPGRADE_NOTICE: "upgradeNotice",// manual companion update required after an extension update
+  BRIDGE_MIGRATION: "bridgeMigration021", // { completed, customBridge } one-shot migration state
 };
 
 export const DEFAULT_SETTINGS = {

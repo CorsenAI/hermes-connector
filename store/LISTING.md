@@ -1,12 +1,12 @@
-# Chrome Web Store listing — Hermes Connector 0.2.0
+# Chrome Web Store listing — Hermes Connector 0.2.1
 
-Upload: `dist/hermes-connector-0.2.0-chrome.zip`
+Upload: `dist/hermes-connector-0.2.1-chrome.zip`
 
 Privacy policy: `https://corsenai.github.io/hermes-connector/privacy/`
 
 Support: `https://corsenai.github.io/hermes-connector/support/`
 
-Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip`
+Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip`
 
 Source: `https://github.com/CorsenAI/hermes-connector`
 
@@ -69,6 +69,8 @@ DATA HANDLING
 
 To provide browser automation, the extension handles visible website content, requested screenshots, and the URLs and titles of tabs you attach. Opening “Choose tabs” displays current tab titles and URLs locally so you can select them. This data goes to your local Hermes installation—not to Corsen AI.
 
+The extension handles two kinds of Authentication information: (1) one persistent local Connector pairing credential stored in Chrome local storage, for which only HMAC proofs—not the credential itself—travel to the companion; and (2) an ephemeral Hermes dashboard session token read into memory and returned only to that same loopback dashboard API. The dashboard token is never stored. Neither item is received by Corsen AI, and the extension does not read website cookies or login storage.
+
 If you configured Hermes to use a remote AI model provider, Hermes may send relevant content to that provider under your configuration and that provider’s terms.
 
 Sensitive form values such as passwords, one-time codes, and payment fields are redacted from accessibility snapshots. Visible page text or screenshots can still contain sensitive information, so attach only tabs you are comfortable sharing with your Hermes configuration.
@@ -82,6 +84,15 @@ REQUIREMENTS
 • A local Hermes Agent installation and dashboard
 • The matching Hermes Connector companion, available from the support and download page
 • Chrome on a supported desktop system
+
+On first opening, the extension displays the exact companion download button,
+plain-language Windows/macOS/Linux steps, an explanation of the local-only
+component, and the pairing-code field. On Windows, the companion can be
+installed by double-clicking “Install Hermes Connector.cmd”.
+
+UPGRADING FROM AN OLDER VERSION
+
+Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.1. Default installations migrate automatically from the legacy local port to the isolated 0.2.1 port. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
 
 Hermes Connector is an unofficial community extension by Corsen AI. It is not affiliated with or endorsed by Nous Research or Google.
 
@@ -112,7 +123,7 @@ Runs packaged, fixed helper functions in attached tabs to create accessibility s
 `storage`
 
 ```text
-Stores a random local browser identity, loopback settings, pairing preference, and exact Hermes session-to-tab bindings on the device.
+Stores a random local browser identity, loopback settings, the local Connector pairing credential, and exact Hermes session-to-tab bindings on the device.
 ```
 
 `sidePanel`
@@ -139,6 +150,10 @@ Data types to disclose:
 
 - Website content.
 - Web history.
+- Authentication information — the persistent local Connector pairing credential
+  and the ephemeral local Hermes dashboard session token. The pairing credential
+  itself is never transmitted; the dashboard token is never stored and is sent
+  only to the same HTTP loopback dashboard API. Neither is received by Corsen AI.
 
 Certifications:
 

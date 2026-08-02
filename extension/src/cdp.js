@@ -7,6 +7,7 @@
 // "… is debugging this browser" banner while attached (same as other agent extensions).
 
 const attached = new Set();
+const authorizers = new Map(); // tabId -> current binding/session authority check
 
 // Per-tab record of auto-cancelled dialogs, so an action that triggered a confirm()/prompt() we
 // dismissed can be reported as a FAILURE instead of a misleading success. `seq` increments on each
@@ -23,22 +24,46 @@ export async function hasDebugger() {
   catch (_) { return false; }
 }
 
-export async function ensureAttached(tabId) {
-  if (attached.has(tabId)) return;
+export async function ensureAttached(tabId, authorize = null) {
+  if (attached.has(tabId)) {
+    authorizeNow(authorize);
+    if (typeof authorize === "function") authorizers.set(tabId, authorize);
+    return;
+  }
   await chrome.debugger.attach({ tabId }, "1.3");
-  attached.add(tabId);
-  try { await chrome.debugger.sendCommand({ tabId }, "Page.enable"); } catch (_) {}
-  // CRITICAL: input events are dropped on a tab whose window isn't OS-focused unless we emulate
-  // focus. Without this, CDP clicks/keys silently do nothing when the user isn't looking at the tab.
-  try { await chrome.debugger.sendCommand({ tabId }, "Emulation.setFocusEmulationEnabled", { enabled: true }); } catch (_) {}
+  try {
+    // Revocation can happen while attach is pending. Revalidate before this tab
+    // enters the authorized set or any CDP domain is enabled.
+    authorizeNow(authorize);
+    if (typeof authorize === "function") authorizers.set(tabId, authorize);
+    attached.add(tabId);
+    try { await chrome.debugger.sendCommand({ tabId }, "Page.enable"); } catch (_) {}
+    authorizeNow(authorize);
+    // CRITICAL: input events are dropped on a tab whose window isn't OS-focused unless we emulate
+    // focus. Without this, CDP clicks/keys silently do nothing when the user isn't looking at the tab.
+    try { await chrome.debugger.sendCommand({ tabId }, "Emulation.setFocusEmulationEnabled", { enabled: true }); } catch (_) {}
+    authorizeNow(authorize);
+  } catch (error) {
+    attached.delete(tabId);
+    authorizers.delete(tabId);
+    try { await chrome.debugger.detach({ tabId }); } catch (_) {}
+    throw error;
+  }
 }
 
 export async function detach(tabId) {
   if (!attached.has(tabId)) return;
   attached.delete(tabId);
+  authorizers.delete(tabId);
   try { await chrome.debugger.detach({ tabId }); } catch (_) {}
 }
 export async function detachAll() { for (const id of [...attached]) await detach(id); }
+export async function retainOnly(tabIds) {
+  const allowed = new Set([...tabIds].filter(Number.isInteger));
+  for (const id of [...attached]) {
+    if (!allowed.has(id)) await detach(id);
+  }
+}
 
 // Auto-handle native JS dialogs so the page (and the agent) never blocks on them, BY TYPE:
 //   alert       -> accept (it only has an OK button; dismissing it is the same thing)
@@ -51,6 +76,16 @@ export async function detachAll() { for (const id of [...attached]) await detach
 if (typeof chrome !== "undefined" && chrome.debugger && chrome.debugger.onEvent) {
   chrome.debugger.onEvent.addListener((source, method, params) => {
     if (method === "Page.javascriptDialogOpening" && source.tabId != null && attached.has(source.tabId)) {
+      const authorize = authorizers.get(source.tabId);
+      try {
+        if (typeof authorize !== "function") throw new Error("missing tab authorization");
+        authorize();
+      } catch (_) {
+        // Authorization was revoked before the async detach completed. Never
+        // accept/cancel a dialog on that tab; drop the debugger transport now.
+        detach(source.tabId).catch(() => {});
+        return;
+      }
       const t = (params && params.type) || "alert";
       const accept = t === "alert" || t === "beforeunload";
       chrome.debugger.sendCommand({ tabId: source.tabId }, "Page.handleJavaScriptDialog",
@@ -65,7 +100,11 @@ if (typeof chrome !== "undefined" && chrome.debugger && chrome.debugger.onEvent)
     }
   });
   chrome.debugger.onDetach.addListener((source) => {
-    if (source.tabId != null) { attached.delete(source.tabId); cancelledDialogs.delete(source.tabId); }
+    if (source.tabId != null) {
+      attached.delete(source.tabId);
+      authorizers.delete(source.tabId);
+      cancelledDialogs.delete(source.tabId);
+    }
   });
 }
 
@@ -74,14 +113,21 @@ const cmd = (tabId, method, params) => chrome.debugger.sendCommand({ tabId }, me
 // Give the dialog event (delivered over the same debugger channel) a tick to arrive after the input
 // command resolves, so a confirm()/prompt() opened by the action is seen before we report a result.
 const settle = () => new Promise((r) => setTimeout(r, 25));
+const authorizeNow = (authorize) => { if (typeof authorize === "function") authorize(); };
 
-export async function click(tabId, x, y) {
-  await ensureAttached(tabId);
+export async function click(tabId, x, y, authorize = null) {
+  await ensureAttached(tabId, authorize);
+  authorizeNow(authorize);
   const before = dialogSeq(tabId);
   const base = { x, y, button: "left" };
   await cmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", ...base, buttons: 0 });
-  await cmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", ...base, buttons: 1, clickCount: 1 });
-  await cmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", ...base, buttons: 0, clickCount: 1 });
+  authorizeNow(authorize);
+  // Queue press + release without an await between them. This gives the pair one authorization
+  // checkpoint and cannot leave Chrome with a stuck mouse button if the binding changes while the
+  // first debugger command is awaiting its response.
+  const pressed = cmd(tabId, "Input.dispatchMouseEvent", { type: "mousePressed", ...base, buttons: 1, clickCount: 1 });
+  const released = cmd(tabId, "Input.dispatchMouseEvent", { type: "mouseReleased", ...base, buttons: 0, clickCount: 1 });
+  await Promise.all([pressed, released]);
   await settle();
   // If the click opened a confirm()/prompt() we auto-cancelled, the action did NOT do what the page
   // asked — report failure with the dialog details rather than a misleading ok:true.
@@ -90,8 +136,9 @@ export async function click(tabId, x, y) {
   return { ok: true, trusted: true };
 }
 
-export async function hover(tabId, x, y) {
-  await ensureAttached(tabId);
+export async function hover(tabId, x, y, authorize = null) {
+  await ensureAttached(tabId, authorize);
+  authorizeNow(authorize);
   await cmd(tabId, "Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
   return { ok: true, trusted: true };
 }
@@ -104,14 +151,19 @@ async function selectAllModifiers() {
   return (await platInfoP).os === "mac" ? 4 /* Meta */ : 2 /* Control */;
 }
 
-export async function typeText(tabId, text) {
-  await ensureAttached(tabId);
+export async function typeText(tabId, text, authorize = null) {
+  await ensureAttached(tabId, authorize);
+  authorizeNow(authorize);
   const before = dialogSeq(tabId);
   // Select existing content first (Ctrl/Cmd+A) so insertText REPLACES it instead of appending —
   // otherwise typing into a field that already holds "old" produces "oldnew".
-  const a = { code: "KeyA", key: "a", windowsVirtualKeyCode: 65, modifiers: await selectAllModifiers() };
-  await cmd(tabId, "Input.dispatchKeyEvent", { type: "rawKeyDown", ...a });
-  await cmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", ...a });
+  const modifiers = await selectAllModifiers();
+  authorizeNow(authorize);
+  const a = { code: "KeyA", key: "a", windowsVirtualKeyCode: 65, modifiers };
+  const selectDown = cmd(tabId, "Input.dispatchKeyEvent", { type: "rawKeyDown", ...a });
+  const selectUp = cmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", ...a });
+  await Promise.all([selectDown, selectUp]);
+  authorizeNow(authorize);
   await cmd(tabId, "Input.insertText", { text: String(text) });   // trusted text entry, replaces selection
   await settle();
   const dlg = dialogSince(tabId, before);
@@ -128,8 +180,9 @@ const KEYS = {
   Home: { code: "Home", vk: 36 }, End: { code: "End", vk: 35 },
 };
 
-export async function key(tabId, keyStr) {
-  await ensureAttached(tabId);
+export async function key(tabId, keyStr, authorize = null) {
+  await ensureAttached(tabId, authorize);
+  authorizeNow(authorize);
   const before = dialogSeq(tabId);
   const parts = String(keyStr).split("+");
   const k = parts.pop();
@@ -148,9 +201,10 @@ export async function key(tabId, keyStr) {
   // A single char types text ONLY when no Alt/Ctrl/Meta is held — Shift IS allowed (Shift+A -> "A").
   // The old `m < 2` test wrongly made Alt+A printable (bit 1) and Shift+A non-printable (bit 8).
   const printable = k.length === 1 && !(m & 1) && !(m & 2) && !(m & 4);
-  await cmd(tabId, "Input.dispatchKeyEvent", { type: printable ? "keyDown" : "rawKeyDown",
+  const keyDown = cmd(tabId, "Input.dispatchKeyEvent", { type: printable ? "keyDown" : "rawKeyDown",
     modifiers: m, ...info, ...(printable ? { text: k } : {}) });
-  await cmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: m, ...info });
+  const keyUp = cmd(tabId, "Input.dispatchKeyEvent", { type: "keyUp", modifiers: m, ...info });
+  await Promise.all([keyDown, keyUp]);
   await settle();
   const dlg = dialogSince(tabId, before);
   if (dlg) return { ok: false, error: "a " + dlg.type + " dialog was auto-cancelled", dialog: dlg, trusted: true };

@@ -5,7 +5,7 @@
 import { listDashboardSessions, makeDashboardUrl, normalizeLoopbackUrl } from "./dashboard-api.js";
 
 const DEFAULT_URL = "http://127.0.0.1:9119/";
-const DEFAULT_BRIDGE = "ws://127.0.0.1:8765";
+const DEFAULT_BRIDGE = "ws://127.0.0.1:8766";
 
 const dot = document.getElementById("dot");
 const statusEl = document.getElementById("status");
@@ -17,13 +17,122 @@ const manageTabsButton = document.getElementById("manageTabs");
 const attachedTabs = document.getElementById("attachedTabs");
 const tabPicker = document.getElementById("tabPicker");
 const scopeInfo = document.getElementById("scopeInfo");
+const setupNotice = document.getElementById("setupNotice");
+const setupTitle = document.getElementById("setupTitle");
+const companionDetection = document.getElementById("companionDetection");
+const checkCompanionButton = document.getElementById("checkCompanion");
+const downloadCompanion = document.getElementById("downloadCompanion");
+const setupStepDownload = document.getElementById("setupStepDownload");
+const setupStepInstall = document.getElementById("setupStepInstall");
+const setupStepRestart = document.getElementById("setupStepRestart");
+const setupStepPair = document.getElementById("setupStepPair");
+const openSetupSettings = document.getElementById("openSetupSettings");
+const upgradeNotice = document.getElementById("upgradeNotice");
+const customPortUpgrade = document.getElementById("customPortUpgrade");
+const dismissUpgradeNotice = document.getElementById("dismissUpgradeNotice");
 
 let state = {};
 let selectedScope = null;
 let pickerOpen = false;
+let platformOS = "unknown";
 
 const setDot = (kind) => { dot.className = `dot ${kind}`; };
 const keyFor = (scope) => scope ? `${scope.profileId}\u001f${scope.sessionId}` : "";
+
+function renderUpgradeNotice(notice) {
+  state.upgradeNotice = notice || null;
+  upgradeNotice.hidden = !state.upgradeNotice;
+  customPortUpgrade.hidden = !state.upgradeNotice || !state.upgradeNotice.customBridge;
+}
+
+function renderSetupNotice(settings) {
+  const required = !String((settings && settings.pairingCode) || "").trim();
+  setupNotice.hidden = !required;
+  return required;
+}
+
+function platformLabel() {
+  return ({ win: "Windows", mac: "macOS", linux: "Linux", cros: "ChromeOS" })[platformOS] || "this computer";
+}
+
+function renderPlatformInstallStep() {
+  switch (platformOS) {
+    case "win":
+      setupStepInstall.textContent =
+        "Windows: double-click “Install Hermes Connector.cmd”, then leave the result window open to copy the code.";
+      break;
+    case "mac":
+      setupStepInstall.textContent =
+        "macOS: open Terminal in the extracted folder and run ./install.sh; keep Terminal open to copy the code.";
+      break;
+    case "linux":
+      setupStepInstall.textContent =
+        "Linux: open a terminal in the extracted folder and run ./install.sh; keep it open to copy the code.";
+      break;
+    case "cros":
+      setupStepInstall.textContent =
+        "ChromeOS is not supported by the local Hermes companion; use desktop Chrome on Windows, macOS, or Linux.";
+      break;
+    default:
+      setupStepInstall.textContent =
+        "Windows: run “Install Hermes Connector.cmd”. macOS/Linux: run ./install.sh in a terminal.";
+  }
+}
+
+function renderCompanionDetection(detected, checking = false) {
+  state.companionDetected = !!detected;
+  checkCompanionButton.disabled = checking;
+  checkCompanionButton.textContent = checking ? "Checking…" : "Check again";
+  if (checking) {
+    setupTitle.textContent = "Checking your local setup…";
+    companionDetection.textContent =
+      `Looking for the Hermes Connector companion from Chrome on ${platformLabel()}. This never sends data to the internet.`;
+    if (!setupNotice.hidden) statusEl.textContent = "checking local companion";
+    return;
+  }
+  if (detected) {
+    setupTitle.textContent = "Companion already installed";
+    companionDetection.textContent =
+      `Good news: the companion is already reachable on ${platformLabel()}. Do not reinstall it for this Chrome profile.`;
+    setupStepDownload.textContent = "Use the same private pairing code as your other Chrome profile.";
+    setupStepInstall.textContent = "Paste the 64-character code below; it stays only on this computer.";
+    setupStepRestart.textContent =
+      "If you lost the code, running the installer again is safe and displays the existing code; then restart Hermes.";
+    setupStepPair.textContent = "Choose a Hermes session and attach only the tabs it may use.";
+    downloadCompanion.textContent = "Installer (only if you lost the code)";
+    if (!setupNotice.hidden) statusEl.textContent = "companion detected — enter pairing code";
+    return;
+  }
+  setupTitle.textContent = "Finish setup — about 2 minutes";
+  companionDetection.textContent =
+    `The companion is not reachable from Chrome on ${platformLabel()}. Start or restart Hermes and check again; install it only if it is still not detected.`;
+  setupStepDownload.textContent = "Download and extract the Hermes Connector companion.";
+  renderPlatformInstallStep();
+  setupStepRestart.textContent = "Restart Hermes, then copy the private pairing code the installer displays.";
+  setupStepPair.textContent = "Paste that code below, choose a Hermes session, and attach only the tabs it may use.";
+  downloadCompanion.textContent = "Download companion 0.2.1";
+  if (!setupNotice.hidden) statusEl.textContent = "setup required — companion not reachable";
+}
+
+async function probeCompanion() {
+  renderCompanionDetection(false, true);
+  const started = await runtime({ cmd: "probeCompanion" });
+  if (!started || !started.ok) {
+    renderCompanionDetection(false);
+    return false;
+  }
+  const deadline = Date.now() + 2_500;
+  do {
+    const latest = await runtime({ cmd: "getState" });
+    if (latest && latest.companionDetected) {
+      renderCompanionDetection(true);
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 125));
+  } while (Date.now() < deadline);
+  renderCompanionDetection(false);
+  return false;
+}
 
 async function runtime(message) {
   try {
@@ -207,9 +316,8 @@ async function renderTabs() {
 
 // --- settings ---------------------------------------------------------------
 
-document.getElementById("gear").onclick = async () => {
+async function setSettingsOpen(open) {
   const cfg = document.getElementById("cfg");
-  const open = !cfg.classList.contains("open");
   cfg.classList.toggle("open", open);
   if (!open) return;
   state = await runtime({ cmd: "getState" });
@@ -219,7 +327,14 @@ document.getElementById("gear").onclick = async () => {
   document.getElementById("bridgeUrl").value = settings.bridgeUrl || DEFAULT_BRIDGE;
   document.getElementById("pairingCode").value = settings.pairingCode || "";
   document.getElementById("trustedInput").checked = !!settings.trustedInput;
+}
+
+document.getElementById("gear").onclick = async () => {
+  const cfg = document.getElementById("cfg");
+  await setSettingsOpen(!cfg.classList.contains("open"));
 };
+openSetupSettings.onclick = () => setSettingsOpen(true);
+checkCompanionButton.onclick = () => probeCompanion();
 
 document.getElementById("save").onclick = async () => {
   const url = normalizeLoopbackUrl(document.getElementById("hermesUrl").value, DEFAULT_URL);
@@ -231,6 +346,10 @@ document.getElementById("save").onclick = async () => {
   }
   const browserName = (document.getElementById("browserName").value || "").trim();
   const pairingCode = (document.getElementById("pairingCode").value || "").trim();
+  if (!/^[0-9a-f]{64}$/i.test(pairingCode)) {
+    statusEl.textContent = "paste the 64-character code printed by the companion installer";
+    return;
+  }
   const wantTrusted = document.getElementById("trustedInput").checked;
   let trustedInput = wantTrusted;
   if (wantTrusted && !await chrome.permissions.contains({ permissions: ["debugger"] })) {
@@ -246,6 +365,7 @@ document.getElementById("save").onclick = async () => {
     return;
   }
   document.getElementById("cfg").classList.remove("open");
+  renderSetupNotice({ pairingCode });
   await showDashboard(selectedScope);
   await connect();
   await loadSessions();
@@ -276,6 +396,15 @@ manageTabsButton.onclick = async () => {
   await renderTabs();
 };
 
+dismissUpgradeNotice.onclick = async () => {
+  if (!state.upgradeNotice) return;
+  const result = await runtime({
+    cmd: "dismissUpgradeNotice",
+    id: state.upgradeNotice.id,
+  });
+  if (result && result.ok) renderUpgradeNotice(result.upgradeNotice);
+};
+
 // --- pairing status ---------------------------------------------------------
 
 async function connect() {
@@ -299,6 +428,9 @@ chrome.runtime.onMessage.addListener((message) => {
       setDot("err");
       statusEl.textContent = "pairing denied — check the code (⚙)";
       break;
+    case "companionDetected":
+      renderCompanionDetection(!!message.detected);
+      break;
     case "disconnected":
       setDot("off");
       statusEl.textContent = "Connector broker not reachable";
@@ -309,6 +441,9 @@ chrome.runtime.onMessage.addListener((message) => {
       break;
     case "brokerState":
       if (message.state) state.brokerState = message.state;
+      break;
+    case "upgradeNoticeChanged":
+      renderUpgradeNotice(message.notice);
       break;
     case "bindingsChanged":
       renderTabs();
@@ -326,11 +461,24 @@ chrome.runtime.onMessage.addListener((message) => {
 frame.addEventListener("load", () => { hint.hidden = true; });
 
 async function init() {
+  try {
+    const platform = await chrome.runtime.getPlatformInfo();
+    platformOS = String((platform && platform.os) || "unknown");
+  } catch (_) {}
   state = await runtime({ cmd: "getState" });
+  renderUpgradeNotice(state.upgradeNotice);
+  const setupRequired = renderSetupNotice(state.settings);
   selectedScope = state.selectedScope || null;
   updateScopeControls();
   await showDashboard(selectedScope);
-  await connect();
+  if (setupRequired) {
+    setDot("off");
+    statusEl.textContent = "setup required";
+    await setSettingsOpen(true);
+    probeCompanion();
+  } else {
+    await connect();
+  }
   await loadSessions();
   await renderTabs();
 }

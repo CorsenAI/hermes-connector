@@ -17,7 +17,7 @@ import e2e_chromium as live
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTENSION = ROOT / "extension"
+EXTENSION = live.EXTENSION
 
 
 def launch_profile(

@@ -11,15 +11,16 @@
 </head>
 <body><main>
   <h1>Hermes Connector support</h1>
-  <p class="sub">Current public version: 0.2.0 · protocol 3</p>
+  <p class="sub">Release documentation: 0.2.1 · protocol 4</p>
   <div class="card"><h2>Install</h2><ol>
-    <li><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Download the 0.2.0 companion</a> and extract it.</li>
-    <li>Run <code>.\install.ps1</code> on Windows or <code>./install.sh</code> on macOS/Linux.</li>
-    <li>Restart any running Hermes dashboard, gateway, or chat process.</li>
+    <li><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Download the 0.2.1 companion</a> and extract it.</li>
+    <li>On Windows, double-click <code>Install Hermes Connector.cmd</code> (or run <code>.\install.ps1</code> in PowerShell). On macOS/Linux, run <code>./install.sh</code>.</li>
+    <li>Restart any running Hermes dashboard, gateway, or chat process. Re-run the installer after creating a new named Hermes profile.</li>
     <li>Open the Chrome side panel, paste the private pairing code printed locally, select a Hermes session, and attach only the tabs it may control.</li>
   </ol></div>
+  <div class="card"><h2>Upgrading from an older version</h2><p>Chrome updates the extension automatically, but it cannot update the local companion. Download and run the 0.2.1 companion installer again, then restart every running Hermes dashboard, gateway, and chat process. Your pairing code stays the same. For normal/default installations, the extension safely migrates the old local port 8765 to the isolated 0.2.1 port 8766 once; no manual port change is needed.</p><p><strong>Custom bridge ports only:</strong> custom values are preserved, but a detached 0.2.0 broker may continue owning that same custom port after Hermes closes. After installing 0.2.1, reboot the computer once (or safely stop only the known legacy broker process), then start Hermes again. A normal/default installation does not need this extra reboot.</p><p>Version 0.2.1 stops the repeated local-storage writes found in 0.2.0, but Chrome may not reclaim an already enlarged LevelDB journal immediately. First close every Chrome window completely and reopen Chrome. If disk usage remains abnormally high, removing and reinstalling Hermes Connector safely clears only this extension’s local settings; you will need to paste the pairing code and attach your sessions/tabs again. Do not manually delete arbitrary Chrome profile files.</p></div>
   <div class="card"><h2>Troubleshooting</h2><ul>
-    <li><strong>Companion offline:</strong> confirm Hermes restarted after installation and port <code>127.0.0.1:8765</code> is available.</li>
+    <li><strong>Companion offline:</strong> confirm Hermes restarted after installation and port <code>127.0.0.1:8766</code> is available.</li>
     <li><strong>Pairing rejected:</strong> open companion settings and generate/show the current local code, then save it again in the extension.</li>
     <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted web tab. Restricted Chrome pages cannot be controlled.</li>
     <li><strong>Debugging banner:</strong> disable Trusted input unless native input or dialog handling is needed.</li>

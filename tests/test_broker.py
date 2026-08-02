@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import json
 from pathlib import Path
 import socket
 import sys
 import tempfile
+import threading
 import types
 import unittest
+from unittest import mock
 
 import websockets
 
@@ -43,6 +46,117 @@ async def receive_type(websocket, expected: str, limit: int = 12) -> dict:
         if payload.get("type") == expected:
             return payload
     raise AssertionError(f"did not receive {expected}")
+
+
+class CredentialLifecycleTests(unittest.TestCase):
+    def test_concurrent_creation_publishes_one_complete_secret(self):
+        with tempfile.TemporaryDirectory() as temp:
+            barrier = threading.Barrier(2)
+            real_link = broker.os.link
+
+            def synchronized_link(source, destination):
+                barrier.wait(timeout=2)
+                return real_link(source, destination)
+
+            with mock.patch.object(broker.os, "link", side_effect=synchronized_link):
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    futures = [pool.submit(broker.load_or_create_secret, temp) for _ in range(2)]
+                    values = [future.result(timeout=3) for future in futures]
+            self.assertEqual(values[0], values[1])
+            self.assertRegex(values[0], r"^[0-9a-f]{64}$")
+            persisted = json.loads(broker.secret_path(temp).read_text(encoding="utf-8"))
+            self.assertEqual(persisted["secret"], values[0])
+            self.assertFalse(list(broker.connector_dir(temp).glob(".credentials-*.tmp")))
+
+    def test_broker_rejects_non_loopback_bind_target(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with self.assertRaisesRegex(ValueError, "loopback"):
+                broker.BrokerServer(
+                    root=temp,
+                    host="0.0.0.0",
+                    port=0,
+                    secret="0123456789abcdef" * 4,
+                )
+
+
+class BrokerStateMigrationTests(unittest.TestCase):
+    def write_state(self, path: Path, owner: str, *, protocol=None) -> str:
+        key = broker.scope_key("profile-a", "session-a")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"version": 1, "scopeBrowsers": {key: owner}}
+        if protocol is not None:
+            payload["protocol"] = protocol
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return key
+
+    def test_v4_imports_legacy_once_and_ignores_late_v3_writes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            key = self.write_state(broker.legacy_state_path(temp), "browser-v3")
+            first = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertEqual(first.scope_browsers[key], "browser-v3")
+            persisted = json.loads(broker.state_path(temp).read_text(encoding="utf-8"))
+            self.assertEqual(persisted["protocol"], 4)
+            self.assertEqual(persisted["scopeBrowsers"][key], "browser-v3")
+
+            # The detached legacy process is still alive and writes later.
+            self.write_state(broker.legacy_state_path(temp), "browser-zombie")
+            restarted = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertEqual(restarted.scope_browsers[key], "browser-v3")
+
+    def test_present_invalid_v4_state_never_falls_back_to_legacy(self):
+        with tempfile.TemporaryDirectory() as temp:
+            key = self.write_state(broker.legacy_state_path(temp), "legacy-owner")
+            self.write_state(broker.state_path(temp), "wrong-protocol-owner", protocol=3)
+            server = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertNotIn(key, server.scope_browsers)
+
+    def test_concurrent_v4_saves_use_distinct_complete_temp_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            server = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            barrier = threading.Barrier(2)
+            sources = []
+            seen_sources = set()
+            source_lock = threading.Lock()
+            real_replace = broker.os.replace
+
+            def synchronized_replace(source, destination):
+                source_name = Path(source).name
+                with source_lock:
+                    first_attempt = source_name not in seen_sources
+                    if first_attempt:
+                        seen_sources.add(source_name)
+                        sources.append(source_name)
+                # Synchronize only each stage's first replace. A Windows
+                # PermissionError retry must not wait for the other writer,
+                # which may already have completed successfully.
+                if first_attempt:
+                    barrier.wait(timeout=5)
+                return real_replace(source, destination)
+
+            with mock.patch.object(broker.os, "replace", side_effect=synchronized_replace):
+                with ThreadPoolExecutor(max_workers=2) as pool:
+                    futures = [
+                        pool.submit(server._write_preferences, {
+                            broker.scope_key("profile-a", f"session-{index}"): f"browser-{index}"
+                        })
+                        for index in range(2)
+                    ]
+                    for future in futures:
+                        future.result(timeout=3)
+            self.assertEqual(len(set(sources)), 2)
+            persisted = json.loads(broker.state_path(temp).read_text(encoding="utf-8"))
+            self.assertEqual(persisted["protocol"], 4)
+            self.assertFalse(list(
+                broker.connector_dir(temp).glob(".broker-state-v4-*.tmp")
+            ))
 
 
 class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
@@ -234,6 +348,119 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         still_b = await receive_type(chrome_b, "action")
         self.assertEqual(still_b["targetTabId"], 22)
 
+    async def test_result_is_rejected_if_scope_moves_during_action(self):
+        chrome_a = await self.browser("chrome-a")
+        chrome_b = await self.browser("chrome-b")
+        agent = await self.agent("alpha", "proc-alpha")
+        await self.bind(chrome_a, "alpha", "moving-session", [11], 11)
+        await self.request(agent, "moving-request", "alpha", "moving-session")
+        action = await receive_type(chrome_a, "action")
+
+        await self.bind(chrome_b, "alpha", "moving-session", [22], 22)
+        await receive_type(chrome_a, "binding_revoked")
+        await chrome_a.send(json.dumps({
+            "type": "action_result",
+            "id": action["id"],
+            "ok": True,
+            "data": {"sensitive": "must not cross the transfer"},
+        }))
+        rejected = await receive_type(agent, "agent_response")
+        self.assertEqual(rejected["id"], "moving-request")
+        self.assertFalse(rejected["ok"])
+        self.assertNotIn("data", rejected)
+        self.assertIn("binding changed", rejected["error"])
+
+    async def test_result_is_rejected_if_active_target_changes_during_action(self):
+        chrome = await self.browser("chrome-main")
+        agent = await self.agent("alpha", "proc-alpha")
+        await self.bind(chrome, "alpha", "changing-target", [11, 12], 11)
+        await self.request(agent, "old-target", "alpha", "changing-target", "read_text")
+        action = await receive_type(chrome, "action")
+        self.assertEqual(action["targetTabId"], 11)
+
+        await self.bind(chrome, "alpha", "changing-target", [11, 12], 12)
+        await chrome.send(json.dumps({
+            "type": "action_result",
+            "id": action["id"],
+            "ok": True,
+            "data": {"sensitive": "must not survive an active-target change"},
+        }))
+        rejected = await receive_type(agent, "agent_response")
+        self.assertFalse(rejected["ok"])
+        self.assertNotIn("data", rejected)
+        self.assertIn("binding changed", rejected["error"])
+
+    async def test_tab_mutation_result_is_bounded_to_documented_metadata(self):
+        chrome = await self.browser("chrome-main")
+        agent = await self.agent("alpha", "proc-alpha")
+        await self.bind(chrome, "alpha", "switching", [11, 12], 11)
+        await self.request(agent, "switch-target", "alpha", "switching", "switch_tab")
+        action = await receive_type(chrome, "action")
+
+        await self.bind(chrome, "alpha", "switching", [11, 12], 12)
+        await chrome.send(json.dumps({
+            "type": "action_result",
+            "id": action["id"],
+            "ok": True,
+            "data": {"switched": 1, "tabId": 12, "sensitive": "must be stripped"},
+        }))
+        response = await receive_type(agent, "agent_response")
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["data"], {"switched": 1, "tabId": 12})
+
+    async def test_reconnect_with_same_browser_id_cancels_old_pending_action(self):
+        chrome_old = await self.browser("stable-browser", "First connection")
+        old_peer = self.server.browsers["stable-browser"]
+        agent = await self.agent("alpha", "proc-alpha")
+        await self.bind(chrome_old, "alpha", "reconnect-session", [11], 11)
+        await self.request(agent, "before-reconnect", "alpha", "reconnect-session")
+        await receive_type(chrome_old, "action")
+
+        chrome_new = await self.browser("stable-browser", "Replacement connection")
+        cancelled = await receive_type(agent, "agent_response")
+        self.assertEqual(cancelled["id"], "before-reconnect")
+        self.assertFalse(cancelled["ok"])
+        self.assertIn("reconnected", cancelled["error"])
+        self.assertFalse(self.server.pending)
+
+        await self.server._on_browser(old_peer, {
+            "type": "binding_update",
+            "profileId": "alpha",
+            "sessionId": "stale-buffered-update",
+            "tabIds": [99],
+            "activeTabId": 99,
+        })
+        self.assertNotIn(
+            broker.scope_key("alpha", "stale-buffered-update"),
+            self.server.browsers["stable-browser"].bindings,
+        )
+
+        await self.bind(chrome_new, "alpha", "reconnect-session", [22], 22)
+        await self.request(agent, "after-reconnect", "alpha", "reconnect-session")
+        fresh = await receive_type(chrome_new, "action")
+        self.assertEqual(fresh["targetTabId"], 22)
+
+    async def test_stale_browser_cannot_mutate_after_waiting_for_binding_lock(self):
+        chrome_old = await self.browser("stable-browser", "First connection")
+        old_peer = self.server.browsers["stable-browser"]
+        await self.server.binding_lock.acquire()
+        stale_task = asyncio.create_task(self.server._on_browser(old_peer, {
+            "type": "binding_update",
+            "profileId": "alpha",
+            "sessionId": "stale-race",
+            "tabIds": [99],
+            "activeTabId": 99,
+        }))
+        await asyncio.sleep(0)
+        try:
+            await self.browser("stable-browser", "Replacement connection")
+        finally:
+            self.server.binding_lock.release()
+        await stale_task
+        key = broker.scope_key("alpha", "stale-race")
+        self.assertNotIn(key, self.server.scope_browsers)
+        self.assertNotIn(key, self.server.browsers["stable-browser"].bindings)
+
     async def test_simultaneous_transfers_leave_exactly_one_owner(self):
         chrome_a = await self.browser("chrome-a")
         chrome_b = await self.browser("chrome-b")
@@ -301,6 +528,29 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
                 self.secret, "browser", browser_id, challenge["nonce"]
             ),
             "protocol": broker.PROTOCOL_VERSION,
+        }))
+        with self.assertRaises(websockets.exceptions.ConnectionClosed):
+            await websocket.recv()
+
+    async def test_protocol_three_client_is_rejected_by_release_four_broker(self):
+        websocket = await websockets.connect(
+            self.url,
+            origin="chrome-extension://legacy-release/",
+        )
+        self.clients.append(websocket)
+        challenge = json.loads(await websocket.recv())
+        self.assertEqual(challenge["protocol"], 4)
+        browser_id = "legacy-browser"
+        await websocket.send(json.dumps({
+            "type": "hello",
+            "role": "browser",
+            "browserId": browser_id,
+            "browserName": "Legacy Chrome",
+            "nonce": "legacy-nonce",
+            "proof": broker.role_proof(
+                self.secret, "browser", browser_id, challenge["nonce"]
+            ),
+            "protocol": 3,
         }))
         with self.assertRaises(websockets.exceptions.ConnectionClosed):
             await websocket.recv()
@@ -401,6 +651,50 @@ class BridgeClientTests(unittest.IsolatedAsyncioTestCase):
 
 
 class BridgeClientLifecycleTests(unittest.TestCase):
+    @unittest.skipIf(sys.platform == "win32", "POSIX TIME_WAIT semantics")
+    def test_port_probe_distinguishes_listener_from_time_wait(self):
+        with tempfile.TemporaryDirectory() as temp, socket.socket() as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            port = listener.getsockname()[1]
+            client = bridge_client.BridgeClient(
+                profile_id="port-probe-profile",
+                root=temp,
+                host="127.0.0.1",
+                port=port,
+                auto_start_broker=False,
+            )
+            self.assertTrue(client._port_claimed())
+
+            peer = socket.create_connection(("127.0.0.1", port), timeout=1)
+            accepted, _ = listener.accept()
+            accepted.close()  # Active close leaves the server port in TIME_WAIT.
+            self.assertEqual(peer.recv(1), b"")  # ACK the FIN instead of resetting it.
+            peer.close()
+            listener.close()
+            self.assertFalse(client._port_claimed())
+
+    def test_broker_launch_is_locked_and_throttled(self):
+        with tempfile.TemporaryDirectory() as temp, socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            unused_port = reservation.getsockname()[1]
+            client = bridge_client.BridgeClient(
+                profile_id="launch-profile",
+                root=temp,
+                host="127.0.0.1",
+                port=unused_port,
+                auto_start_broker=True,
+            )
+            with mock.patch.object(client, "_port_claimed", return_value=False), \
+                    mock.patch.object(client, "_port_accepting", side_effect=[False, True]), \
+                    mock.patch.object(bridge_client.subprocess, "Popen") as popen:
+                popen.return_value.poll.return_value = None
+                client._ensure_broker_process()
+                client._ensure_broker_process()
+            self.assertEqual(popen.call_count, 1)
+            self.assertFalse((Path(temp) / "connector" / "broker-start.lock").exists())
+
     def test_stop_cancels_disconnected_reconnect_backoff(self):
         with tempfile.TemporaryDirectory() as temp, socket.socket() as reservation:
             reservation.bind(("127.0.0.1", 0))
@@ -415,6 +709,60 @@ class BridgeClientLifecycleTests(unittest.TestCase):
             client.stop(wait=1)
             self.assertIsNotNone(client.thread)
             self.assertFalse(client.thread.is_alive())
+
+    def test_stop_interrupts_broker_start_poll(self):
+        with tempfile.TemporaryDirectory() as temp, socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            client = bridge_client.BridgeClient(
+                profile_id="stopping-launch",
+                root=temp,
+                host="127.0.0.1",
+                port=reservation.getsockname()[1],
+                auto_start_broker=True,
+            )
+            spawned = threading.Event()
+            process = mock.Mock()
+            process.poll.return_value = None
+
+            def fake_popen(*_args, **_kwargs):
+                spawned.set()
+                return process
+
+            with mock.patch.object(client, "_port_claimed", return_value=False), \
+                    mock.patch.object(client, "_port_accepting", return_value=False), \
+                    mock.patch.object(bridge_client.subprocess, "Popen", side_effect=fake_popen):
+                worker = threading.Thread(target=client._ensure_broker_process)
+                worker.start()
+                self.assertTrue(spawned.wait(timeout=1))
+                client.stop(wait=0)
+                worker.join(timeout=1)
+            self.assertFalse(worker.is_alive())
+
+    def test_reconnect_loop_restarts_a_missing_broker(self):
+        with tempfile.TemporaryDirectory() as temp, socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            unused_port = reservation.getsockname()[1]
+            client = bridge_client.BridgeClient(
+                profile_id="recovery-profile",
+                root=temp,
+                host="127.0.0.1",
+                port=unused_port,
+                auto_start_broker=True,
+            )
+            attempts = 0
+
+            async def disconnected():
+                nonlocal attempts
+                attempts += 1
+                if attempts >= 2:
+                    client._stop.set()
+                raise OSError("broker unavailable")
+
+            client._connect_once = disconnected
+            with mock.patch.object(client, "_ensure_broker_process") as ensure:
+                asyncio.run(client._connect_forever())
+            self.assertEqual(attempts, 2)
+            self.assertEqual(ensure.call_count, 1)
 
 
 if __name__ == "__main__":

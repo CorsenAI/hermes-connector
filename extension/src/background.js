@@ -5,21 +5,39 @@ import { DEFAULT_BRIDGE_URL, PROTOCOL_VERSION, OUT, IN, ACTION, STORE, DEFAULT_S
 import { buildSnapshot, clickRef, typeRef, scrollPage, readText, setOverlay,
   hoverRef, pressKey, selectOption, dragRefs, findText, refRect, focusRef } from "./page-actions.js";
 import { attachTab, bindingList, detachTab, normalizeRegistry, removeTabEverywhere,
-  removeScope, scopeKey, setActiveTab } from "./bindings.js";
+  removeScope, sameRegistry, scopeKey, setActiveTab } from "./bindings.js";
 import * as cdp from "./cdp.js";
 
 let ws = null;
 let paired = false;
 let pairedIntent = false;   // the user wants to stay paired; drives auto-reconnect + keepalive
 let brokerState = { protocol: PROTOCOL_VERSION, browsers: [], agentProfiles: [] };
+let companionDetected = false;
 let reconnectTimer = null;
 let pingTimer = null;       // 20s WebSocket keepalive while the socket is open (Chrome docs)
 let actionQueue = Promise.resolve();  // serialize agent actions so they never race each other
 let queueDepth = 0;         // bound the pending queue so a runaway/hostile agent can't OOM the worker
+const COMPANION_REINSTALL_NOTICE = Object.freeze({
+  id: "companion-reinstall-0.2.1",
+  previousVersion: "0.2.0",
+  extensionVersion: "0.2.1",
+});
+const LEGACY_DEFAULT_BRIDGE_URLS = new Set([
+  "ws://127.0.0.1:8765",
+  "ws://localhost:8765",
+]);
 let sessionGen = 0;         // bumped on disconnect/unpair -> already-queued actions are cancelled
 const MAX_QUEUED = 32;
 let desiredName = "Chrome"; // browser name to announce once the agent challenges us
 let bindingTransaction = Promise.resolve(); // prevent concurrent read/modify/write updates from losing tabs
+let authorizationGen = 0;   // binding/trusted-input revocations cancel in-flight action authority
+const activationGeneration = new Map(); // windowId -> every active-tab change, including A→B→A
+
+chrome.tabs.onActivated.addListener(({ windowId }) => {
+  if (Number.isInteger(windowId)) {
+    activationGeneration.set(windowId, (activationGeneration.get(windowId) || 0) + 1);
+  }
+});
 
 // ---- mutual auth (challenge-response over the shared pairing code) -----------
 
@@ -49,14 +67,28 @@ function sameBinding(left, right) {
     left.tabIds.every((tabId, index) => tabId === right.tabIds[index]);
 }
 
-async function storeBindings(registry, sync = true, previous = null) {
+async function storeBindings(registry, sync = true, previous = null, shouldCommit = null) {
   const normalized = normalizeRegistry(registry);
+  const before = previous === null ? null : normalizeRegistry(previous);
+  // A debugger attachment is allowed only while its tab remains the explicit
+  // active target of a stored Hermes scope. Detach immediately on removal,
+  // transfer, revocation, or active-target change.
+  await cdp.retainOnly(new Set(
+    Object.values(normalized).map((binding) => binding.activeTabId)
+  ));
+  if (shouldCommit && !shouldCommit()) return before || normalized;
+  // Validation and tab rendering are allowed to be read-only. Without this
+  // guard, listTabs -> validateBindings wrote the same value and broadcast a
+  // bindingsChanged event, whose side-panel listener immediately called
+  // listTabs again. Besides spinning the UI, that loop could grow Chrome's
+  // LevelDB log by hundreds of megabytes.
+  if (before !== null && sameRegistry(before, normalized)) return normalized;
+  if (shouldCommit && !shouldCommit()) return before || normalized;
   await chrome.storage.local.set({ [STORE.BINDINGS]: normalized });
   if (sync && paired) {
-    if (previous === null) {
+    if (before === null) {
       sendHost({ type: OUT.BINDING_SYNC, bindings: bindingList(normalized) });
     } else {
-      const before = normalizeRegistry(previous);
       for (const binding of Object.values(before)) {
         if (!normalized[binding.key]) sendHost({ type: OUT.BINDING_REMOVE,
           profileId: binding.profileId, sessionId: binding.sessionId });
@@ -72,11 +104,17 @@ async function storeBindings(registry, sync = true, previous = null) {
   return normalized;
 }
 
-function mutateBindings(mutator, sync = true) {
+function mutateBindings(mutator, sync = true, shouldCommit = null, onAuthorizationChange = null) {
   const operation = bindingTransaction.then(async () => {
     const current = await loadBindings();
+    if (shouldCommit && !shouldCommit()) return current;
     const next = await mutator(current);
-    return storeBindings(next, sync, current);
+    if (shouldCommit && !shouldCommit()) return current;
+    if (!sameRegistry(current, next)) {
+      authorizationGen++;
+      if (onAuthorizationChange) onAuthorizationChange(authorizationGen);
+    }
+    return storeBindings(next, sync, current, shouldCommit);
   });
   // Keep the transaction tail fulfilled so one rejected Chrome API call does not freeze later updates.
   bindingTransaction = operation.catch(() => {});
@@ -156,16 +194,64 @@ function sanitizeUrl(u) {
 
 // ---- direct WebSocket link to the local agent bridge ------------------------
 
-async function bridgeUrl() {
-  const s = await chrome.storage.local.get(STORE.SETTINGS);
-  return (s[STORE.SETTINGS] && s[STORE.SETTINGS].bridgeUrl) || DEFAULT_BRIDGE_URL;
+function isLegacyDefaultBridgeUrl(value) {
+  return LEGACY_DEFAULT_BRIDGE_URLS.has(String(value || "").trim().replace(/\/$/, "").toLowerCase());
 }
 
-async function connectBridge() {
+async function ensureBridgeMigration() {
+  const saved = await chrome.storage.local.get([STORE.SETTINGS, STORE.BRIDGE_MIGRATION]);
+  const settings = saved[STORE.SETTINGS] || {};
+  const current = String(settings.bridgeUrl || "").trim();
+  const completed = saved[STORE.BRIDGE_MIGRATION];
+  const migrationComplete = completed === true ||
+    (!!completed && typeof completed === "object" && completed.completed === true);
+  if (migrationComplete) {
+    return { url: current || DEFAULT_BRIDGE_URL, migrated: false,
+      customBridge: !!(typeof completed === "object" && completed.customBridge) };
+  }
+  const migrated = isLegacyDefaultBridgeUrl(current);
+  // Record whether the address was user-configured BEFORE changing anything.
+  // A legacy user may already have chosen port 8766 manually, so inspecting
+  // only the final port during onInstalled would miss the required reboot note.
+  const customBridge = !!current && !migrated;
+  const updates = { [STORE.BRIDGE_MIGRATION]: { completed: true, customBridge } };
+  if (migrated) updates[STORE.SETTINGS] = { ...settings, bridgeUrl: DEFAULT_BRIDGE_URL };
+  try {
+    await chrome.storage.local.set(updates);
+  } catch (_) {
+    // Even if local persistence is temporarily unavailable, never make the
+    // first 0.2.1 connection to the detached 0.2.0 default broker.
+  }
+  return { url: migrated ? DEFAULT_BRIDGE_URL : (current || DEFAULT_BRIDGE_URL),
+    migrated, customBridge };
+}
+
+async function bridgeUrl() {
+  return (await ensureBridgeMigration()).url;
+}
+
+function invalidateSession(sock = null) {
+  sessionGen++;
+  paired = false;
+  if (sock) sock._paired = false;
+}
+
+function clearSocketKeepalive() {
+  clearInterval(pingTimer);
+  pingTimer = null;
+}
+
+async function connectBridge(probeOnly = false) {
   // Resolve the URL BEFORE the open-socket check: with the await inside the check→assign gap, two
   // concurrent callers (alarm + panel) could both pass the check and leak a live duplicate socket.
   const url = await bridgeUrl();
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return ws;
+  if (ws) {
+    const stale = ws;
+    invalidateSession(stale);
+    clearSocketKeepalive();
+    try { stale.close(); } catch (_) {}
+  }
   let sock;
   try {
     sock = new WebSocket(url);
@@ -173,6 +259,7 @@ async function connectBridge() {
     broadcast({ cmd: "hostError", error: String(e) });
     return null;
   }
+  sock._probeOnly = probeOnly;
   ws = sock;
   // Every handler is scoped to ITS socket: after a settings change or reconnect replaces `ws`, a
   // late event from the old socket must not null out / unpair / reconnect over the live connection.
@@ -196,14 +283,17 @@ async function connectBridge() {
   };
   sock.onclose = () => {
     if (ws !== sock) return;   // a newer connection owns the state now
-    clearInterval(pingTimer); pingTimer = null;
+    clearSocketKeepalive();
     ws = null;
-    paired = false;
-    sessionGen++;   // cancel any actions still queued from the dead session
-    broadcast({ cmd: "disconnected", error: null });
+    invalidateSession(sock);   // cancel any actions still queued from the dead session
+    if (!sock._probeOnly) broadcast({ cmd: "disconnected", error: null });
     if (pairedIntent) scheduleReconnect();   // agent restarted / worker slept: self-heal
   };
-  sock.onerror = () => { if (ws === sock) broadcast({ cmd: "hostError", error: "cannot reach the local agent" }); };
+  sock.onerror = () => {
+    if (ws === sock && !sock._probeOnly) {
+      broadcast({ cmd: "hostError", error: "cannot reach the local agent" });
+    }
+  };
   return sock;
 }
 
@@ -217,6 +307,49 @@ function sendHost(msg) {
 function socketSend(sock, msg) {
   if (sock && sock === ws && sock.readyState === WebSocket.OPEN) { sock.send(JSON.stringify(msg)); return true; }
   return false;
+}
+
+function sessionSocketSend(sock, generation, msg) {
+  if (generation !== sessionGen || !paired || !sock._paired) return false;
+  return socketSend(sock, msg);
+}
+
+function actionAuthorized(sock, epoch) {
+  return epoch.session === sessionGen && epoch.authorization === authorizationGen &&
+    sock === ws && paired && sock._paired === true;
+}
+
+function actionSocketSend(sock, epoch, msg) {
+  if (!actionAuthorized(sock, epoch)) return false;
+  return socketSend(sock, msg);
+}
+
+function requireActionAuthorized(sock, epoch) {
+  if (!actionAuthorized(sock, epoch)) throw new Error("tab authorization changed during the action");
+}
+
+function actionBindingMutation(sock, epoch, mutator) {
+  const expected = epoch.authorization;
+  return mutateBindings(
+    mutator,
+    true,
+    () => actionAuthorized(sock, epoch),
+    (nextGeneration) => {
+      if (nextGeneration !== expected + 1) {
+        throw new Error("concurrent tab authorization change");
+      }
+      epoch.authorization = nextGeneration;
+    },
+  );
+}
+
+function sendAuthorizationError(sock, epoch, actionId) {
+  return sessionSocketSend(sock, epoch.session, {
+    type: OUT.ACTION_RESULT,
+    id: actionId,
+    ok: false,
+    error: "tab authorization changed while the browser action was running",
+  });
 }
 
 // Reject empty / too-short / low-entropy pairing codes: HMAC over a guessable secret is forgeable,
@@ -262,6 +395,7 @@ async function onHostMessage(msg, sock) {
   // old socket can't stomp the new connection's nonce / paired state. The challenge nonce is stored
   // ON the socket (sock._extNonce), not a global, so two connections never cross wires.
   const alive = () => ws === sock;
+  const authenticated = () => alive() && paired && sock._paired === true;
   switch (msg.type) {
     case IN.CHALLENGE: {
       // One challenge per connection: a rogue server can't flood challenges to burn HMAC/storage work.
@@ -273,6 +407,17 @@ async function onHostMessage(msg, sock) {
         if (alive()) { try { sock.close(); } catch (_) {} }
         break;
       }
+      if (msg.protocol !== PROTOCOL_VERSION) {
+        pairedIntent = false;
+        invalidateSession(sock);
+        try { sock.close(); } catch (_) {}
+        if (!sock._probeOnly) {
+          broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
+        }
+        break;
+      }
+      companionDetected = true;
+      broadcast({ cmd: "companionDetected", detected: true });
       // The broker challenged us: prove the browser role + stable browser identity, then require a
       // role-bound broker proof back. The shared code never travels in the clear.
       const code = await getPairingCode();
@@ -280,14 +425,9 @@ async function onHostMessage(msg, sock) {
       if (weakCode(code)) {
         // Refuse a missing/weak secret and close — never leave a half-open unauthenticated link idling.
         pairedIntent = false;
+        invalidateSession(sock);
+        sock._probeOnly = true;
         try { sock.close(); } catch (_) {}
-        broadcast({ cmd: "pairDenied", reason: "Enter the private pairing code printed by the companion installer (⚙ button)." });
-        break;
-      }
-      if (msg.protocol !== PROTOCOL_VERSION) {
-        pairedIntent = false;
-        try { sock.close(); } catch (_) {}
-        broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
         break;
       }
       const identity = await getIdentity();
@@ -303,6 +443,13 @@ async function onHostMessage(msg, sock) {
       break;
     }
     case IN.PAIRED: {
+      if (msg.protocol !== PROTOCOL_VERSION) {
+        pairedIntent = false;
+        invalidateSession(sock);
+        try { sock.close(); } catch (_) {}
+        broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
+        break;
+      }
       // Verify the agent proved it knows the SAME code — else this could be a rogue local server.
       const code = await getPairingCode();
       if (!alive()) return;
@@ -313,12 +460,14 @@ async function onHostMessage(msg, sock) {
         // Identity proof failed (or PAIRED arrived with no prior challenge): cut the connection and
         // stop auto-retrying. The user fixes the code in ⚙ (saveSettings reconnects); a rogue server
         // just stays disconnected.
-        paired = false; pairedIntent = false;
+        pairedIntent = false;
+        invalidateSession(sock);
         try { sock.close(); } catch (_) {}
         broadcast({ cmd: "pairDenied", reason: "agent identity check failed — wrong pairing code?" });
         break;
       }
       paired = !!msg.ok;
+      sock._paired = paired;
       if (msg.brokerState && typeof msg.brokerState === "object") brokerState = msg.brokerState;
       if (paired) {
         const cur = (await chrome.storage.local.get(STORE.PAIRING))[STORE.PAIRING] || {};
@@ -326,28 +475,37 @@ async function onHostMessage(msg, sock) {
         await chrome.storage.local.set({ [STORE.PAIRING]: { ...cur, pairedAt: Date.now() } });
         await validateBindings(false);
         if (!alive()) return;
-        sendHost({ type: OUT.BINDING_SYNC, bindings: bindingList(await loadBindings()) });
+        const bindings = bindingList(await loadBindings());
+        if (!authenticated()) return;
+        socketSend(sock, { type: OUT.BINDING_SYNC, bindings });
       }
       broadcast({ cmd: "paired", ...msg });
       break;
     }
     case IN.PAIR_DENIED:
-      paired = false; pairedIntent = false;
-      await chrome.storage.local.remove(STORE.PAIRING);   // don't keep retrying a refused pairing
+      if (!alive() || !sock._challenged) break;
+      pairedIntent = false;
+      invalidateSession(sock);
       broadcast({ cmd: "pairDenied", ...msg });
+      try { sock.close(); } catch (_) {}
       break;
     case IN.PING:
-      sendHost({ type: OUT.EVENT, name: "pong", id: msg.id });
+      if (authenticated()) socketSend(sock, { type: OUT.EVENT, name: "pong", id: msg.id });
       break;
     case IN.BROKER_STATE:
+      if (!authenticated()) break;
       if (msg.data && typeof msg.data === "object") brokerState = msg.data;
       broadcast({ cmd: "brokerState", state: brokerState });
       break;
     case IN.BINDING_REVOKED: {
+      if (!authenticated()) break;
       const profileId = String(msg.profileId || "");
       const sessionId = String(msg.sessionId || "");
       scopeKey(profileId, sessionId);
-      await mutateBindings((current) => removeScope(current, profileId, sessionId), false);
+      await mutateBindings(
+        (current) => removeScope(current, profileId, sessionId), false, authenticated
+      );
+      if (!authenticated()) break;
       broadcast({ cmd: "bindingRevoked", profileId, sessionId,
         reason: msg.reason || "this session was attached in another Chrome profile" });
       break;
@@ -355,23 +513,29 @@ async function onHostMessage(msg, sock) {
     case IN.ACTION:
       // Only act once the agent has completed the pairing handshake, and run actions strictly one at
       // a time (a queue) so a fast burst can't fire a click before the prior snapshot/navigation ends.
-      if (!paired) {
-        sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: "not paired" });
+      if (!authenticated()) {
+        socketSend(sock, { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: "not paired" });
         break;
       }
       if (queueDepth >= MAX_QUEUED) {
-        sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: "action queue full" });
+        socketSend(sock, { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: "action queue full" });
         break;
       }
-      const gen = sessionGen; queueDepth++;
+      const epoch = { session: sessionGen, authorization: authorizationGen }; queueDepth++;
       // ALWAYS decrement, even if the error path itself throws: `.then(dec, dec)` keeps the chain
       // fulfilled — one poisoned rejection would otherwise freeze the queue (and the counter) forever.
       const dec = () => { queueDepth--; return new Promise((r) => setTimeout(r, 60)); };  // rate-limit + settle
       actionQueue = actionQueue
         // Re-check right before executing: if the session dropped meanwhile, don't act on a stale page.
-        .then(() => (gen === sessionGen && paired) ? handleAction(msg)
-          : sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: "disconnected" }))
-        .catch((e) => { try { sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(e) }); } catch (_) {} })
+        .then(() => actionAuthorized(sock, epoch) ? handleAction(msg, sock, epoch)
+          : sendAuthorizationError(sock, epoch, msg.id))
+        .catch((e) => {
+          try {
+            if (!actionAuthorized(sock, epoch)) sendAuthorizationError(sock, epoch, msg.id);
+            else actionSocketSend(sock, epoch,
+              { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(e) });
+          } catch (_) {}
+        })
         .then(dec, dec);
       break;
   }
@@ -388,7 +552,7 @@ function isControllableTab(t) {
 }
 
 // Exact target only. An unbound or stale scope fails instead of falling back to whichever page the
-// user most recently focused — the central wrong-tab guarantee of protocol v3.
+// user most recently focused — the central wrong-tab guarantee of protocol v4.
 async function getTargetTab(msg) {
   const scope = msg && msg.scope;
   if (!scope || !scope.profileId || !scope.sessionId) throw new Error("action has no Hermes session scope");
@@ -451,20 +615,23 @@ function waitComplete(tabId, ms) {
   });
 }
 
-async function handleAction(msg) {
+async function handleAction(msg, sock, epoch) {
   const a = msg.action || {};
   let tab;
   try {
     tab = await getTargetTab(msg);
   } catch (error) {
-    sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(error.message || error) });
+    sessionSocketSend(sock, epoch.session,
+      { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(error.message || error) });
     return;
   }
   const settings = await getSettings();
+  requireActionAuthorized(sock, epoch);
   // "Trusted input" mode: real browser input events via CDP only if the user enabled it. The required
   // manifest permission is present, but the debugger transport stays detached otherwise (no debugger banner).
   const useCdp = !!settings.trustedInput && await cdp.hasDebugger();
   const overlay = async (on) => { if (settings.showOverlay) { try { await inPage(tab.id, setOverlay, [on]); } catch (_) {} } };
+  requireActionAuthorized(sock, epoch);
   await overlay(true);
 
   let data;
@@ -475,9 +642,14 @@ async function handleAction(msg) {
       if (!/^https?:\/\//i.test(u)) { data = { ok: false, error: "only http/https URLs are allowed" }; break; }
       // Trusted-input mode: attach BEFORE navigating so a dialog fired during load (beforeunload,
       // onload alert) is auto-handled instead of freezing the page with nobody attached yet.
-      if (useCdp) { try { await cdp.ensureAttached(tab.id); } catch (_) {} }
+      if (useCdp) {
+        try {
+          await cdp.ensureAttached(tab.id, () => requireActionAuthorized(sock, epoch));
+        } catch (_) {}
+      }
       const fromUrl = tab.url;
       const loadedP = waitComplete(tab.id, 15000);   // listener FIRST, then navigate
+      requireActionAuthorized(sock, epoch);
       await chrome.tabs.update(tab.id, { url: u });
       const loaded = await loadedP;
       // Report what ACTUALLY happened: the final URL after redirects, and whether the load finished.
@@ -491,49 +663,91 @@ async function handleAction(msg) {
       break;
     }
     case ACTION.SNAPSHOT:
+      requireActionAuthorized(sock, epoch);
       data = await inPage(tab.id, buildSnapshot, [a.maxChars]);
       break;
     case ACTION.READ_TEXT:
+      requireActionAuthorized(sock, epoch);
       data = await inPage(tab.id, readText, [a.maxChars]);
       break;
     case ACTION.CLICK: {
       if (useCdp) {
+        requireActionAuthorized(sock, epoch);
         const r = await inPage(tab.id, refRect, [a.ref]);
-        data = r.ok ? await cdp.click(tab.id, r.x, r.y) : r;
-      } else data = await inPage(tab.id, clickRef, [a.ref]);
+        requireActionAuthorized(sock, epoch);
+        data = r.ok ? await cdp.click(tab.id, r.x, r.y,
+          () => requireActionAuthorized(sock, epoch)) : r;
+      } else { requireActionAuthorized(sock, epoch); data = await inPage(tab.id, clickRef, [a.ref]); }
       break;
     }
     case ACTION.TYPE: {
       if (useCdp) {
         // mustEdit: refuse to CDP-type into a non-editable target (button, checkbox, container…) —
         // Ctrl+A there would select the whole page and insertText would land who-knows-where.
+        requireActionAuthorized(sock, epoch);
         const f = await inPage(tab.id, focusRef, [a.ref, true]);
+        requireActionAuthorized(sock, epoch);
         if (!f.ok) data = f;
-        else { data = await cdp.typeText(tab.id, a.text); if (a.submit) await cdp.key(tab.id, "Enter"); }
-      } else data = await inPage(tab.id, typeRef, [a.ref, a.text, !!a.submit]);
+        else {
+          data = await cdp.typeText(tab.id, a.text, () => requireActionAuthorized(sock, epoch));
+          if (a.submit && data.ok !== false) {
+            data = await cdp.key(tab.id, "Enter", () => requireActionAuthorized(sock, epoch));
+          }
+        }
+      } else { requireActionAuthorized(sock, epoch); data = await inPage(tab.id, typeRef, [a.ref, a.text, !!a.submit]); }
       break;
     }
     case ACTION.SCROLL:
+      requireActionAuthorized(sock, epoch);
       data = await inPage(tab.id, scrollPage, [a.ref, a.dy, a.to]);
       break;
     case ACTION.SCREENSHOT:
       // captureVisibleTab grabs the window's ACTIVE tab, which may differ from our target — focus
       // the target first so the screenshot is really of the page we act on.
+      requireActionAuthorized(sock, epoch);
       if (!tab.active) { try { await chrome.tabs.update(tab.id, { active: true }); } catch (_) {} }
-      data = { dataUrl: await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" }) };
+      requireActionAuthorized(sock, epoch);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const beforeGeneration = activationGeneration.get(tab.windowId) || 0;
+      let [activeBefore] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (!activeBefore || activeBefore.id !== tab.id ||
+          (activationGeneration.get(tab.windowId) || 0) !== beforeGeneration) {
+        throw new Error("the attached tab could not be made active for the screenshot");
+      }
+      requireActionAuthorized(sock, epoch);
+      const captureGeneration = activationGeneration.get(tab.windowId) || 0;
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const [activeAfter] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (!activeAfter || activeAfter.id !== tab.id ||
+          (activationGeneration.get(tab.windowId) || 0) !== captureGeneration) {
+        throw new Error("the active tab changed during the screenshot; captured data was discarded");
+      }
+      requireActionAuthorized(sock, epoch);
+      data = { dataUrl };
       break;
     case ACTION.CURRENT_URL:
+      requireActionAuthorized(sock, epoch);
       data = { url: sanitizeUrl(tab.url), title: tab.title };
       break;
     case ACTION.WAIT:
       await new Promise((r) => setTimeout(r, Math.min(a.ms || 0, 15000)));
+      requireActionAuthorized(sock, epoch);
       data = { waited: a.ms };
       break;
     case ACTION.HOVER: {
       if (useCdp) {
+        requireActionAuthorized(sock, epoch);
         const r = await inPage(tab.id, refRect, [a.ref]);
-        data = r.ok ? await cdp.hover(tab.id, r.x, r.y) : r;
-      } else data = await inPage(tab.id, hoverRef, [a.ref]);
+        requireActionAuthorized(sock, epoch);
+        data = r.ok ? await cdp.hover(tab.id, r.x, r.y,
+          () => requireActionAuthorized(sock, epoch)) : r;
+      } else {
+        requireActionAuthorized(sock, epoch);
+        data = await inPage(tab.id, hoverRef, [a.ref]);
+      }
       break;
     }
     case ACTION.KEY:
@@ -541,25 +755,34 @@ async function handleAction(msg) {
         // If a ref was given, it MUST focus successfully first — otherwise the trusted keystroke
         // would land on whatever was previously focused (wrong field/button). Abort on failure.
         if (a.ref) {
+          requireActionAuthorized(sock, epoch);
           const f = await inPage(tab.id, focusRef, [a.ref]);
+          requireActionAuthorized(sock, epoch);
           if (!f || f.ok !== true) { data = f || { ok: false, error: "could not focus ref: " + a.ref }; break; }
         }
-        data = await cdp.key(tab.id, a.key);
-      } else data = await inPage(tab.id, pressKey, [a.key, a.ref]);
+        data = await cdp.key(tab.id, a.key, () => requireActionAuthorized(sock, epoch));
+      } else {
+        requireActionAuthorized(sock, epoch);
+        data = await inPage(tab.id, pressKey, [a.key, a.ref]);
+      }
       break;
     case ACTION.SELECT_OPTION:
+      requireActionAuthorized(sock, epoch);
       data = await inPage(tab.id, selectOption, [a.ref, a.value, a.label]);
       break;
     case ACTION.DRAG:
+      requireActionAuthorized(sock, epoch);
       data = await inPage(tab.id, dragRefs, [a.from, a.to]);
       break;
     case ACTION.FIND:
+      requireActionAuthorized(sock, epoch);
       data = await inPage(tab.id, findText, [a.text]);
       break;
     // History moves wait for the load too (shorter cap: a same-document/bfcache move may emit no
     // "complete" at all) and report the REAL landing URL, so the agent never acts on the old page.
     case ACTION.BACK: {
       const p = waitComplete(tab.id, 5000);
+      requireActionAuthorized(sock, epoch);
       await chrome.tabs.goBack(tab.id);
       const loaded = await p;
       const t = await chrome.tabs.get(tab.id).catch(() => null);
@@ -568,6 +791,7 @@ async function handleAction(msg) {
     }
     case ACTION.FORWARD: {
       const p = waitComplete(tab.id, 5000);
+      requireActionAuthorized(sock, epoch);
       await chrome.tabs.goForward(tab.id);
       const loaded = await p;
       const t = await chrome.tabs.get(tab.id).catch(() => null);
@@ -576,6 +800,7 @@ async function handleAction(msg) {
     }
     case ACTION.RELOAD: {
       const p = waitComplete(tab.id, 15000);
+      requireActionAuthorized(sock, epoch);
       await chrome.tabs.reload(tab.id);
       const loaded = await p;
       const t = await chrome.tabs.get(tab.id).catch(() => null);
@@ -589,13 +814,28 @@ async function handleAction(msg) {
         data = { ok: false, error: "only http/https URLs are allowed" };
         break;
       }
+      requireActionAuthorized(sock, epoch);
       const t = await chrome.tabs.create({ url: nu, windowId: tab.windowId, active: true });
-      await attachScopeTab(msg.scope, t.id);
+      let attached = false;
+      try {
+        requireActionAuthorized(sock, epoch);
+        const bindings = await actionBindingMutation(
+          sock, epoch,
+          (current) => attachTab(current, msg.scope.profileId, msg.scope.sessionId, t.id),
+        );
+        const updated = bindings[scopeKey(msg.scope.profileId, msg.scope.sessionId)];
+        attached = !!updated && updated.tabIds.includes(t.id);
+        requireActionAuthorized(sock, epoch);
+      } catch (error) {
+        if (!attached) { try { await chrome.tabs.remove(t.id); } catch (_) {} }
+        throw error;
+      }
       const scoped = await getScopeTabs(msg.scope);
       data = { tabId: t.id, index: scoped.tabs.findIndex((item) => item.id === t.id) };
       break;
     }
     case ACTION.LIST_TABS: {
+      requireActionAuthorized(sock, epoch);
       const scoped = await getScopeTabs(msg.scope);
       data = { tabs: scoped.tabs.map((t, index) => ({
         index,
@@ -611,9 +851,15 @@ async function handleAction(msg) {
       const t = scoped.tabs[a.index];
       if (!t) { data = { ok: false, error: "no tab at index " + a.index }; }
       else {
+        requireActionAuthorized(sock, epoch);
+        await actionBindingMutation(
+          sock, epoch,
+          (current) => setActiveTab(current, msg.scope.profileId, msg.scope.sessionId, t.id),
+        );
+        requireActionAuthorized(sock, epoch);
         await chrome.windows.update(t.windowId, { focused: true }).catch(() => {});
+        requireActionAuthorized(sock, epoch);
         await chrome.tabs.update(t.id, { active: true });
-        await activateScopeTab(msg.scope, t.id);
         data = { switched: a.index, tabId: t.id };
       }
       break;
@@ -623,7 +869,12 @@ async function handleAction(msg) {
       const localIndex = a.index != null ? a.index : scoped.tabs.findIndex((item) => item.id === tab.id);
       const t = scoped.tabs[localIndex];
       if (t) {
-        await detachScopeTab(msg.scope, t.id);
+        requireActionAuthorized(sock, epoch);
+        await actionBindingMutation(
+          sock, epoch,
+          (current) => detachTab(current, msg.scope.profileId, msg.scope.sessionId, t.id),
+        );
+        requireActionAuthorized(sock, epoch);
         await chrome.tabs.remove(t.id);
       }
       data = { closed: t ? localIndex : null, tabId: t ? t.id : null };
@@ -634,12 +885,34 @@ async function handleAction(msg) {
     }
   } finally {
     await overlay(false);
+    // A detach/transfer or Trusted-input change can race an in-flight action
+    // just before that action calls ensureAttached(). Reconcile again after
+    // every action so a stale debugger transport and its dialog handler can
+    // never survive outside the current explicit active targets.
+    try {
+      const latestSettings = await getSettings();
+      if (!latestSettings.trustedInput) {
+        await cdp.detachAll();
+      } else {
+        const latestBindings = await loadBindings();
+        await cdp.retainOnly(new Set(
+          Object.values(latestBindings).map((binding) => binding.activeTabId)
+        ));
+      }
+    } catch (_) {
+      try { await cdp.detach(tab.id); } catch (_) {}
+    }
   }
   // Honest result: surface a real failure as ok:false instead of burying it under a top-level ok:true.
   if (data && data.ok === false) {
-    sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: data.error || "action failed" });
+    if (!actionSocketSend(sock, epoch,
+      { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: data.error || "action failed" })) {
+      sendAuthorizationError(sock, epoch, msg.id);
+    }
   } else {
-    sendHost({ type: OUT.ACTION_RESULT, id: msg.id, ok: true, data });
+    if (!actionSocketSend(sock, epoch, { type: OUT.ACTION_RESULT, id: msg.id, ok: true, data })) {
+      sendAuthorizationError(sock, epoch, msg.id);
+    }
   }
 }
 
@@ -647,6 +920,25 @@ async function handleAction(msg) {
 
 const panels = new Set();
 function broadcast(msg) { chrome.runtime.sendMessage({ from: "bg", ...msg }).catch(() => {}); }
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (chrome.runtime.getManifest().version !== COMPANION_REINSTALL_NOTICE.extensionVersion) return;
+  (async () => {
+    const migration = await ensureBridgeMigration();
+    if (migration.migrated) {
+      invalidateSession(ws);
+      clearSocketKeepalive();
+      if (ws) { try { ws.close(); } catch (_) {} ws = null; }
+      if (pairedIntent) scheduleReconnect();
+    }
+    if (details.reason !== "update" || !details.previousVersion ||
+        details.previousVersion === COMPANION_REINSTALL_NOTICE.extensionVersion) return;
+    const notice = { ...COMPANION_REINSTALL_NOTICE, previousVersion: details.previousVersion,
+      customBridge: migration.customBridge };
+    await chrome.storage.local.set({ [STORE.UPGRADE_NOTICE]: notice });
+    broadcast({ cmd: "upgradeNoticeChanged", notice });
+  })().catch((error) => console.error("upgrade migration:", error));
+});
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
@@ -664,23 +956,51 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
       case "unpair":
         pairedIntent = false;
+        clearTimeout(reconnectTimer); reconnectTimer = null;
         sendHost({ type: OUT.BYE });
+        invalidateSession(ws);
+        clearSocketKeepalive();
         if (ws) ws.close();
-        ws = null; paired = false;
+        ws = null;
         brokerState = { protocol: PROTOCOL_VERSION, browsers: [], agentProfiles: [] };
-        cdp.detachAll();   // drop the debugger attachment + its banner
+        await cdp.detachAll();   // drop the debugger attachment + its banner
         await chrome.storage.local.remove(STORE.PAIRING);
         sendResponse({ ok: true });
         break;
       case "getState": {
         const st = await chrome.storage.local.get([
           STORE.IDENTITY, STORE.PAIRING, STORE.SETTINGS, STORE.BINDINGS, STORE.SELECTED_SCOPE,
+          STORE.UPGRADE_NOTICE,
         ]);
-        sendResponse({ paired, brokerState, identity: st[STORE.IDENTITY] || await getIdentity(),
+        sendResponse({ paired, companionDetected, brokerState, identity: st[STORE.IDENTITY] || await getIdentity(),
           pairing: st[STORE.PAIRING] || null,
           bindings: normalizeRegistry(st[STORE.BINDINGS]),
           selectedScope: st[STORE.SELECTED_SCOPE] || null,
+          upgradeNotice: st[STORE.UPGRADE_NOTICE] || null,
           settings: { ...DEFAULT_SETTINGS, ...(st[STORE.SETTINGS] || {}) } });
+        break;
+      }
+      case "probeCompanion": {
+        if (paired && ws && ws.readyState === WebSocket.OPEN) {
+          companionDetected = true;
+          broadcast({ cmd: "companionDetected", detected: true });
+          sendResponse({ ok: true, detected: true });
+          break;
+        }
+        companionDetected = false;
+        const probe = await connectBridge(true);
+        sendResponse({ ok: !!probe, detected: companionDetected });
+        break;
+      }
+      case "dismissUpgradeNotice": {
+        const saved = await chrome.storage.local.get(STORE.UPGRADE_NOTICE);
+        const current = saved[STORE.UPGRADE_NOTICE] || null;
+        const matches = current && current.id === String(msg.id || "");
+        if (matches) {
+          await chrome.storage.local.remove(STORE.UPGRADE_NOTICE);
+          broadcast({ cmd: "upgradeNoticeChanged", notice: null });
+        }
+        sendResponse({ ok: true, upgradeNotice: matches ? null : current });
         break;
       }
       case "selectScope": {
@@ -761,7 +1081,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (!browserName) { sendResponse({ ok: false, error: "browser name is required" }); break; }
         await chrome.storage.local.set({ [STORE.IDENTITY]: { ...current, browserName } });
         desiredName = browserName;
-        if (ws) { try { ws.close(); } catch (_) {} ws = null; paired = false; }
+        invalidateSession(ws);
+        clearSocketKeepalive();
+        if (ws) { try { ws.close(); } catch (_) {} ws = null; }
         if (pairedIntent) scheduleReconnect();
         sendResponse({ ok: true, identity: { ...current, browserName } });
         break;
@@ -769,15 +1091,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case "saveSettings": {
         const cur = (await chrome.storage.local.get(STORE.SETTINGS))[STORE.SETTINGS] || {};
         const next = { ...cur, ...msg.settings };
+        if (!!cur.trustedInput !== !!next.trustedInput) authorizationGen++;
         await chrome.storage.local.set({ [STORE.SETTINGS]: next });
         // Trusted-input turned OFF -> detach the debugger now (removes Chrome's banner immediately).
         if (cur.trustedInput && !next.trustedInput) { try { await cdp.detachAll(); } catch (_) {} }
         // Bridge address or pairing code changed -> the live socket is stale. Drop it and reconnect so
         // the new value actually takes effect (a fresh challenge/HMAC handshake runs on reconnect).
         if (next.bridgeUrl !== cur.bridgeUrl || next.pairingCode !== cur.pairingCode) {
-          sessionGen++;
+          invalidateSession(ws);
+          clearSocketKeepalive();
           if (ws) { try { ws.close(); } catch (_) {} ws = null; }
-          paired = false;
           if (pairedIntent) scheduleReconnect();
         }
         sendResponse({ ok: true });

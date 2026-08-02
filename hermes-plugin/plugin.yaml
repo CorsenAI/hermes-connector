@@ -1,5 +1,5 @@
 name: hermes-connector
-version: 0.2.0
+version: 0.2.1
 manifest_version: 1
 description: >-
   Attach exact Hermes profiles and sessions to user-selected tabs in paired,

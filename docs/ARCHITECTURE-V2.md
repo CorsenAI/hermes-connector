@@ -13,7 +13,7 @@ still exists.
 
 ### Local broker
 
-One broker per Hermes installation owns `127.0.0.1:8765`. It accepts two
+One broker per Hermes installation owns `127.0.0.1:8766`. It accepts two
 authenticated client roles:
 
 - `browser`: Chrome extension instances;
@@ -29,6 +29,13 @@ Every Hermes process loads the same plugin but connects as a client instead of
 trying to bind the browser port. The plugin obtains its profile from
 `PluginContext.profile_name` and receives `session_id` / `task_id` in each tool
 handler call. Those identifiers accompany every action request.
+
+Named Hermes profiles have independent plugin directories and activation
+lists. The companion installer deploys the same payload into the shared home
+and every existing profile while all instances still share one root pairing
+secret and broker. Deployment and activation roll back across every discovered
+profile if any scope fails. Re-running the installer covers profiles created
+later.
 
 ### Real Hermes dashboard
 
@@ -73,11 +80,23 @@ last-used, or first controllable tab.
 ## Lifecycle
 
 - The companion ensures the single broker is running, then reconnects with
-  bounded backoff.
+  bounded backoff. A running client restarts a missing broker through a
+  throttled cross-process launch lock instead of reconnecting forever to an
+  empty port.
 - A service-worker restart preserves `browserId` and validates stored tab IDs.
+- Binding validation is silent when the normalized registry is unchanged; only
+  real changes write storage, synchronize the broker, and notify the panel.
 - A full Chrome restart preserves browser identity and session preference. Any
   tab that cannot be proven to be the same restored tab must be attached again.
 - Broker or Hermes restarts do not rotate the pairing code.
+- When Chrome updates an older build to 0.2.1, it migrates only the legacy
+  default 8765 address to 8766 and keeps a local notice visible until the user
+  confirms the separately downloaded companion was reinstalled. The new port
+  prevents a detached 0.2.0 broker from silently serving the hardened build.
+- Protocol 4 stores ownership in `broker-state-v4.json`. It validates and
+  snapshots legacy preferences once when that file is absent, then never reads
+  mutable protocol-3 state again. Unique atomic staging files prevent two
+  overlapping broker launches from corrupting the protocol-4 snapshot.
 
 ## Cross-browser ownership
 

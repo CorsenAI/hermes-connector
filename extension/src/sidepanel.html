@@ -41,6 +41,25 @@
     .tabRow.current .tabTitle { color: #7ee787; font-weight: 600; }
     iframe { width: 100%; min-height: 0; flex: 1; border: 0; display: block; background: #fff; }
     #hint { padding: 20px; color: #9a9aa2; font-size: 13px; line-height: 1.5; flex: 1; }
+    #setupNotice { flex: none; padding: 10px; background: #10243a;
+      border-bottom: 1px solid #285a86; color: #dceeff; font-size: 12px; }
+    #setupNotice[hidden] { display: none; }
+    #setupNotice p { margin: 5px 0; line-height: 1.4; }
+    #setupNotice ol { margin: 6px 0 8px; padding-left: 20px; line-height: 1.5; }
+    .setupActions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .setupActions a { color: #9fd1ff; }
+    .setupActions .primaryLink { display: inline-block; background: #3159d8; color: #fff;
+      text-decoration: none; border-radius: 6px; padding: 6px 8px; }
+    .setupActions button { background: #1c3853; color: #dceeff; border: 1px solid #3b6d99;
+      border-radius: 6px; padding: 5px 7px; cursor: pointer; }
+    #upgradeNotice { flex: none; padding: 10px; background: #2b2110;
+      border-bottom: 1px solid #76551f; color: #f6dda5; font-size: 12px; }
+    #upgradeNotice[hidden] { display: none; }
+    #upgradeNotice p { margin: 5px 0 8px; line-height: 1.4; }
+    .upgradeActions { display: flex; align-items: center; gap: 8px; }
+    .upgradeActions a { color: #9ec5ff; }
+    .upgradeActions button { margin-left: auto; background: #443214; color: #f6dda5;
+      border: 1px solid #76551f; border-radius: 6px; padding: 5px 7px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -50,15 +69,61 @@
     <button id="gear" title="Set your Hermes address">⚙</button>
     <span id="status">connecting…</span>
   </header>
+  <aside id="setupNotice" role="status" hidden>
+    <strong id="setupTitle">Finish setup — about 2 minutes</strong>
+    <p id="companionDetection">Checking whether the companion is already installed…</p>
+    <ol>
+      <li id="setupStepDownload">Download and extract the Hermes Connector companion.</li>
+      <li id="setupStepInstall">On Windows, double-click <b>Install Hermes Connector.cmd</b>.</li>
+      <li id="setupStepRestart">Restart Hermes, then copy the private pairing code the installer displays.</li>
+      <li id="setupStepPair">Paste that code below, choose a Hermes session, and attach only the tabs it may use.</li>
+    </ol>
+    <details>
+      <summary>What is the companion?</summary>
+      <p>It is the small Hermes Connector plugin installed inside your existing Hermes setup. It includes
+        the local broker automatically; it is not another app or account. Communication stays on this PC
+        through <code>127.0.0.1</code>, and Corsen AI operates no relay or telemetry service.</p>
+      <p>On macOS or Linux, run <code>./install.sh</code> instead. Keep the pairing code private. Run the
+        installer again after creating a new named Hermes profile.</p>
+    </details>
+    <div class="setupActions">
+      <a id="downloadCompanion" class="primaryLink"
+        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip"
+        target="_blank" rel="noopener noreferrer">Download companion 0.2.1</a>
+      <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
+        rel="noopener noreferrer">Detailed instructions</a>
+      <button id="openSetupSettings">Enter pairing code</button>
+      <button id="checkCompanion">Check again</button>
+    </div>
+  </aside>
+  <aside id="upgradeNotice" role="alert" hidden>
+    <strong>Companion update required</strong>
+    <p>Re-download and run the 0.2.1 companion installer, then restart running Hermes processes.
+      Browser tools may fail until this is done.</p>
+    <p id="customPortUpgrade" hidden><b>Custom bridge port:</b> an older detached broker may still own it.
+      After installing 0.2.1, reboot this computer once (or safely stop only that legacy broker),
+      then start Hermes again.</p>
+    <div class="upgradeActions">
+      <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
+        rel="noopener noreferrer">Installation steps</a>
+      <button id="dismissUpgradeNotice">I’ve reinstalled it</button>
+    </div>
+  </aside>
   <div id="cfg">
     <label>This Chrome profile name
       <input id="browserName" type="text" spellcheck="false" placeholder="Work Chrome" /></label>
     <label>Hermes dashboard address
       <input id="hermesUrl" type="text" spellcheck="false" placeholder="http://127.0.0.1:9119" /></label>
     <label>Bridge address
-      <input id="bridgeUrl" type="text" spellcheck="false" placeholder="ws://127.0.0.1:8765" /></label>
+      <input id="bridgeUrl" type="text" spellcheck="false" placeholder="ws://127.0.0.1:8766" /></label>
     <label>Pairing code (from companion installer)
       <input id="pairingCode" type="password" spellcheck="false" placeholder="paste the installer's private code" /></label>
+    <div class="setupActions">
+      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip"
+        target="_blank" rel="noopener noreferrer">Download companion</a>
+      <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
+        rel="noopener noreferrer">Setup help</a>
+    </div>
     <label class="chk"><input id="trustedInput" type="checkbox" />
       Trusted input — more reliable clicks &amp; typing (and handles pop-ups), but Chrome shows a
       “debugging this browser” banner while active.</label>

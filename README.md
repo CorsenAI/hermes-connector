@@ -31,7 +31,7 @@ Hermes session has no attached target, its browser action fails visibly.
 ```text
 real Hermes session
   -> Hermes companion client
-  -> authenticated loopback broker (127.0.0.1:8765)
+  -> authenticated loopback broker (127.0.0.1:8766)
   -> exact Chrome profile identity
   -> exact attached session/tab scope
   -> requested browser action
@@ -53,8 +53,16 @@ Two artifacts are published together and must have the same version:
 - `hermes-connector-<version>-companion.zip`: install once into the local Hermes
   home.
 
-Version 0.2.0 companion:
-[download the versioned release artifact](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip).
+Version 0.2.1 companion:
+[download the versioned release artifact](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip).
+
+Chrome updates the extension automatically, but it cannot update this local
+companion. Users upgrading from an older version must run the 0.2.1 companion
+installer again and restart running Hermes processes; the extension displays a
+persistent notice until they confirm that step. Default installations migrate
+once from port 8765 to the release-isolated port 8766. Users who deliberately
+configured another port must also reboot once (or safely stop the known legacy
+broker) so the detached older broker cannot keep that custom port.
 
 ### 1. Install the companion
 
@@ -66,15 +74,21 @@ Windows PowerShell:
 .\install.ps1
 ```
 
+For a normal Windows install, double-click `Install Hermes Connector.cmd`; it
+keeps the result and pairing code visible. The PowerShell command above is the
+advanced/manual equivalent.
+
 macOS or Linux:
 
 ```sh
 ./install.sh
 ```
 
-The installer copies the plugin atomically, preserves the previous version,
-enables `hermes-connector`, and prints a private pairing code. Restart any
-already-running Hermes dashboard, gateway, or chat process afterward.
+The installer copies the plugin atomically into the shared Hermes home and all
+existing named profiles, preserves previous versions, enables
+`hermes-connector` in each scope, and prints one private pairing code. Re-run it
+after creating a new Hermes profile. Restart any already-running Hermes
+dashboard, gateway, or chat process afterward.
 
 ### 2. Install and pair Chrome
 
@@ -100,12 +114,14 @@ tab titles and URLs locally so the user can select them.
 Fast, isolated release gate:
 
 ```powershell
-.\scripts\package.ps1 -AllowDirty
+& "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" tests\run_all.py
 ```
 
-Omit `-AllowDirty` for a real release; the builder refuses an uncommitted source
-tree, runs all fast tests, produces deterministic allowlisted ZIPs, and records
-SHA-256 hashes in `dist/release-<version>.json`.
+For a real release, `scripts/package.ps1` refuses an uncommitted source tree,
+runs all fast tests, produces deterministic allowlisted ZIPs, and records
+SHA-256 hashes in `dist/release-<version>.json`. Explicit development builds
+made with `-AllowDirty` are isolated under `dist/dev/` and are never suitable
+for Store upload.
 
 Live extension acceptance using Chromium or Chrome for Testing:
 

@@ -8,6 +8,7 @@ import {
   normalizeRegistry,
   removeTabEverywhere,
   removeScope,
+  sameRegistry,
   scopeKey,
   setActiveTab,
 } from "../extension/src/bindings.js";
@@ -68,4 +69,25 @@ test("a broker ownership revocation removes the complete local scope", () => {
   registry = attachTab(registry, "alpha", "session-1", 11);
   registry = removeScope(registry, "alpha", "session-1");
   assert.deepEqual(registry, {});
+});
+
+test("semantic registry equality detects real changes but ignores object key order", () => {
+  let registry = attachTab({}, "alpha", "session-1", 10);
+  registry = attachTab(registry, "alpha", "session-1", 11);
+  registry = attachTab(registry, "beta", "session-2", 20);
+  const reordered = {
+    [scopeKey("beta", "session-2")]: structuredClone(registry[scopeKey("beta", "session-2")]),
+    [scopeKey("alpha", "session-1")]: structuredClone(registry[scopeKey("alpha", "session-1")]),
+  };
+  assert.equal(sameRegistry(registry, reordered), true);
+
+  const activeChanged = setActiveTab(registry, "alpha", "session-1", 10);
+  assert.equal(sameRegistry(registry, activeChanged), false);
+
+  const orderChanged = structuredClone(registry);
+  orderChanged[scopeKey("alpha", "session-1")].tabIds.reverse();
+  assert.equal(sameRegistry(registry, orderChanged), false);
+
+  const removed = removeScope(registry, "beta", "session-2");
+  assert.equal(sameRegistry(registry, removed), false);
 });

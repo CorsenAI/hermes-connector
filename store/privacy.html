@@ -18,7 +18,7 @@
 </head>
 <body><div class="wrap">
   <h1>Privacy Policy</h1>
-  <p class="sub">Hermes Connector (unofficial · by Corsen AI) · last updated 2026-07-20</p>
+  <p class="sub">Hermes Connector (unofficial · by Corsen AI) · last updated 2026-08-02</p>
 
   <div class="card">
     <p>Hermes Connector lets a Hermes agent running on your computer read and control Chrome tabs that you
@@ -33,10 +33,13 @@
       <li>URLs and titles of attached tabs. Opening <strong>Choose tabs</strong> displays current tab titles and
         URLs locally so you can decide what to attach.</li>
       <li>Instructions from your local Hermes agent and local Hermes profile/session identifiers and titles.</li>
-      <li>A random browser identifier, local addresses, pairing settings, and tab bindings stored in Chrome
-        local storage.</li>
+      <li>A random browser identifier, local addresses, tab bindings, and one persistent local Connector pairing
+        credential (Authentication information) stored in Chrome local storage. Only HMAC proofs—not the
+        credential itself—travel to the companion.</li>
+      <li>An ephemeral Hermes dashboard session token (Authentication information), read into memory and
+        returned only to that same loopback dashboard HTTP API. It is never stored by the extension.</li>
     </ul>
-    <p>The extension does not read cookies or authentication storage. Password, one-time-code, and payment-field
+    <p>The extension does not read website cookies or website/browser login storage. Password, one-time-code, and payment-field
       values are redacted from accessibility snapshots. Visible text and screenshots can still contain sensitive
       information, so attach only tabs you are comfortable sharing with your Hermes configuration.</p>
   </div>
@@ -45,14 +48,15 @@
     <p>The extension communicates with the separately installed companion over an authenticated loopback
       WebSocket (<code>ws://127.0.0.1</code> or <code>ws://localhost</code>) and loads the user-selected local
       Hermes dashboard over HTTP loopback. Page data is sent only to that local Hermes installation to perform
-      requested actions. It is not sent to Corsen AI.</p>
+      requested actions. The ephemeral dashboard session token is sent only back to that same loopback dashboard
+      API. None of this data is sent to Corsen AI.</p>
     <p>What Hermes does next depends on the user's Hermes configuration. A local model can keep processing
       on-device. If the user configured a remote model or service, Hermes may transmit content to that chosen
       provider under the provider's terms. Corsen AI does not select or receive that transmission.</p>
   </div>
 
   <div class="card"><h2>Storage and retention</h2>
-    <p>Chrome local storage retains the browser identifier, local addresses, pairing preference, and tab bindings
+    <p>Chrome local storage retains the browser identifier, local addresses, local Connector pairing credential, and tab bindings
       until extension data is cleared or the extension is removed. The extension does not persist page snapshots,
       text, screenshots, or form content. The companion retains its pairing credential and browser-binding
       preference under the user's Hermes home. Hermes may retain chats or tool results under the user's settings.</p>

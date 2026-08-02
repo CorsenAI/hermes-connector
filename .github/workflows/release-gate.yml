@@ -31,3 +31,13 @@ jobs:
         if: runner.os != 'Windows'
         shell: sh
         run: sh tests/e2e_installer_posix.sh
+      - name: Exercise PowerShell installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./tests/e2e_installer_windows.ps1
+      - name: Build clean release archives
+        if: runner.os == 'Linux'
+        run: python scripts/build_release.py --skip-tests
+      - name: Run packaged Chrome acceptance
+        if: runner.os == 'Linux'
+        run: python tests/e2e_packaged_release.py

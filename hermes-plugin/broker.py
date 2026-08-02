@@ -15,12 +15,15 @@ import asyncio
 from dataclasses import dataclass, field
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 from pathlib import Path
 import re
 import secrets
+import socket
 import sys
+import tempfile
 import time
 from typing import Any, Dict, Optional
 
@@ -30,14 +33,35 @@ except ImportError:  # pragma: no cover - reported by the companion client
     websockets = None
 
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 8766
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 MAX_TEXT_CHARS = 2_000_000
 MAX_BINDINGS_PER_BROWSER = 256
 MAX_TABS_PER_BINDING = 64
 CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
+
+
+def require_loopback_host(host: str) -> str:
+    """Reject every bind target that could expose the broker beyond this computer."""
+
+    value = str(host or "").strip()
+    try:
+        if ipaddress.ip_address(value).is_loopback:
+            return value
+    except ValueError:
+        pass
+    if value.lower() == "localhost":
+        try:
+            addresses = {
+                item[4][0] for item in socket.getaddrinfo(value, None, type=socket.SOCK_STREAM)
+            }
+            if addresses and all(ipaddress.ip_address(address).is_loopback for address in addresses):
+                return value
+        except (OSError, ValueError):
+            pass
+    raise ValueError("Hermes Connector broker host must be a loopback address")
 
 
 def hermes_root(home: Optional[str] = None) -> Path:
@@ -66,6 +90,13 @@ def secret_path(root: Optional[str | Path] = None) -> Path:
 
 
 def state_path(root: Optional[str | Path] = None) -> Path:
+    # Protocol generations may overlap while Chrome rolls an update out to
+    # several profiles. Never let an older detached broker write the current
+    # router's ownership state.
+    return connector_dir(root) / f"broker-state-v{PROTOCOL_VERSION}.json"
+
+
+def legacy_state_path(root: Optional[str | Path] = None) -> Path:
     return connector_dir(root) / "broker-state.json"
 
 
@@ -97,14 +128,27 @@ def load_or_create_secret(root: Optional[str | Path] = None) -> str:
 
     value = secrets.token_hex(32)
     payload = json.dumps({"version": 1, "secret": value}, indent=2) + "\n"
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd, stage_name = tempfile.mkstemp(prefix=".credentials-", suffix=".tmp", dir=path.parent)
+    stage = Path(stage_name)
     try:
-        fd = os.open(path, flags, 0o600)
-    except FileExistsError:
-        # Another Hermes profile won the creation race.
-        return load_or_create_secret(root)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(payload)
+        _restrict_file(stage)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            # A hard-link publish is create-if-absent on every supported OS and
+            # exposes only the already complete inode. It never presents the
+            # empty/partial-file window of O_EXCL followed by write().
+            os.link(stage, path)
+        except FileExistsError:
+            # Another Hermes profile published its complete credential first.
+            return load_or_create_secret(root)
+    finally:
+        try:
+            stage.unlink()
+        except FileNotFoundError:
+            pass
     _restrict_file(path)
     return value
 
@@ -178,7 +222,10 @@ class PendingAction:
     broker_id: str
     agent: AgentPeer
     agent_request_id: str
-    browser_id: str
+    browser: BrowserPeer
+    scope_key: str
+    target_tab_id: int
+    action_kind: str
     created_at: float = field(default_factory=time.time)
 
 
@@ -188,7 +235,7 @@ class BrokerServer:
     def __init__(self, root: Optional[str | Path] = None, host: str = DEFAULT_HOST,
                  port: int = DEFAULT_PORT, secret: Optional[str] = None):
         self.root = connector_dir(root).parent
-        self.host = host
+        self.host = require_loopback_host(host)
         self.port = int(port)
         self.secret = secret or load_or_create_secret(self.root)
         self.server = None
@@ -200,34 +247,88 @@ class BrokerServer:
 
     # -- persistence -----------------------------------------------------
 
+    @staticmethod
+    def _validated_preferences(payload: Any, *, require_protocol: bool) -> Dict[str, str]:
+        if not isinstance(payload, dict):
+            return {}
+        if require_protocol and payload.get("protocol") != PROTOCOL_VERSION:
+            return {}
+        raw = payload.get("scopeBrowsers", {})
+        if not isinstance(raw, dict) or len(raw) > MAX_BINDINGS_PER_BROWSER * 16:
+            return {}
+        preferences: Dict[str, str] = {}
+        for key, browser_id in raw.items():
+            if not isinstance(key, str) or not isinstance(browser_id, str):
+                continue
+            parts = key.split("\u001f")
+            if len(parts) != 2 or not all(CLIENT_ID_RE.fullmatch(part) for part in parts):
+                continue
+            if not CLIENT_ID_RE.fullmatch(browser_id):
+                continue
+            preferences[key] = browser_id
+        return preferences
+
+    def _write_preferences(self, preferences: Dict[str, str]) -> None:
+        path = state_path(self.root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "version": 1,
+            "protocol": PROTOCOL_VERSION,
+            "scopeBrowsers": preferences,
+            "updatedAt": int(time.time()),
+        }
+        fd, stage_name = tempfile.mkstemp(
+            prefix=f".broker-state-v{PROTOCOL_VERSION}-", suffix=".tmp", dir=path.parent
+        )
+        stage = Path(stage_name)
+        try:
+            _restrict_file(stage)
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(payload, indent=2) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            # Windows can briefly deny one of two simultaneous atomic replaces
+            # even though both staging files are already closed. Keep the
+            # complete private stage and retry; never fall back to a shared
+            # temp filename or a truncate-in-place write.
+            for attempt in range(8):
+                try:
+                    os.replace(stage, path)
+                    break
+                except PermissionError:
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.01 * (attempt + 1))
+            _restrict_file(path)
+        finally:
+            try:
+                stage.unlink()
+            except FileNotFoundError:
+                pass
+
     def _load_preferences(self) -> Dict[str, str]:
         path = state_path(self.root)
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-            raw = payload.get("scopeBrowsers", {})
-            if not isinstance(raw, dict):
-                return {}
-            return {
-                str(key): str(value)
-                for key, value in raw.items()
-                if isinstance(key, str) and isinstance(value, str)
-            }
-        except Exception:
+        except FileNotFoundError:
+            # Import the legacy preference map exactly once. Publishing a v4
+            # snapshot before serving prevents a still-running v3 broker from
+            # changing which browser owns a scope after this point.
+            try:
+                legacy_payload = json.loads(legacy_state_path(self.root).read_text(encoding="utf-8"))
+                preferences = self._validated_preferences(legacy_payload, require_protocol=False)
+            except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError):
+                preferences = {}
+            self._write_preferences(preferences)
+            return preferences
+        except (OSError, ValueError, json.JSONDecodeError):
+            # A present but invalid v4 file must never fall back to mutable
+            # legacy state. Start empty and replace it on the next mutation.
             return {}
+        return self._validated_preferences(payload, require_protocol=True)
 
     def _save_preferences(self) -> None:
-        path = state_path(self.root)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        payload = {
-            "version": 1,
-            "scopeBrowsers": self.scope_browsers,
-            "updatedAt": int(time.time()),
-        }
-        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        _restrict_file(tmp)
-        os.replace(tmp, path)
-        _restrict_file(path)
+        self._write_preferences(self.scope_browsers)
 
     # -- lifecycle -------------------------------------------------------
 
@@ -348,6 +449,9 @@ class BrokerServer:
         peer = BrowserPeer(websocket, browser_id, name, origin)
         self.browsers[browser_id] = peer
         if old is not None and old.websocket is not websocket:
+            await self._fail_browser_pending(
+                old, "the bound Chrome instance reconnected during the browser action"
+            )
             try:
                 await old.websocket.close(code=1000, reason="browser reconnected")
             except Exception:
@@ -426,9 +530,14 @@ class BrokerServer:
         return Binding(profile_id, session_id, tab_ids, active)
 
     async def _on_browser(self, peer: BrowserPeer, message: dict) -> None:
+        if self.browsers.get(peer.browser_id) is not peer:
+            return
         kind = message.get("type")
         if kind == "binding_sync":
+            revoked: list[Binding] = []
             async with self.binding_lock:
+                if self.browsers.get(peer.browser_id) is not peer:
+                    return
                 raw_bindings = message.get("bindings")
                 if not isinstance(raw_bindings, list) or len(raw_bindings) > MAX_BINDINGS_PER_BROWSER:
                     raise ValueError("invalid bindings")
@@ -443,7 +552,6 @@ class BrokerServer:
                 # profile owns a scope, reject this stale local copy and tell the reconnecting extension
                 # to remove it. Moving a scope requires an explicit binding_update from the UI.
                 accepted: Dict[str, Binding] = {}
-                revoked: list[Binding] = []
                 for key, binding in incoming.items():
                     owner = self.scope_browsers.get(key)
                     if owner and owner != peer.browser_id:
@@ -458,11 +566,14 @@ class BrokerServer:
                         self.scope_browsers.pop(key, None)
                 peer.bindings = accepted
                 self._save_preferences()
-                for binding in revoked:
-                    await self._send_binding_revoked(peer, binding)
-                await self._broadcast_state()
+            for binding in revoked:
+                await self._send_binding_revoked(peer, binding)
+            await self._broadcast_state()
         elif kind == "binding_update":
+            revoked_peers: list[BrowserPeer] = []
             async with self.binding_lock:
+                if self.browsers.get(peer.browser_id) is not peer:
+                    return
                 binding = self._binding(message)
                 # Explicit UI attachment transfers this exact scope and clears stale ownership in any
                 # other connected Chrome profile. The lock makes simultaneous UI transfers last-writer-wins
@@ -471,13 +582,17 @@ class BrokerServer:
                     if other is peer or binding.key not in other.bindings:
                         continue
                     other.bindings.pop(binding.key, None)
-                    await self._send_binding_revoked(other, binding)
+                    revoked_peers.append(other)
                 peer.bindings[binding.key] = binding
                 self.scope_browsers[binding.key] = peer.browser_id
                 self._save_preferences()
-                await self._broadcast_state()
+            for other in revoked_peers:
+                await self._send_binding_revoked(other, binding)
+            await self._broadcast_state()
         elif kind == "binding_remove":
             async with self.binding_lock:
+                if self.browsers.get(peer.browser_id) is not peer:
+                    return
                 profile_id = clean_id(message.get("profileId"), "profileId")
                 session_id = clean_id(message.get("sessionId"), "sessionId")
                 key = scope_key(profile_id, session_id)
@@ -485,7 +600,7 @@ class BrokerServer:
                 if self.scope_browsers.get(key) == peer.browser_id:
                     self.scope_browsers.pop(key, None)
                     self._save_preferences()
-                await self._broadcast_state()
+            await self._broadcast_state()
         elif kind == "action_result":
             await self._finish_action(peer, message)
         elif kind in {"event", "pong"}:
@@ -505,25 +620,90 @@ class BrokerServer:
 
     async def _finish_action(self, peer: BrowserPeer, message: dict) -> None:
         broker_id = str(message.get("id") or "")
-        pending = self.pending.get(broker_id)
-        if pending is None or pending.browser_id != peer.browser_id:
+        async with self.binding_lock:
+            pending = self.pending.get(broker_id)
+            if (pending is None or pending.browser is not peer or
+                    self.browsers.get(peer.browser_id) is not peer):
+                return
+            current_owner = self.scope_browsers.get(pending.scope_key)
+            current_binding = peer.bindings.get(pending.scope_key)
+            still_owned = current_owner == peer.browser_id and current_binding is not None
+            same_active_target = (
+                still_owned and current_binding.active_tab_id == pending.target_tab_id and
+                pending.target_tab_id in current_binding.tab_ids
+            )
+            binding_mutation = pending.action_kind in {"new_tab", "switch_tab", "close_tab"}
+            # Closing the last scoped tab legitimately removes the binding before
+            # the action result travels over the same ordered WebSocket. It can
+            # report only close metadata, never page content. A transfer to a
+            # different browser remains forbidden.
+            closed_last_tab = (
+                pending.action_kind == "close_tab" and current_owner is None and
+                current_binding is None
+            )
+            still_authorized = (
+                (binding_mutation and (still_owned or closed_last_tab)) or
+                (not binding_mutation and same_active_target)
+            )
+            self.pending.pop(broker_id, None)
+        if not still_authorized:
+            await self._agent_error(
+                pending.agent, pending.agent_request_id,
+                "tab binding changed while the browser action was running",
+            )
             return
-        self.pending.pop(broker_id, None)
-        payload = {
-            "type": "agent_response",
-            "id": pending.agent_request_id,
-            "ok": bool(message.get("ok")),
-            "data": message.get("data"),
-            "error": message.get("error"),
-        }
+        ok = message.get("ok") is True
+        payload = {"type": "agent_response", "id": pending.agent_request_id, "ok": ok}
+        if ok:
+            data = message.get("data")
+            if binding_mutation:
+                try:
+                    data = self._bounded_tab_action_result(pending.action_kind, data)
+                except ValueError:
+                    payload["ok"] = False
+                    payload["error"] = "invalid browser tab-action result"
+                else:
+                    payload["data"] = data
+            else:
+                payload["data"] = data
+        else:
+            payload["error"] = str(message.get("error") or "browser action failed")[:1000]
         try:
             await pending.agent.websocket.send(json.dumps(payload))
         except Exception:
             pass
 
+    @staticmethod
+    def _bounded_tab_action_result(action_kind: str, data: Any) -> dict:
+        """Allow tab-mutating actions to return only their documented, non-page metadata."""
+        if not isinstance(data, dict):
+            raise ValueError("invalid tab-action data")
+
+        def tab_int(name: str) -> int:
+            value = data.get(name)
+            if type(value) is not int or value < 0:
+                raise ValueError(f"invalid {name}")
+            return value
+
+        if action_kind == "new_tab":
+            return {"tabId": tab_int("tabId"), "index": tab_int("index")}
+        if action_kind == "switch_tab":
+            return {"switched": tab_int("switched"), "tabId": tab_int("tabId")}
+        if action_kind == "close_tab":
+            closed = data.get("closed")
+            tab_id = data.get("tabId")
+            if closed is None and tab_id is None:
+                return {"closed": None, "tabId": None}
+            if type(closed) is not int or closed < 0 or type(tab_id) is not int or tab_id < 0:
+                raise ValueError("invalid close metadata")
+            return {"closed": closed, "tabId": tab_id}
+        raise ValueError("not a tab-mutating action")
+
     # -- agent messages --------------------------------------------------
 
     async def _on_agent(self, peer: AgentPeer, message: dict) -> None:
+        if self.agents.get(peer.key) is not peer:
+            return
         kind = message.get("type")
         if kind == "agent_request":
             await self._route_action(peer, message)
@@ -564,7 +744,10 @@ class BrokerServer:
             return
 
         broker_id = secrets.token_hex(16)
-        pending = PendingAction(broker_id, peer, request_id, browser.browser_id)
+        pending = PendingAction(
+            broker_id, peer, request_id, browser, key, binding.active_tab_id,
+            str(action.get("kind") or ""),
+        )
         self.pending[broker_id] = pending
         timeout = min(max(float(message.get("timeout") or 30), 1), 120)
         payload = {
@@ -632,12 +815,16 @@ class BrokerServer:
         if self.browsers.get(peer.browser_id) is not peer:
             return
         self.browsers.pop(peer.browser_id, None)
-        doomed = [item for item in self.pending.values() if item.browser_id == peer.browser_id]
+        await self._fail_browser_pending(peer, "the bound Chrome instance disconnected")
+        await self._broadcast_state()
+
+    async def _fail_browser_pending(self, peer: BrowserPeer, error: str) -> None:
+        doomed = [item for item in self.pending.values() if item.browser is peer]
         for pending in doomed:
             self.pending.pop(pending.broker_id, None)
+        for pending in doomed:
             await self._agent_error(pending.agent, pending.agent_request_id,
-                                    "the bound Chrome instance disconnected")
-        await self._broadcast_state()
+                                    error)
 
     async def _drop_agent(self, peer: AgentPeer) -> None:
         if self.agents.get(peer.key) is not peer:

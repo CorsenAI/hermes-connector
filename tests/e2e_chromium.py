@@ -32,7 +32,7 @@ from websockets.sync.client import connect as websocket_connect
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTENSION = ROOT / "extension"
+EXTENSION = Path(os.environ.get("HERMES_EXTENSION_DIR", ROOT / "extension")).resolve()
 FIXTURES = ROOT / "tests" / "fixtures"
 
 
@@ -85,7 +85,12 @@ def find_chromium(explicit: str | None = None) -> Path:
             Path("/Applications/Chromium.app/Contents/MacOS/Chromium"),
         ])
     else:
-        for name in ("google-chrome-for-testing", "chromium", "chromium-browser"):
+        for name in (
+            "google-chrome-for-testing",
+            "google-chrome",
+            "chromium",
+            "chromium-browser",
+        ):
             found = shutil.which(name)
             if found:
                 candidates.append(Path(found))
@@ -318,6 +323,11 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "pairing": {"pairedAt": 0},
                     "bindings": {},
                     "selectedScope": {"profileId": profile_a, "sessionId": session_a},
+                    "upgradeNotice": {
+                        "id": "companion-reinstall-0.2.1",
+                        "previousVersion": "0.2.0",
+                        "extensionVersion": "0.2.1",
+                    },
                 }
                 cdp.evaluate(
                     f"(async()=>{{await chrome.storage.local.clear();await chrome.storage.local.set({json.dumps(initial_state)});return true;}})()"
@@ -349,7 +359,10 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_state = panel_cdp.evaluate(
                     "(async()=>{for(let i=0;i<100;i++){const values=[...document.querySelectorAll('#sessionSelect option')].map(o=>o.value);"
                     "if(values.some(v=>v.includes('session-a'))){return {values,selected:document.querySelector('#sessionSelect').value,"
-                    "frame:document.querySelector('#hermes').src,status:document.querySelector('#status').textContent};}"
+                    "frame:document.querySelector('#hermes').src,status:document.querySelector('#status').textContent,"
+                    "setupHidden:document.querySelector('#setupNotice').hidden,"
+                    "noticeHidden:document.querySelector('#upgradeNotice').hidden,"
+                    "noticeText:document.querySelector('#upgradeNotice').textContent};}"
                     "await new Promise(r=>setTimeout(r,50));}return null;})()"
                 )
             finally:
@@ -360,6 +373,22 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             frame_url = panel_state.get("frame", "")
             if "resume=session-a" not in frame_url or "profile=profile-a" not in frame_url:
                 raise AssertionError(f"real side panel did not resume the selected session: {frame_url}")
+            if panel_state.get("noticeHidden") or "0.2.1" not in panel_state.get("noticeText", ""):
+                raise AssertionError(f"companion update notice was not visible: {panel_state}")
+            if not panel_state.get("setupHidden"):
+                raise AssertionError(f"first-run setup stayed visible after pairing configuration: {panel_state}")
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                notice_dismissed = panel_cdp.evaluate(
+                    "(async()=>{document.querySelector('#dismissUpgradeNotice').click();"
+                    "for(let i=0;i<100;i++){const saved=await chrome.storage.local.get('upgradeNotice');"
+                    "if(!saved.upgradeNotice&&document.querySelector('#upgradeNotice').hidden)return true;"
+                    "await new Promise(r=>setTimeout(r,20));}return false;})()"
+                )
+            finally:
+                panel_cdp.close()
+            if not notice_dismissed:
+                raise AssertionError("companion update notice did not dismiss persistently")
 
             client_a = bridge_client.BridgeClient(
                 profile_a, root=temp_root, port=broker_port, auto_start_broker=False
@@ -383,6 +412,31 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if not attached or not attached["a"].get("ok") or not attached["b"].get("ok"):
                 raise AssertionError(f"real extension attachment commands failed: {attached}")
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                # Drain the legitimate bindingsChanged event created by the
+                # preceding attach commands before measuring read-only calls.
+                panel_cdp.evaluate(
+                    "(async()=>{await chrome.runtime.sendMessage("
+                    f"{{cmd:'listTabs',profileId:'{profile_a}',sessionId:'{session_a}'}});"
+                    "await new Promise(r=>setTimeout(r,250));return true;})()"
+                )
+                no_op_binding_events = panel_cdp.evaluate(
+                    "(async()=>{let count=0;const listener=(message)=>{"
+                    "if(message&&message.from==='bg'&&message.cmd==='bindingsChanged')count++;};"
+                    "chrome.runtime.onMessage.addListener(listener);"
+                    "try{for(let i=0;i<3;i++){const result=await chrome.runtime.sendMessage("
+                    f"{{cmd:'listTabs',profileId:'{profile_a}',sessionId:'{session_a}'}});"
+                    "if(!result||!result.ok)throw new Error('listTabs failed');}"
+                    "await new Promise(r=>setTimeout(r,250));return count;}"
+                    "finally{chrome.runtime.onMessage.removeListener(listener);}})()"
+                )
+            finally:
+                panel_cdp.close()
+            if no_op_binding_events != 0:
+                raise AssertionError(
+                    f"unchanged tab rendering rebroadcast bindingsChanged {no_op_binding_events} times"
+                )
             deadline = time.time() + 5
             while time.time() < deadline:
                 state = client_a.refresh_status()
@@ -448,6 +502,17 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 raise AssertionError("visible-tab screenshot was not returned as PNG")
             require_ok(client_a.request({"kind": "wait", "ms": 25}, session_id=session_a), "wait A")
 
+            worker = service_worker(targets)
+            cdp = Cdp(worker["webSocketDebuggerUrl"])
+            try:
+                trusted_attached = cdp.evaluate(
+                    f"(async()=>{{const t=await chrome.debugger.getTargets();return t.some(x=>x.tabId==={tabs['a']}&&x.attached);}})()"
+                )
+            finally:
+                cdp.close()
+            if not trusted_attached:
+                raise AssertionError("Trusted input did not attach Chrome's debugger transport")
+
             new_tab = require_ok(client_a.request(
                 {"kind": "new_tab", "url": f"{base}/page-b.html"}, session_id=session_a
             ), "new scoped tab")
@@ -474,7 +539,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     f"const bv=await chrome.scripting.executeScript({{target:{{tabId:{tabs['b']}}},func:()=>document.querySelector('#project-b').value}});"
                     "return {aUrl:a.url,bUrl:b.url,a:av[0].result,bValue:bv[0].result};})()"
                 )
-                attached_before = cdp.evaluate(
+                stale_debugger_attached = cdp.evaluate(
                     f"(async()=>{{const t=await chrome.debugger.getTargets();return t.some(x=>x.tabId==={tabs['a']}&&x.attached);}})()"
                 )
             finally:
@@ -484,8 +549,8 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 raise AssertionError(f"real page actions were not applied: {observed['a']}")
             if observed["bValue"] != "beta":
                 raise AssertionError("session A modified session B's page")
-            if not attached_before:
-                raise AssertionError("Trusted input did not attach Chrome's debugger transport")
+            if stale_debugger_attached:
+                raise AssertionError("switching the active target left Chrome's debugger on the old tab")
 
             invalid_nav = client_a.request({"kind": "navigate", "url": "chrome://settings"}, session_id=session_a)
             if invalid_nav.get("ok") or "http/https" not in str(invalid_nav.get("error")):
@@ -528,6 +593,33 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             if not detached_after:
                 raise AssertionError("disabling Trusted input did not detach Chrome's debugger transport")
 
+            # A normal first launch must explain and link the complete companion
+            # setup without requiring the user to discover the support site.
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                panel_cdp.evaluate(
+                    "(async()=>{await chrome.runtime.sendMessage({cmd:'unpair'});"
+                    "const saved=(await chrome.storage.local.get('settings')).settings||{};"
+                    "await chrome.storage.local.set({settings:{...saved,pairingCode:''}});return true;})()"
+                )
+                panel_cdp.call("Page.reload", {"ignoreCache": True})
+                first_run = panel_cdp.evaluate(
+                    "(async()=>{for(let i=0;i<100;i++){const notice=document.querySelector('#setupNotice');"
+                    "const cfg=document.querySelector('#cfg');const link=notice&&notice.querySelector('a.primaryLink');"
+                    "const title=document.querySelector('#setupTitle');"
+                    "if(notice&&cfg&&link&&title&&!notice.hidden&&cfg.classList.contains('open')&&title.textContent.includes('already installed')){"
+                    "const platform=await chrome.runtime.getPlatformInfo();return {"
+                    "text:notice.textContent,href:link.href,status:document.querySelector('#status').textContent,platform:platform.os};}"
+                    "await new Promise(r=>setTimeout(r,25));}return null;})()"
+                )
+            finally:
+                panel_cdp.close()
+            if (not first_run or "What is the companion?" not in first_run.get("text", "") or
+                    "Do not reinstall" not in first_run.get("text", "") or
+                    not first_run.get("href", "").endswith("hermes-connector-0.2.1-companion.zip") or
+                    first_run.get("status") != "companion detected — enter pairing code"):
+                raise AssertionError(f"first-run companion setup was incomplete: {first_run}")
+
             browser_state = next(item for item in state["browsers"] if item["browserId"] == browser_id)
             return {
                 "browser": browser_binary.name,
@@ -537,6 +629,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 "checks": [
                     "real extension service worker loaded",
                     "real side panel loaded authenticated Hermes sessions",
+                    "first launch detected the installed companion and explained profile re-pairing",
+                    "0.2.0 users received a persistent companion update notice",
+                    "unchanged tab rendering stayed storage/event-loop silent",
                     "mutual pairing succeeded",
                     "real post-pair tab attachment commands succeeded",
                     "two profiles routed to exact tabs",

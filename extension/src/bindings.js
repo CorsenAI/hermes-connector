@@ -95,3 +95,18 @@ export function bindingList(registry) {
     activeTabId,
   }));
 }
+
+export function sameRegistry(left, right) {
+  const before = normalizeRegistry(left);
+  const after = normalizeRegistry(right);
+  const beforeKeys = Object.keys(before);
+  const afterKeys = Object.keys(after);
+  if (beforeKeys.length !== afterKeys.length) return false;
+  return beforeKeys.every((key) => {
+    const a = before[key];
+    const b = after[key];
+    return !!b && a.profileId === b.profileId && a.sessionId === b.sessionId &&
+      a.activeTabId === b.activeTabId && a.tabIds.length === b.tabIds.length &&
+      a.tabIds.every((tabId, index) => tabId === b.tabIds[index]);
+  });
+}

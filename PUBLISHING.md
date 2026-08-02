@@ -1,7 +1,7 @@
 # Chrome Web Store release runbook
 
 This runbook reflects the multiplexed loopback-broker architecture in protocol
-v3. There is no native-messaging host.
+v4. There is no native-messaging host.
 
 ## 1. Produce release artifacts
 
@@ -9,9 +9,12 @@ From a clean release commit:
 
 ```powershell
 .\scripts\package.ps1
+& "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" tests\e2e_packaged_release.py
 ```
 
-The command must pass all tests and produce:
+The first command must pass all fast tests and produce the three artifacts
+below. The second command safely extracts that exact Chrome ZIP and runs both
+live-browser acceptance suites against it:
 
 - `dist/hermes-connector-<version>-chrome.zip`
 - `dist/hermes-connector-<version>-companion.zip`
@@ -25,7 +28,7 @@ separately under the same release version.
 
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
-- Companion 0.2.0: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip`
+- Companion 0.2.1: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
@@ -74,6 +77,11 @@ Declare the data the extension handles even though processing is local:
   and requested screenshots from attached tabs.
 - **Web history**: URLs and titles of attached tabs; current tab titles/URLs are
   shown locally only after the user opens Choose tabs.
+- **Authentication information**: the persistent local Connector pairing
+  credential stored in Chrome local storage, plus the ephemeral Hermes dashboard
+  session token read into memory. Only HMAC proofs—not the pairing credential—go
+  to the companion. The dashboard token is never stored and is returned only to
+  the same HTTP loopback dashboard API. Neither is received by Corsen AI.
 
 Certify that the data is not sold, is not used for advertising,
 creditworthiness, or unrelated purposes, and is used only for the stated
@@ -97,7 +105,7 @@ misrepresenting the real embedded Hermes UI.
   Chrome also requires broad host access for requested visible-tab screenshots.
 - `scripting`: inject packaged, fixed helper functions into attached tabs to
   inspect and perform requested actions.
-- `storage`: retain local random browser identity, settings, pairing preference,
+- `storage`: retain local random browser identity, settings, the Connector pairing credential,
   and exact session/tab bindings.
 - `sidePanel`: display connector controls and the isolated local Hermes
   dashboard alongside the current page.
@@ -125,11 +133,12 @@ so use deferred publishing and answer reviewer questions promptly.
 
 ## 7. Final release gates
 
-- [x] Clean committed/tagged source; Store and companion versions match.
-- [x] Fast gate and isolated live Chromium test pass from the packaged source.
-- [x] Clean companion install tested on Windows, macOS, and Linux, or the Store
+- [ ] Clean committed/tagged source; Store and companion versions match.
+- [ ] Fast gate and isolated live Chromium test pass from the packaged source.
+- [ ] Clean companion install tested on Windows, macOS, and Linux, or the Store
       copy is limited to verified platforms.
-- [ ] Final end-to-end pass in the intended signed-in Google Chrome profile.
+- [ ] Pre-submit end-to-end pass in the intended signed-in Google Chrome
+      profile using the exact extracted release ZIP.
 - [ ] Privacy URL, support URL, companion URL, listing, and dashboard
       declarations are mutually consistent.
 - [x] 128×128 icon, 440×280 promo, and one real 1280×800 screenshot are ready
@@ -137,6 +146,14 @@ so use deferred publishing and answer reviewer questions promptly.
 - [ ] Final artwork uploaded in the Chrome Web Store dashboard.
 - [ ] Submit for review with deferred publishing; publish only after approval
       and final artifact/hash verification.
+
+## 8. Post-publication verification
+
+- [ ] Confirm the public Store endpoint serves version 0.2.1 for the existing
+      extension ID.
+- [ ] Smoke-test the Store-installed build in the intended signed-in Chrome
+      profile and confirm an upgraded 0.2.0 profile receives the companion
+      reinstall notice.
 
 Official references: Chrome Web Store documentation for
 [images](https://developer.chrome.com/docs/webstore/images/),

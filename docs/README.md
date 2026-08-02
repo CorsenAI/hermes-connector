@@ -3,7 +3,7 @@
 These files are the only active product documents:
 
 - `PRODUCT-SPEC.md`: user promise, exact routing contract, and non-goals.
-- `ARCHITECTURE-V2.md`: implemented protocol v3 component and security design.
+- `ARCHITECTURE-V2.md`: implemented protocol v4 component and security design.
 - `ACCEPTANCE.md`: release gates that require evidence from packaged bits.
 
 Earlier single-bridge, native-messaging, Chrome-directory-enumeration, and

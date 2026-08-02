@@ -1,108 +1,133 @@
-# Test evidence — 2026-07-20
+# Test evidence — 2026-08-02 — 0.2.1 hotfix
 
-Checked acceptance gates are backed by the following commands and results on
-Windows with Chromium 149, Python 3.11, and Node.js 24.
+## Why 0.2.1 was required
+
+The public 0.2.0 package was installable, but final use exposed production
+paths that the isolated release tests had not covered:
+
+- `listTabs` validated and stored an unchanged binding registry, broadcast
+  `bindingsChanged`, and caused the open side panel to request `listTabs`
+  again. Two used Chrome profiles accumulated approximately 606 MiB and
+  1.66 GiB of local extension LevelDB journals before the loop was found.
+- The companion installer copied and enabled the plugin only in the shared
+  Hermes home. Named Hermes profiles have independent plugin payloads and
+  activation lists, so their real sessions did not receive Connector tools.
+- A `BridgeClient` attempted to start the detached broker only once. If that
+  broker later exited or was killed with a launcher, the reconnect loop never
+  started a replacement.
+
+The data growth was local Chrome storage churn, not network transmission or a
+publisher data leak.
 
 ## Fast release gate
 
-```text
-python tests/run_all.py
-```
-
-Result: 17 Python tests and 11 JavaScript tests passed. Coverage includes
-role-bound authentication, two-browser routing, explicit ownership transfer,
-simultaneous-transfer serialization, stale-owner revocation, profile
-impersonation rejection, fail-closed unbound sessions, plugin context and
-reload lifecycle propagation, atomic companion installation, deterministic
-archive contents and executable POSIX installer mode, permission metadata,
-dashboard-token parsing, tab registry behavior, and leakage checks.
-
-## Real extension / real Chrome APIs
+Command:
 
 ```text
-python tests/e2e_chromium.py
+<Hermes venv Python> tests/run_all.py
 ```
 
-Result: passed with the unpacked extension's actual Manifest V3 service worker,
-side-panel page, `chrome.tabs`, `chrome.scripting`, `chrome.debugger`, and
-loopback WebSocket. Verified authenticated dashboard session loading, post-pair
-tab attachment, two Hermes profiles routed to exact tabs, all advertised action
-kinds, PNG screenshot capture, scoped tab management, rejected restricted
-navigation, rejected unbound session, cancelled confirm dialog, and debugger
-detach. The core routing scenario also passed five consecutive runs after the
-binding transaction fix.
+The gate passes on Windows with Python 3.11 and Node.js 24. It covers protocol
+routing and authentication, exact session/tab ownership, plugin context,
+installer behavior, deterministic archives, extension syntax, metadata,
+whole-tracked-tree leakage checks, canonical line endings, and JavaScript
+registry/dashboard modules.
 
-## Two real Chrome profiles
+New regression evidence includes:
+
+- three unchanged `listTabs` requests produce zero binding-storage writes and
+  zero `bindingsChanged` broadcasts in the real background module under a
+  Chrome API mock;
+- one real detach produces exactly one write/event, and repeating the no-op
+  detach produces none;
+- semantic registry comparison detects active-tab, tab-order, and scope
+  changes without depending on object-key order;
+- the reconnect loop supervises a missing broker, while a cross-process launch
+  marker and per-client throttle serialize normal launch races and retain the
+  marker through unusually slow starts;
+- the installer copies the plugin to the shared home and every existing named
+  profile as one rollback-capable transaction, and migrates only the exact
+  known legacy `agent-bridge` signature.
+- browser actions and results remain pinned to the authenticated socket and
+  current binding epoch; disconnect, detach, transfer, or Trusted-input changes
+  cancel stale authority without forwarding page data;
+- the broker rejects a late result if its scope moved to another Chrome profile
+  and immediately cancels pending work when the same browser identity reconnects;
+- installer locks, plugin targets, plugin parents, and config targets reject
+  symlink/reparse redirection, and an interruption between payload swaps restores
+  the previous installation.
+
+## Real Chrome extension acceptance
+
+Commands:
 
 ```text
-python tests/e2e_multi_browser.py
+<Hermes venv Python> tests/e2e_chromium.py
+<Hermes venv Python> tests/e2e_multi_browser.py
 ```
 
-Result: two isolated Chromium user-data directories ran concurrently with
-distinct stable browser IDs and names. Each Hermes profile reached only its own
-Chrome profile. Explicitly attaching one session in the other Chrome profile
-rerouted it, revoked the old browser's binding, and left the displaced session
-unbound instead of guessing a tab.
+Both pass against real unpacked Manifest V3 extension code and real Chrome
+APIs. The single-browser run verifies the service worker, real side panel,
+authenticated dashboard-session loading, mutual broker authentication,
+post-pair tab attachment, two exact Hermes sessions, every advertised action,
+trusted input/dialog handling, scoped tabs, and fail-closed unbound sessions.
+It also verifies that first launch shows the companion explanation, exact
+versioned download, and open pairing settings, while configured users do not
+see that setup prompt.
+It also sends three unchanged real `listTabs` messages and observes zero
+`bindingsChanged` events after the UI settles. The real panel also displays and
+persistently dismisses the companion-reinstallation notice intended for users
+whose Store extension auto-updates from 0.2.0.
 
-## Hermes dashboard and installer
+The two-browser run verifies two concurrent isolated Chrome profiles, stable
+browser identities, exact routing, explicit ownership transfer, stale-owner
+revocation, and fail-closed behavior after displacement.
 
-- The dashboard authentication module successfully listed sessions from the
-  running local Hermes dashboard without persisting or logging its temporary
-  token.
-- The companion installer was run against an isolated `HERMES_HOME`; Hermes
-  reported `hermes-connector` version 0.2.0 enabled. No live user plugin or
-  configuration was changed by this test.
-- The same fast gate passed under Ubuntu 24.04 in WSL (Python 3.12 and Node.js
-  22), and `tests/e2e_installer_posix.sh` performed a real isolated Linux copy
-  through `scripts/install.sh` before removing its temporary home.
+## Broker recovery
 
-## Chrome Web Store artwork
+An isolated live recovery probe started a real detached broker, killed the
+exact broker process owning its random test port, kept the same `BridgeClient`
+alive, and observed a distinct replacement broker plus a restored authenticated
+connection. All temporary processes and data were removed afterward.
 
-- `store/promo-small-440x280.png` is an exact 440×280 brand promotional tile.
-- `store/screenshot-product-1280x800.png` is an exact 1280×800 OS-level capture
-  of the real unpacked extension side panel in headed Chrome. The capture proves
-  a paired browser, authenticated Hermes session, and one exact attached tab.
-  It uses an isolated browser profile, loopback broker, dashboard token, and
-  non-sensitive fixture content.
-- `tests/capture_store_screenshot.py` reproduces the screenshot and refuses to
-  overwrite an existing asset unless `--force` is passed.
-- The fast release gate validates the icon, promo, and screenshot PNG headers
-  and exact required dimensions.
+The 0.2.1 broker uses protocol 4 on the new default port 8766. Extension tests
+verify a one-shot migration of all legacy default 8765 URL forms before the
+first connection, while preserving a genuinely custom port. This prevents the
+detached 0.2.0 broker from silently serving 0.2.1 after a normal Hermes restart;
+an incompatible protocol is rejected rather than used as a fallback.
+Broker persistence tests also verify that protocol 4 imports a validated
+legacy owner only once, ignores a late write from a still-running protocol-3
+broker, refuses fallback from a present invalid v4 snapshot, and uses distinct
+complete temporary files for concurrent atomic saves.
 
-## Final packaged artifacts
+## Multi-profile installation
 
-The exact `dist/hermes-connector-0.2.0-chrome.zip` was extracted and loaded in
-real Chrome after the public-tree cleanup. It passed both the complete
-single-browser acceptance and the two-simultaneous-profile transfer/revocation
-acceptance. The exact companion ZIP was extracted and installed into a fresh
-isolated Hermes home without printing its pairing secret; Hermes reported
-`hermes-connector` version 0.2.0 enabled.
+The 0.2.1 source installer was run locally without printing the pairing secret.
+The shared home and every discovered named profile report
+`hermes-connector` 0.2.1 enabled. The known conflicting legacy
+`agent-bridge` payload is preserved but disabled only where its exact legacy
+signature is detected.
 
-The release manifest records clean tagged source and these SHA-256 values:
+The POSIX installer acceptance also passes under WSL with an isolated shared
+home plus a named profile, including pipx-style Hermes shim resolution and a
+Python 3.10+ check. A Windows PowerShell wrapper test verifies that a function
+named `hermes` cannot break Python discovery. The same Windows gate executes
+the normal-user `Install Hermes Connector.cmd` double-click path. Users must re-run the companion
+installer after creating a new named profile.
 
-```text
-hermes-connector-0.2.0-chrome.zip
-06c42c6a98590523b2467074cddaeedb7c62010a799244596ebbc74a40428365
+## Store artwork
 
-hermes-connector-0.2.0-companion.zip
-bc6286dae03a8343885fea86672cce86578cc7970551d254552afcfddb3f43c5
-```
+`store/screenshot-product-1280x800.png` was recaptured from the real 0.2.1
+extension panel at exactly 1280×800 with isolated fixture data. The icon,
+440×280 tile, 1400×560 marquee, and screenshot pass the metadata and leakage
+gates.
 
-The Chrome archive contains exactly 12 allowlisted runtime files. The companion
-archive contains exactly 11 files and records `install.sh` with mode 0755.
+## Remaining external release evidence
 
-## Public release verification
-
-- The public `main` and `v0.2.0` GitHub Actions runs passed the fast gate on
-  `windows-latest`, `ubuntu-latest`, and `macos-latest`. The two POSIX jobs also
-  exercised `tests/e2e_installer_posix.sh` through the real shell installer.
-- The project, privacy, and support pages each returned HTTPS 200 from
-  `https://corsenai.github.io/hermes-connector/`; their published HTML contains
-  no analytics script.
-- Both assets downloaded from the public GitHub Release matched the byte counts
-  and SHA-256 values recorded above.
-
-## Gates still requiring external evidence
-
-- final use in the user's intended signed-in Google Chrome profile;
-- Chrome Web Store submission and reviewer approval.
+- build the exact clean 0.2.1 archives and record their SHA-256 values;
+- publish the matching GitHub 0.2.1 companion before changing the Store item;
+- upload the 0.2.1 Chrome ZIP and updated screenshot to the Store;
+- complete a pre-submit pass from the exact extracted ZIP in the intended
+  signed-in Chrome profile;
+- after publication, confirm the existing Store ID serves 0.2.1 and smoke-test
+  that Store-installed build.

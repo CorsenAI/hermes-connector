@@ -103,7 +103,7 @@ def write_zip(path: Path, entries: dict[str, Path]) -> None:
 
 def validate_no_leaks(entries: dict[str, Path]) -> None:
     for archive_name, source in entries.items():
-        if source.suffix.lower() not in {".html", ".js", ".json", ".md", ".ps1", ".py", ".sh", ".yaml"}:
+        if source.suffix.lower() not in {".cmd", ".html", ".js", ".json", ".md", ".mjs", ".ps1", ".py", ".sh", ".yaml"}:
             continue
         text = source.read_text(encoding="utf-8", errors="ignore")
         for pattern in LEAK_PATTERNS:
@@ -153,6 +153,10 @@ def build(output: Path, *, allow_dirty: bool, run_tests: bool) -> dict:
     commit, dirty = git_state()
     if dirty and not allow_dirty:
         raise RuntimeError("refusing to package a dirty worktree (commit first or pass --allow-dirty)")
+    if dirty:
+        # A development build must never overwrite release-named files in the
+        # publishable output directory. Clean builds alone write to ``output``.
+        output = output / "dev"
     if run_tests:
         subprocess.run([sys.executable, str(ROOT / "tests" / "run_all.py")], cwd=ROOT, check=True)
 
@@ -165,6 +169,7 @@ def build(output: Path, *, allow_dirty: bool, run_tests: bool) -> dict:
     write_zip(extension_zip, extension_entries)
 
     companion_entries = {
+        "Install Hermes Connector.cmd": ROOT / "scripts" / "Install Hermes Connector.cmd",
         "install.py": ROOT / "scripts" / "install_companion.py",
         "install.ps1": ROOT / "scripts" / "install.ps1",
         "install.sh": ROOT / "scripts" / "install.sh",

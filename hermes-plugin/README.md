@@ -9,12 +9,20 @@ network listener beyond `127.0.0.1`.
 
 ## Install
 
-Use `install.py` from the companion release archive. It copies this directory
-to the active Hermes home, enables `hermes-connector`, and prints the pairing
-code that must be entered once in the extension.
+Extract the companion release archive. On Windows, double-click
+`Install Hermes Connector.cmd` (or run `install.ps1` manually). On macOS or
+Linux, run `./install.sh`. The installer uses `install.py` internally, copies
+this directory to the shared Hermes home and every existing named profile, enables
+`hermes-connector` in each scope, and prints the pairing code that must be
+entered once in the extension. Re-run the installer after creating a new
+Hermes profile.
 
 Restart any already-running Hermes dashboard, gateway, or chat process after
 installation so it discovers the newly enabled tools.
+
+The companion supervises the shared local broker. If that detached process is
+terminated by a launcher restart or crashes, a running profile client starts it
+again with a bounded cross-process launch lock.
 
 The pairing code is stored under the local Hermes home in
 `connector/credentials.json`. Treat it like a password. It is never included in

@@ -23,7 +23,7 @@ the final packaged bits.
 - [x] The tool handler routes the real `PluginContext.profile_name` and the real
       tool-call `session_id`; no hard-coded test profile participates.
 - [x] Multiple Hermes profile clients can use the companion concurrently while
-      only one local broker owns port 8765.
+      only one local broker owns port 8766.
 - [ ] Restarting the dashboard, gateway, broker, extension worker, and Chrome
       has documented and verified recovery behaviour in the final profile.
 
@@ -38,11 +38,11 @@ the final packaged bits.
 
 ## Distribution and Store
 
-- [x] Clean companion installation succeeds on Windows, macOS, and Linux, or
+- [ ] Clean companion installation succeeds on Windows, macOS, and Linux, or
       unsupported platforms are removed from the listing.
 - [x] Isolated companion installation and the full fast gate pass on Windows
       and Ubuntu Linux; the release ZIP preserves POSIX executable mode.
-- [x] The final extension ZIP contains only allowlisted runtime files and
+- [ ] The final extension ZIP contains only allowlisted runtime files and
       matches committed/tagged source through a recorded SHA-256 hash.
 - [x] Automated leakage checks find no personal data, secrets, local paths, test
       identities, or authorship markers in distributed files.
@@ -51,7 +51,9 @@ the final packaged bits.
 - [ ] Store permissions, data-use declarations, privacy policy, screenshots,
       hosted URLs, and installation instructions match the tested product.
 - [x] End-to-end runs are completed in one and two isolated Chrome profiles.
-- [ ] A final end-to-end run is completed in the user's intended signed-in
-      Google Chrome profile.
+- [ ] A pre-submit end-to-end run loads the exact packaged ZIP in the intended
+      signed-in Google Chrome profile.
+- [ ] After publication, the existing Store ID serves 0.2.1 and its installed
+      build passes a signed-in-profile smoke test.
 
 Evidence for checked gates is recorded in `TEST-EVIDENCE.md`.

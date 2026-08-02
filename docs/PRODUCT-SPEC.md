@@ -1,7 +1,7 @@
 # Hermes Connector product contract
 
-Status: source of truth for the public Chrome extension. WordPress and other
-Hermes projects are explicitly out of scope.
+Status: source of truth for the public Chrome extension. Other Corsen AI and
+Hermes integrations are out of scope.
 
 ## Product promise
 
@@ -13,7 +13,10 @@ the extension does not implement a second, fake chat.
 
 1. Install Hermes Connector from the Chrome Web Store in each Chrome profile
    that should be controllable.
-2. Install the Hermes companion plugin once for the local Hermes installation.
+2. On first opening, follow the extension's built-in explanation and exact
+   download link, then run the companion installer once for the local Hermes installation. It
+   installs and enables the plugin in the shared home and every existing named
+   profile; run it again after creating a new profile.
 3. Pair locally with a persistent high-entropy code. No cloud relay is used.
 4. Open the side panel and choose a real Hermes profile and session.
 5. Attach one or more Chrome tabs to that session and choose its active tab.
@@ -48,10 +51,18 @@ the extension does not implement a second, fake chat.
   permission explanations, and a reproducible Store ZIP.
 - The Chrome package and companion package use the same protocol version and are
   tested together from clean installations.
+- A Store auto-update that requires a new local companion must display a
+  persistent, dismissible reinstall notice; Chrome cannot update that local
+  component itself.
+- Read-only tab rendering and binding validation must not write extension
+  storage or broadcast a binding change when the normalized registry is
+  unchanged.
+- A first-time user must see the companion purpose, exact download, operating-
+  system steps, private-code step, Hermes restart, and tab-attachment flow
+  inside the extension without needing to discover repository documentation.
 
 ## Explicit non-goals for version 1
 
-- WordPress automation or the Corsen AI WP Bridge.
 - Chromium automation profiles or a hidden throwaway browser.
 - Remote browser control over the network.
 - Automatic access to a tab that the user did not attach.
