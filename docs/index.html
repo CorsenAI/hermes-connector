@@ -34,10 +34,10 @@
     "alternateName": "Hermes Connector",
     "url": "https://corsenai.github.io/hermes-connector/",
     "installUrl": "https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm",
-    "downloadUrl": "https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip",
+    "downloadUrl": "https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip",
     "applicationCategory": "BrowserApplication",
     "operatingSystem": "Google Chrome 120+ on Windows, macOS, and Linux",
-    "softwareVersion": "0.2.1",
+    "softwareVersion": "0.2.0",
     "description": "An unofficial Chrome browser extension that connects exact local Hermes Agent sessions to user-selected tabs in a real signed-in Chrome profile.",
     "image": "https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/store-icon-128.png",
     "softwareRequirements": "Google Chrome 120 or later, a local Hermes installation, and the Hermes Connector companion",
@@ -126,6 +126,17 @@
     .button.primary { border-color: transparent; background: linear-gradient(100deg, #287eff, #a94cea 72%, #e647bd); box-shadow: 0 13px 36px rgba(94, 85, 246, .30); }
     .button.primary:hover { box-shadow: 0 17px 44px rgba(115, 74, 240, .42); }
     .microcopy { margin-top: 13px; color: var(--muted); font-size: 13px; }
+
+    .card.transition { margin-top: 34px; padding: 27px; border-color: #8d6a2f; background: radial-gradient(500px 230px at 0% 0%, rgba(246, 176, 49, .12), transparent 70%), linear-gradient(155deg, rgba(31, 27, 26, .98), rgba(10, 15, 28, .98)); }
+    .transition h2 { font-size: clamp(25px, 3vw, 34px); }
+    .transition > p { margin: 11px 0; }
+    .transition .warning { color: #ffe0a0; }
+    .compatibility-scroll { overflow-x: auto; margin: 18px 0; }
+    .compatibility { width: 100%; min-width: 760px; border-collapse: collapse; }
+    .compatibility th, .compatibility td { padding: 14px 15px; border: 1px solid #34415c; text-align: left; vertical-align: top; }
+    .compatibility th { background: #18223b; color: #fff; }
+    .compatibility td { color: #d3ddef; }
+    .compatibility td strong { color: #fff; }
 
     .hero-visual { position: relative; }
     .hero-visual::before { content: ""; position: absolute; inset: 8% -9% -8% 15%; z-index: -1; border-radius: 50%; background: radial-gradient(circle, rgba(74, 122, 255, .28), rgba(218, 51, 213, .10) 42%, transparent 70%); filter: blur(18px); }
@@ -247,15 +258,29 @@
           <p class="lead">Hermes Connector links exact local Hermes Agent sessions to only the Chrome tabs you attach—inside the signed-in browser profile you already use.</p>
           <div class="actions">
             <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Add to Chrome</a>
-            <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Download companion 0.2.1</a>
+            <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Download companion 0.2.0</a>
           </div>
-          <p class="microcopy">Local companion required · Chrome 120+ · Windows, macOS, and Linux</p>
+          <p class="microcopy">Public Store version: 0.2.0 · Install the companion with the exact same version</p>
         </div>
 
         <figure class="product-frame hero-visual">
           <img src="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/screenshot-product-1280x800.png" width="1280" height="800" alt="Hermes Connector side panel attached to the Project Atlas tab in Chrome" fetchpriority="high">
           <figcaption>Hermes Connector routes the selected Hermes session to its explicitly attached tab.</figcaption>
         </figure>
+      </div>
+
+      <div class="wrap card transition" role="note" aria-labelledby="version-match-title">
+        <p class="kicker">Store update in review</p>
+        <h2 id="version-match-title">Match the companion to the extension version shown by Chrome.</h2>
+        <p>Open <code>chrome://extensions</code> and check Hermes Connector before downloading the local companion.</p>
+        <div class="compatibility-scroll"><table class="compatibility">
+          <thead><tr><th>Extension installed in Chrome</th><th>Compatible local companion</th><th>Use this pair when</th></tr></thead>
+          <tbody>
+            <tr><td><strong>0.2.0</strong> from the <a href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">public Chrome Web Store listing</a></td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Download companion 0.2.0</a></td><td>Chrome currently shows extension version 0.2.0.</td></tr>
+            <tr><td><strong>0.2.2</strong> Store candidate/reviewer build</td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Download companion 0.2.2</a></td><td>Google review or Chrome already shows extension version 0.2.2.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="warning"><strong>Do not mix versions:</strong> 0.2.0 works with 0.2.0; 0.2.2 works with 0.2.2. Do not install companion 0.2.2 until Chrome itself shows extension 0.2.2. See the <a href="support/#compatible-versions">versioned setup guide</a>.</p>
       </div>
 
       <div class="wrap trust-strip" role="list" aria-label="Product summary">
@@ -282,7 +307,7 @@
           <article class="card step" style="--glow:rgba(100,107,255,.20)">
             <div class="step-number">2</div>
             <h3>Install the local companion</h3>
-            <p>Download the companion, run the installer once, and restart any running Hermes dashboard, gateway, or chat process.</p>
+            <p>Check the extension version, download the exact matching companion from the table above, run its installer once, and restart Hermes.</p>
           </article>
           <article class="card step" style="--glow:rgba(234,70,199,.18)">
             <div class="step-number">3</div>
@@ -355,8 +380,8 @@
         <div class="card requirements">
           <div class="requirements-row"><strong>Browser</strong><span>Google Chrome 120 or later.</span></div>
           <div class="requirements-row"><strong>Hermes</strong><span>A working local Hermes installation on the same computer.</span></div>
-          <div class="requirements-row"><strong>Companion</strong><span>The Hermes Connector companion, installed once for existing profiles and again after creating a new named Hermes profile.</span></div>
-          <div class="requirements-row"><strong>Operating system</strong><span>Windows, macOS, or Linux. Windows includes a double-click installer; macOS and Linux use <code>./install.sh</code>.</span></div>
+          <div class="requirements-row"><strong>Companion</strong><span>The Hermes Connector companion with exactly the same version as the extension, installed once for existing profiles and again after creating a new named Hermes profile.</span></div>
+          <div class="requirements-row"><strong>Operating system</strong><span>Windows, macOS, or Linux. Windows uses <code>.\install.ps1</code>; companion 0.2.2 also includes a double-click launcher. macOS and Linux use <code>./install.sh</code>.</span></div>
         </div>
       </div>
     </section>
@@ -387,7 +412,7 @@
           </details>
           <details>
             <summary>Does Chrome update Hermes Connector automatically?</summary>
-            <p>Chrome updates the Web Store extension automatically. It cannot update the separately installed local companion, so companion upgrades must be installed manually.</p>
+            <p>Chrome updates the Web Store extension automatically after Google publishes an approved update. It cannot update the separately installed local companion. When Chrome changes the extension from 0.2.0 to 0.2.2, manually install companion 0.2.2 and restart Hermes; never upgrade the companion before the extension.</p>
           </details>
           <details>
             <summary>Is this an official Nous Research extension?</summary>
