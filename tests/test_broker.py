@@ -440,6 +440,53 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         fresh = await receive_type(chrome_new, "action")
         self.assertEqual(fresh["targetTabId"], 22)
 
+    async def test_invalid_reconnect_nonce_cannot_evict_live_browser(self):
+        live_socket = await self.browser("stable-browser", "Live browser")
+        live_peer = self.server.browsers["stable-browser"]
+        candidate = await websockets.connect(
+            self.url, origin="chrome-extension://unit-test/"
+        )
+        self.clients.append(candidate)
+        challenge = json.loads(await candidate.recv())
+        await candidate.send(json.dumps({
+            "type": "hello",
+            "role": "browser",
+            "browserId": "stable-browser",
+            "browserName": "Invalid replacement",
+            "nonce": "!",
+            "proof": broker.role_proof(
+                self.secret, "browser", "stable-browser", challenge["nonce"]
+            ),
+            "protocol": broker.PROTOCOL_VERSION,
+        }))
+        with self.assertRaises(websockets.exceptions.ConnectionClosed):
+            await candidate.recv()
+        self.assertIs(self.server.browsers.get("stable-browser"), live_peer)
+        await live_socket.send(json.dumps({"type": "keepalive"}))
+
+    async def test_invalid_reconnect_nonce_cannot_evict_live_agent(self):
+        live_socket = await self.agent("alpha", "stable-process")
+        live_peer = self.server.agents["alpha:stable-process"]
+        candidate = await websockets.connect(self.url)
+        self.clients.append(candidate)
+        challenge = json.loads(await candidate.recv())
+        client_id = "alpha:stable-process"
+        await candidate.send(json.dumps({
+            "type": "hello",
+            "role": "agent",
+            "profileId": "alpha",
+            "processId": "stable-process",
+            "nonce": "!",
+            "proof": broker.role_proof(
+                self.secret, "agent", client_id, challenge["nonce"]
+            ),
+            "protocol": broker.PROTOCOL_VERSION,
+        }))
+        with self.assertRaises(websockets.exceptions.ConnectionClosed):
+            await candidate.recv()
+        self.assertIs(self.server.agents.get("alpha:stable-process"), live_peer)
+        await live_socket.send(json.dumps({"type": "keepalive"}))
+
     async def test_stale_browser_cannot_mutate_after_waiting_for_binding_lock(self):
         chrome_old = await self.browser("stable-browser", "First connection")
         old_peer = self.server.browsers["stable-browser"]
@@ -648,6 +695,67 @@ class BridgeClientTests(unittest.IsolatedAsyncioTestCase):
         result = await result_task
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"], {"snapshot": "ok"})
+        self.assertNotIn("error", result)
+
+
+class BridgeClientResponseShapeTests(unittest.TestCase):
+    def test_request_success_omits_error_key(self):
+        with tempfile.TemporaryDirectory() as temp:
+            client = bridge_client.BridgeClient(
+                profile_id="response-shape-profile",
+                root=temp,
+                auto_start_broker=False,
+            )
+            broker_response = {
+                "ok": True,
+                "data": {"text": "ready"},
+                "error": None,
+            }
+            with mock.patch.object(client, "_call", return_value=broker_response):
+                result = client.request(
+                    {"kind": "read_text"},
+                    session_id="response-shape-session",
+                )
+
+        self.assertEqual(result, {"ok": True, "data": {"text": "ready"}})
+        self.assertNotIn("error", result)
+
+    def test_request_failure_has_false_ok_and_error(self):
+        cases = (
+            ({"ok": False, "error": "Browser action failed"}, "Browser action failed"),
+            ({"ok": False, "error": None}, "Connector request failed"),
+        )
+        for broker_response, expected_error in cases:
+            with self.subTest(broker_response=broker_response), \
+                    tempfile.TemporaryDirectory() as temp:
+                client = bridge_client.BridgeClient(
+                    profile_id="response-shape-profile",
+                    root=temp,
+                    auto_start_broker=False,
+                )
+                with mock.patch.object(
+                    client, "_call", return_value=broker_response
+                ):
+                    result = client.request(
+                        {"kind": "snapshot"},
+                        session_id="response-shape-session",
+                    )
+
+                self.assertIs(result["ok"], False)
+                self.assertEqual(result["error"], expected_error)
+                self.assertNotIn("data", result)
+
+    def test_status_omits_error_until_a_real_error_exists(self):
+        with tempfile.TemporaryDirectory() as temp:
+            client = bridge_client.BridgeClient(
+                profile_id="response-shape-profile",
+                root=temp,
+                auto_start_broker=False,
+            )
+            self.assertNotIn("error", client.status())
+
+            client.last_error = "Broker unavailable"
+            self.assertEqual(client.status()["error"], "Broker unavailable")
 
 
 class BridgeClientLifecycleTests(unittest.TestCase):

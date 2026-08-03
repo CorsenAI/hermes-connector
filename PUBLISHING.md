@@ -28,7 +28,7 @@ separately under the same release version.
 
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
-- Companion 0.2.1: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip`
+- Companion 0.2.2: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
@@ -58,7 +58,8 @@ Prepared assets:
 - `store/store-icon-128.png` — 128×128;
 - `store/promo-small-440x280.png` — 440×280;
 - `store/screenshot-product-1280x800.png` — 1280×800 real headed-Chrome
-  capture with isolated test data.
+  capture with an isolated real Hermes model, exact attached `example.com` tab,
+  and verified `bridge_status` → `bridge_current_url` → `bridge_read` calls.
 
 Generation/capture provenance and the reproducible screenshot command are in
 `store/ASSETS.md`.
@@ -76,7 +77,7 @@ Declare the data the extension handles even though processing is local:
 - **Website content**: visible text, accessibility structure, element labels,
   and requested screenshots from attached tabs.
 - **Web history**: URLs and titles of attached tabs; current tab titles/URLs are
-  shown locally only after the user opens Choose tabs.
+  shown locally only after the user opens Tabs.
 - **Authentication information**: the persistent local Connector pairing
   credential stored in Chrome local storage, plus the ephemeral Hermes dashboard
   session token read into memory. Only HMAC proofs—not the pairing credential—go
@@ -149,7 +150,7 @@ so use deferred publishing and answer reviewer questions promptly.
 
 ## 8. Post-publication verification
 
-- [ ] Confirm the public Store endpoint serves version 0.2.1 for the existing
+- [ ] Confirm the public Store endpoint serves version 0.2.2 for the existing
       extension ID.
 - [ ] Smoke-test the Store-installed build in the intended signed-in Chrome
       profile and confirm an upgraded 0.2.0 profile receives the companion

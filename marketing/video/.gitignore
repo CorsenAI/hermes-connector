@@ -1,3 +1,4 @@
 .build/
 qa/
 *.mp4
+!hermes-connector-real-e2e-1080p.mp4

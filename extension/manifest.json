@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hermes Connector — by Corsen AI",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Attach real Hermes sessions to chosen tabs in your signed-in Chrome profile. Local, unofficial, by Corsen AI.",
   "homepage_url": "https://corsenai.github.io/hermes-connector/",
   "minimum_chrome_version": "120",

@@ -139,12 +139,25 @@ def validate_inputs() -> tuple[str, int]:
     plugin_version = re.search(r"^version:\s*([^\s]+)", plugin_yaml, re.MULTILINE)
     protocol_js = (extension / "src" / "protocol.js").read_text(encoding="utf-8")
     protocol = re.search(r"PROTOCOL_VERSION\s*=\s*(\d+)", protocol_js)
+    extension_port = re.search(
+        r'DEFAULT_BRIDGE_URL\s*=\s*"ws://127\.0\.0\.1:(\d+)/?"', protocol_js
+    )
+    broker_py = (plugin / "broker.py").read_text(encoding="utf-8")
+    broker_protocol = re.search(r"^PROTOCOL_VERSION\s*=\s*(\d+)", broker_py, re.MULTILINE)
+    broker_port = re.search(r"^DEFAULT_PORT\s*=\s*(\d+)", broker_py, re.MULTILINE)
+    bridge_client_py = (plugin / "bridge_client.py").read_text(encoding="utf-8")
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise RuntimeError("manifest version must use x.y.z")
     if not plugin_version or plugin_version.group(1) != version:
         raise RuntimeError("extension and companion versions differ")
     if not protocol:
         raise RuntimeError("protocol version is missing")
+    if not broker_protocol or broker_protocol.group(1) != protocol.group(1):
+        raise RuntimeError("extension and companion protocol versions differ")
+    if not extension_port or not broker_port or extension_port.group(1) != broker_port.group(1):
+        raise RuntimeError("extension and companion bridge ports differ")
+    if "broker.PROTOCOL_VERSION" not in bridge_client_py or "broker.DEFAULT_PORT" not in bridge_client_py:
+        raise RuntimeError("bridge client is not bound to the broker protocol and port contract")
     return version, int(protocol.group(1))
 
 

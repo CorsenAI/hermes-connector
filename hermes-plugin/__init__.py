@@ -35,8 +35,9 @@ def _schema(name, description, properties=None, required=None):
 
 def h_status(args, **_):
     if BRIDGE is None:
-        return _res({"bridge": {"connected": False, "error": "plugin not registered"}})
-    return _res({"bridge": BRIDGE.refresh_status()})
+        return _res({"ok": False, "error": "Connector plugin is not registered"})
+    status = BRIDGE.refresh_status()
+    return _res({"ok": True, "bridge": status})
 
 
 def _drive(action, timeout=30, **context):
@@ -153,21 +154,23 @@ def register(ctx):
 
     tools = [
         ("bridge_status", _schema("bridge_status",
-            "Show the Connector broker, paired Chrome instances, and exact session bindings."),
+            "Check Hermes Connector's real signed-in Chrome connection and exact attached-tab bindings. "
+            "Use this before claiming you can see the user's Chrome. The separate browser_* tools do not "
+            "target Hermes Connector and must not be used to inspect an attached Chrome tab."),
             h_status, None),
-        ("bridge_open", _schema("bridge_open", "Navigate the paired browser to a URL.",
+        ("bridge_open", _schema("bridge_open", "Navigate the exact Chrome tab attached through Hermes Connector (not the separate browser_* browser).",
             {"url": {"type": "string"}}, ["url"]), h_open, available),
         ("bridge_snapshot", _schema("bridge_snapshot",
-            "Get an accessibility snapshot of the current page with [ref_N] handles for elements.",
+            "Get an accessibility snapshot of the exact Hermes Connector tab with [ref_N] handles for elements. Do not substitute browser_* tools.",
             {"max_chars": {"type": "integer"}}), h_snapshot, available),
-        ("bridge_read", _schema("bridge_read", "Get the visible text of the current page.",
+        ("bridge_read", _schema("bridge_read", "Read visible text from the exact Chrome tab attached through Hermes Connector (not browser_*).",
             {"max_chars": {"type": "integer"}}), h_read, available),
         ("bridge_click", _schema("bridge_click", "Click an element by its ref id from a snapshot.",
             {"ref": {"type": "string"}}, ["ref"]), h_click, available),
         ("bridge_type", _schema("bridge_type", "Type text into an element by its ref id.",
             {"ref": {"type": "string"}, "text": {"type": "string"}, "submit": {"type": "boolean"}},
             ["ref", "text"]), h_type, available),
-        ("bridge_screenshot", _schema("bridge_screenshot", "Capture the visible tab as a PNG data URL."),
+        ("bridge_screenshot", _schema("bridge_screenshot", "Capture the exact Chrome tab attached through Hermes Connector as a PNG data URL. Do not use browser_* for this tab."),
             h_screenshot, available),
         # --- human-like extras: scroll, keyboard, hover, selects, drag, find, history, tabs ---
         ("bridge_scroll", _schema("bridge_scroll",
@@ -203,7 +206,7 @@ def register(ctx):
             h_tab, available),
         ("bridge_wait", _schema("bridge_wait", "Wait a moment for the page to settle (milliseconds, max 15000).",
             {"ms": {"type": "integer"}}), h_wait, available),
-        ("bridge_current_url", _schema("bridge_current_url", "Get the current tab's URL and title."),
+        ("bridge_current_url", _schema("bridge_current_url", "Get the URL and title of the exact Chrome tab attached through Hermes Connector."),
             h_current_url, available),
     ]
 

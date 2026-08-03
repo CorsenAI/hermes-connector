@@ -1,49 +1,74 @@
-# Hermes Connector promo video
+# Hermes Connector verified product video
 
-## Deliverables
+## Accepted replacement
 
-- `hermes-connector-promo-1080p.mp4` — 1920×1080, 30 fps, H.264/AAC, 38.5 seconds.
-- `hermes-connector-promo-vertical.mp4` — 1080×1920, 30 fps, H.264/AAC, 38.5 seconds.
-- `hermes-connector-thumbnail-1280x720.png` — social/YouTube thumbnail.
-- `hermes-connector-demo.gif` — silent short excerpt for GitHub or a landing page.
-- `captions-en.srt` — English sidecar captions. The same core copy is burned into both videos.
+`hermes-connector-real-e2e-1080p.mp4` is the approved horizontal product demo.
 
-## Storyboard and factual basis
+- Duration: 9.30 seconds
+- Canvas: 1920×1080, 30 fps, H.264, no audio
+- SHA-256:
+  `DE91F39FC9E5CE225097F255CB620D324B47A436BD9BA034D1C608A4F01F239D`
+- Candidate: Hermes Connector 0.2.2, protocol 4
+- Public test page: `https://example.com/`
+- Isolated capture profile: `connector-demo`
 
-| Time | Visual | On-screen message | Product evidence |
-|---|---|---|---|
-| 00:00–00:05 | Official marquee artwork | Your Hermes agent. Your real Chrome tabs. | Project positioning |
-| 00:05–00:10 | Real Store product capture | One Hermes session. The exact tabs you choose. | Exact session/tab routing |
-| 00:10–00:16 | Real side-panel crop | Your signed-in Chrome profile | Uses the user's normal Chrome profile and sessions |
-| 00:16–00:21 | Real attach controls highlighted | Permission stays visible and scoped | Only explicitly attached tabs are accessible |
-| 00:21–00:27 | Real UI, darkened for typography | Read. Navigate. Click. Type. | Supported browser actions |
-| 00:27–00:32 | Official marquee artwork | Local-first by design | Loopback-only; no Corsen AI relay or telemetry |
-| 00:32–00:38.5 | Official marquee artwork | Available on the Chrome Web Store | Public release CTA |
+The video contains no generated interface, prewritten dashboard response,
+marketing overlay, account data, pairing code, notification, or private tab.
+The 1920×1080 edition only scales the continuous 1280×800 Chrome-window
+recording, adds dark side padding, and applies short start/end fades.
 
-The video deliberately contains no adoption metrics, endorsements, benchmark claims, or simulated results. The interface imagery comes from `store/screenshot-product-1280x800.png`; the brand artwork comes from `store/promo-marquee-1400x560.png`.
+## Proof gate
 
-## Suggested post copy
+`tests/e2e_real_hermes.py` creates a complete isolated Hermes home and named
+profile without copying the user's `.env` or real Connector credential, installs the
+candidate companion, starts the candidate extension in an isolated real Chrome
+for Testing profile, opens `example.com`, and attaches that exact tab. A real
+Hermes model must then call all three tools:
 
-**YouTube title**
+1. `bridge_status`
+2. `bridge_current_url`
+3. `bridge_read`
 
-Hermes Connector — Connect Hermes Agent to Your Real Chrome Tabs
+The test rejects the run unless Hermes' own session-scoped agent log records a
+successful `INFO … tool … completed` line for each call. It independently asks
+Chrome for the exact `https://example.com/` URL/title, validates the model proof
+response and binding, then starts the real dashboard, opens the actual Chrome
+side panel, requires the proven transcript to be visible, and requires
+`Ready · Hermes + Chrome`.
 
-**X / LinkedIn copy**
+Recording starts after that proof gate. The demo therefore shows an already
+verified result; it does not claim that inference occurs in real time during
+the nine-second clip.
 
-Hermes Connector connects an exact Hermes session to only the Chrome tabs you choose — inside your normal signed-in profile. Local-first, explicit tab scope, and no Corsen AI relay or telemetry.
+After recording, the test decodes start, Tabs-open, and end frames. It rejects
+black/blank frames, a missing UI transition, or an end frame that differs too
+far from the unobstructed final OS-window capture.
 
-Chrome Web Store: https://chromewebstore.google.com/detail/cdhaldcgafmkcnpanlmmpaebabnlledm
+## Visible sequence
 
-Setup and source: https://corsenai.github.io/hermes-connector/
+- The real `example.com` page and its exact Hermes target are visible together.
+- The real transcript shows three Connector tool calls and the model result.
+- `Tabs (1)` opens briefly and shows `Example Domain` as the only authorized
+  target, then closes so the chat regains the full panel height.
 
-Unofficial community project by Corsen AI. Not affiliated with Nous Research or Google.
+There are no hidden state-changing cuts in the raw recording.
 
-## Re-render
-
-From PowerShell:
+## Reproduction
 
 ```powershell
-.\marketing\video\render.ps1
+& "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" `
+  tests/e2e_real_hermes.py --headed `
+  --capture "$env:TEMP\hermes-connector-video-proof.png" `
+  --record "marketing\video\.build\hermes-connector-real-e2e-clean.mkv"
 ```
 
-The renderer uses local FFmpeg only. Its audio bed is synthesized at render time and contains no sampled or copyrighted music.
+The public MP4 is rendered from that raw MKV with Lanczos scaling to
+1728×1080, 96-pixel side padding on each side, H.264 NVENC, and no overlay.
+
+## Rejected legacy draft
+
+The earlier `Project Atlas` promo was rejected because it combined real
+extension chrome with fixture HTML, a prewritten Hermes response, oversized
+copy over the product UI, and unsupported visual claims. Its GIF, thumbnail,
+captions, overlays, and renderer were removed so they cannot be republished by
+mistake. Git history retains the audit trail.

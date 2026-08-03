@@ -33,18 +33,19 @@ from websockets.sync.client import connect as websocket_connect
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = Path(os.environ.get("HERMES_EXTENSION_DIR", ROOT / "extension")).resolve()
+PLUGIN = Path(os.environ.get("HERMES_PLUGIN_DIR", ROOT / "hermes-plugin")).resolve()
 FIXTURES = ROOT / "tests" / "fixtures"
 
 
 def load_companion_modules():
     package_name = "hermes_connector_live_test"
     package = type(sys)(package_name)
-    package.__path__ = [str(ROOT / "hermes-plugin")]
+    package.__path__ = [str(PLUGIN)]
     sys.modules[package_name] = package
     modules = []
     for name in ("broker", "bridge_client"):
         spec = importlib.util.spec_from_file_location(
-            f"{package_name}.{name}", ROOT / "hermes-plugin" / f"{name}.py"
+            f"{package_name}.{name}", PLUGIN / f"{name}.py"
         )
         module = importlib.util.module_from_spec(spec)
         assert spec and spec.loader
@@ -110,6 +111,13 @@ class QuietHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/slow-page.html":
+            # Hold a real HTTP(S)-style navigation open long enough to prove
+            # that a retained exact tab is not falsely advertised as ready.
+            time.sleep(5)
+            self.path = "/page-b.html"
+            super().do_GET()
+            return
         if path == "/chat":
             dashboard = (FIXTURES / "dashboard.html").read_text(encoding="utf-8")
             body = dashboard.replace(
@@ -322,7 +330,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
         broker_log = (temp_root / "broker.log").open("w", encoding="utf-8")
         broker_process = subprocess.Popen(
             [
-                sys.executable, str(ROOT / "hermes-plugin" / "broker.py"), "--serve",
+                sys.executable, str(PLUGIN / "broker.py"), "--serve",
                 "--root", str(temp_root), "--host", "127.0.0.1", "--port", str(broker_port),
             ],
             stdin=subprocess.DEVNULL,
@@ -411,9 +419,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "bindings": {},
                     "selectedScope": {"profileId": profile_a, "sessionId": session_a},
                     "upgradeNotice": {
-                        "id": "companion-reinstall-0.2.1",
-                        "previousVersion": "0.2.0",
-                        "extensionVersion": "0.2.1",
+                        "id": "companion-reinstall-0.2.2",
+                        "previousVersion": "0.2.1",
+                        "extensionVersion": "0.2.2",
                     },
                 }
                 cdp.evaluate(
@@ -460,7 +468,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             frame_url = panel_state.get("frame", "")
             if "resume=session-a" not in frame_url or "profile=profile-a" not in frame_url:
                 raise AssertionError(f"real side panel did not resume the selected session: {frame_url}")
-            if panel_state.get("noticeHidden") or "0.2.1" not in panel_state.get("noticeText", ""):
+            if panel_state.get("noticeHidden") or "0.2.2" not in panel_state.get("noticeText", ""):
                 raise AssertionError(f"companion update notice was not visible: {panel_state}")
             if not panel_state.get("setupHidden"):
                 raise AssertionError(f"first-run setup stayed visible after pairing configuration: {panel_state}")
@@ -476,6 +484,57 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if not notice_dismissed:
                 raise AssertionError("companion update notice did not dismiss persistently")
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                compact_layout = panel_cdp.evaluate(
+                    "(()=>{const body=document.body.getBoundingClientRect();"
+                    "const scope=document.querySelector('#scope').getBoundingClientRect();"
+                    "const frame=document.querySelector('#hermes').getBoundingClientRect();"
+                    "return {bodyHeight:body.height,scopeHeight:scope.height,frameHeight:frame.height,"
+                    "settingsOpen:document.querySelector('#cfg').classList.contains('open'),"
+                    "pickerHidden:document.querySelector('#tabPicker').hidden,"
+                    "privacyHidden:document.querySelector('#privacyPopover').hidden,"
+                    "dataNotice:document.querySelector('#dataNotice').textContent,"
+                    "frameInert:document.querySelector('#hermes').inert};})()"
+                )
+            finally:
+                panel_cdp.close()
+            if compact_layout.get("scopeHeight", 999) > 130:
+                raise AssertionError(f"side-panel controls still consume too much chat height: {compact_layout}")
+            if compact_layout.get("frameHeight", 0) < compact_layout.get("bodyHeight", 1) * 0.70:
+                raise AssertionError(f"Hermes chat does not retain most of the panel height: {compact_layout}")
+            if (compact_layout.get("settingsOpen") or not compact_layout.get("pickerHidden") or
+                    not compact_layout.get("privacyHidden") or compact_layout.get("frameInert")):
+                raise AssertionError(f"closed overlays still obstruct the Hermes chat: {compact_layout}")
+            if "model provider configured in Hermes" not in compact_layout.get("dataNotice", ""):
+                raise AssertionError(f"compact data disclosure is missing: {compact_layout}")
+
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                session_race = panel_cdp.evaluate(
+                    "(async()=>{const original=globalThis.fetch;let release=null;let intercepted=false;"
+                    "globalThis.fetch=(...args)=>{const url=String(args[0]&&args[0].url||args[0]||'');"
+                    "if(!intercepted&&url.includes('/chat')){intercepted=true;return new Promise((resolve,reject)=>{"
+                    "release=()=>original(...args).then(resolve,reject);});}return original(...args);};"
+                    "try{document.querySelector('#refreshSessions').click();"
+                    "for(let i=0;i<100&&!release;i++)await new Promise(r=>setTimeout(r,10));"
+                    "if(!release)return {error:'refresh was not intercepted'};"
+                    "const select=document.querySelector('#sessionSelect');select.value='profile-b\\u001fsession-b';"
+                    "select.dispatchEvent(new Event('change',{bubbles:true}));"
+                    "for(let i=0;i<100;i++){const saved=await chrome.storage.local.get('selectedScope');"
+                    "if(saved.selectedScope?.sessionId==='session-b'&&document.querySelector('#hermes').src.includes('session-b'))break;"
+                    "await new Promise(r=>setTimeout(r,10));}release();release=null;await new Promise(r=>setTimeout(r,250));"
+                    "const stayedB=select.value==='profile-b\\u001fsession-b'&&document.querySelector('#hermes').src.includes('session-b');"
+                    "select.value='profile-a\\u001fsession-a';select.dispatchEvent(new Event('change',{bubbles:true}));"
+                    "for(let i=0;i<100;i++){const saved=await chrome.storage.local.get('selectedScope');"
+                    "if(saved.selectedScope?.sessionId==='session-a'&&document.querySelector('#hermes').src.includes('session-a'))"
+                    "return {stayedB,reset:true};await new Promise(r=>setTimeout(r,10));}return {stayedB,reset:false};}"
+                    "finally{globalThis.fetch=original;if(release)release();}})()"
+                )
+            finally:
+                panel_cdp.close()
+            if not session_race or not session_race.get("stayedB") or not session_race.get("reset"):
+                raise AssertionError(f"stale session refresh overrode the visible selected scope: {session_race}")
 
             client_a = bridge_client.BridgeClient(
                 profile_a, root=temp_root, port=broker_port, auto_start_broker=False
@@ -485,6 +544,19 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             ).start()
             clients.extend([client_a, client_b])
             state = wait_client(client_a, browser_id)
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                pre_target_status = panel_cdp.evaluate(
+                    "(async()=>{for(let i=0;i<100;i++){const status=document.querySelector('#status').textContent;"
+                    "if(status==='Hermes linked · attach a target')return status;"
+                    "await new Promise(r=>setTimeout(r,30));}return document.querySelector('#status').textContent;})()"
+                )
+            finally:
+                panel_cdp.close()
+            if pre_target_status != "Hermes linked · attach a target":
+                raise AssertionError(
+                    f"panel claimed readiness before an active tab binding existed: {pre_target_status}"
+                )
 
             # Exercise the real extension-page -> service-worker attachment path after pairing.
             panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
@@ -499,6 +571,41 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if not attached or not attached["a"].get("ok") or not attached["b"].get("ok"):
                 raise AssertionError(f"real extension attachment commands failed: {attached}")
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                ready_status = panel_cdp.evaluate(
+                    "(async()=>{for(let i=0;i<100;i++){const status=document.querySelector('#status').textContent;"
+                    "if(status==='Ready · Hermes + Chrome')return status;"
+                    "await new Promise(r=>setTimeout(r,30));}return document.querySelector('#status').textContent;})()"
+                )
+            finally:
+                panel_cdp.close()
+            if ready_status != "Ready · Hermes + Chrome":
+                raise AssertionError(f"panel did not become ready after exact tab attachment: {ready_status}")
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                dashboard_outage = panel_cdp.evaluate(
+                    "(async()=>{const original=globalThis.fetch;"
+                    "globalThis.fetch=(...args)=>{const url=String(args[0]&&args[0].url||args[0]||'');"
+                    "if(url.includes('/chat'))return Promise.reject(new Error('simulated dashboard outage'));"
+                    "return original(...args);};"
+                    "try{document.querySelector('#refreshSessions').click();"
+                    "let unavailable='';for(let i=0;i<100;i++){unavailable=document.querySelector('#status').textContent;"
+                    "if(unavailable==='Hermes dashboard unavailable')break;await new Promise(r=>setTimeout(r,20));}"
+                    "globalThis.fetch=original;document.querySelector('#refreshSessions').click();"
+                    "let recovered='';for(let i=0;i<100;i++){recovered=document.querySelector('#status').textContent;"
+                    "if(recovered==='Ready · Hermes + Chrome')break;await new Promise(r=>setTimeout(r,20));}"
+                    "return {unavailable,recovered};}finally{globalThis.fetch=original;}})()"
+                )
+            finally:
+                panel_cdp.close()
+            if dashboard_outage != {
+                "unavailable": "Hermes dashboard unavailable",
+                "recovered": "Ready · Hermes + Chrome",
+            }:
+                raise AssertionError(
+                    f"dashboard outage was hidden by a false ready state: {dashboard_outage}"
+                )
             panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
             try:
                 # Drain the legitimate bindingsChanged event created by the
@@ -601,6 +708,59 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             if not trusted_attached:
                 raise AssertionError("Trusted input did not attach Chrome's debugger transport")
 
+            blank_tab = require_ok(client_a.request(
+                {"kind": "new_tab"}, session_id=session_a
+            ), "new empty scoped tab")
+            if blank_tab.get("index", -1) < 0:
+                raise AssertionError(f"empty about:blank tab lost its scoped index: {blank_tab}")
+            blank_list = require_ok(
+                client_a.request({"kind": "list_tabs"}, session_id=session_a),
+                "list with empty scoped tab",
+            )
+            blank_entry = next((item for item in blank_list.get("tabs", [])
+                if item.get("tabId") == blank_tab.get("tabId")), None)
+            if not blank_entry or blank_entry.get("url") not in ("", "about:blank"):
+                raise AssertionError(f"supported empty tab was not retained: {blank_list}")
+            filled_blank = require_ok(client_a.request(
+                {"kind": "navigate", "url": f"{base}/page-b.html"}, session_id=session_a
+            ), "navigate empty scoped tab")
+            if not filled_blank.get("url", "").endswith("/page-b.html"):
+                raise AssertionError(f"empty scoped tab could not be navigated: {filled_blank}")
+            require_ok(client_a.request(
+                {"kind": "close_tab", "index": blank_tab["index"]}, session_id=session_a
+            ), "close empty scoped tab")
+
+            slow_tab = require_ok(client_a.request(
+                {"kind": "new_tab", "url": f"{base}/slow-page.html"}, session_id=session_a
+            ), "new loading scoped tab")
+            if slow_tab.get("index", -1) < 0:
+                raise AssertionError(f"loading tab lost its scoped index: {slow_tab}")
+            loading_list = require_ok(
+                client_a.request({"kind": "list_tabs"}, session_id=session_a),
+                "list with loading scoped tab",
+            )
+            loading_entry = next((item for item in loading_list.get("tabs", [])
+                if item.get("tabId") == slow_tab.get("tabId")), None)
+            if not loading_entry or loading_entry.get("controllable") is not False or \
+                    "loading" not in str(loading_entry.get("reason", "")).lower():
+                raise AssertionError(f"loading tab was not retained and labelled safely: {loading_list}")
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                pending_status = panel_cdp.evaluate(
+                    "(async()=>{for(let i=0;i<100;i++){const status=document.querySelector('#status').textContent;"
+                    "if(status==='Hermes linked · target loading')return status;"
+                    "await new Promise(r=>setTimeout(r,20));}return document.querySelector('#status').textContent;})()"
+                )
+            finally:
+                panel_cdp.close()
+            if pending_status != "Hermes linked · target loading":
+                raise AssertionError(
+                    f"panel falsely claimed readiness while the exact target was loading: {pending_status}"
+                )
+            require_ok(client_a.request(
+                {"kind": "close_tab", "index": slow_tab["index"]}, session_id=session_a
+            ), "close loading scoped tab")
+
             new_tab = require_ok(client_a.request(
                 {"kind": "new_tab", "url": f"{base}/page-b.html"}, session_id=session_a
             ), "new scoped tab")
@@ -683,6 +843,21 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             if not detached_after:
                 raise AssertionError("disabling Trusted input did not detach Chrome's debugger transport")
 
+            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
+            try:
+                deselected = panel_cdp.evaluate(
+                    "(async()=>{const select=document.querySelector('#sessionSelect');select.value='';"
+                    "select.dispatchEvent(new Event('change',{bubbles:true}));"
+                    "for(let i=0;i<100;i++){const saved=await chrome.storage.local.get('selectedScope');"
+                    "const frame=document.querySelector('#hermes').src;"
+                    "if(!saved.selectedScope&&!frame.includes('resume='))return {cleared:true,frame,disabled:document.querySelector('#attachActive').disabled};"
+                    "await new Promise(r=>setTimeout(r,20));}return {cleared:false,frame:document.querySelector('#hermes').src};})()"
+                )
+            finally:
+                panel_cdp.close()
+            if not deselected or not deselected.get("cleared") or not deselected.get("disabled"):
+                raise AssertionError(f"blank session choice did not clear the persisted scope: {deselected}")
+
             # A normal first launch must explain and link the complete companion
             # setup without requiring the user to discover the support site.
             panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
@@ -697,17 +872,19 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "(async()=>{for(let i=0;i<100;i++){const notice=document.querySelector('#setupNotice');"
                     "const cfg=document.querySelector('#cfg');const link=notice&&notice.querySelector('a.primaryLink');"
                     "const title=document.querySelector('#setupTitle');"
-                    "if(notice&&cfg&&link&&title&&!notice.hidden&&cfg.classList.contains('open')&&title.textContent.includes('already installed')){"
+                    "if(notice&&cfg&&link&&title&&!notice.hidden&&!cfg.classList.contains('open')&&title.textContent.includes('already installed')){"
                     "const platform=await chrome.runtime.getPlatformInfo();return {"
-                    "text:notice.textContent,href:link.href,status:document.querySelector('#status').textContent,platform:platform.os};}"
+                    "text:notice.textContent,href:link.href,status:document.querySelector('#status').textContent,platform:platform.os,"
+                    "visibleModals:[...document.querySelectorAll('[aria-modal=true]')].filter(x=>getComputedStyle(x).display!=='none').length};}"
                     "await new Promise(r=>setTimeout(r,25));}return null;})()"
                 )
             finally:
                 panel_cdp.close()
             if (not first_run or "What is the companion?" not in first_run.get("text", "") or
                     "Do not reinstall" not in first_run.get("text", "") or
-                    not first_run.get("href", "").endswith("hermes-connector-0.2.1-companion.zip") or
-                    first_run.get("status") != "companion detected — enter pairing code"):
+                    not first_run.get("href", "").endswith("hermes-connector-0.2.2-companion.zip") or
+                    first_run.get("status") != "companion detected — enter pairing code" or
+                    first_run.get("visibleModals") != 1):
                 raise AssertionError(f"first-run companion setup was incomplete: {first_run}")
 
             browser_state = next(item for item in state["browsers"] if item["browserId"] == browser_id)
@@ -720,7 +897,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "real extension service worker loaded",
                     "real side panel loaded authenticated Hermes sessions",
                     "first launch detected the installed companion and explained profile re-pairing",
-                    "0.2.0 users received a persistent companion update notice",
+                    "older users received a persistent companion update notice",
                     "unchanged tab rendering stayed storage/event-loop silent",
                     "mutual pairing succeeded",
                     "real post-pair tab attachment commands succeeded",

@@ -1,6 +1,6 @@
 # Privacy Policy — Hermes Connector (unofficial · by Corsen AI)
 
-_Last updated: 2026-08-02_
+_Last updated: 2026-08-03_
 
 Hermes Connector lets a Hermes agent running on your computer read and control
 Chrome tabs that you explicitly attach. Corsen AI does not operate a relay,
@@ -13,7 +13,7 @@ To provide its single browser-control purpose, the extension can handle:
 - website content from attached tabs, including visible text, accessibility
   structure, element labels, and screenshots you request;
 - browsing activity for attached tabs, including their URL and title; when you
-  open **Choose tabs**, current tab titles and URLs are displayed locally so you
+  open **Tabs**, current tab titles and URLs are displayed locally so you
   can choose which tabs to attach;
 - text and navigation instructions sent by your locally configured Hermes agent;
 - Hermes profile and session identifiers and titles read from your local Hermes

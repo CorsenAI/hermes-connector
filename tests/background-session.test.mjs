@@ -107,7 +107,7 @@ test("actions stay bound to their authenticated socket and current tab authoriza
     },
     permissions: { async contains() { return false; } },
     runtime: {
-      getManifest() { return { version: "0.2.1" }; },
+      getManifest() { return { version: "0.2.2" }; },
       onInstalled: simpleEvent(),
       onMessage: runtimeEvent,
       async sendMessage() {},
@@ -146,7 +146,7 @@ test("actions stay bound to their authenticated socket and current tab authoriza
       onActivated: activatedEvent,
       onRemoved: simpleEvent(), onReplaced: simpleEvent(), onUpdated: simpleEvent(),
     },
-    windows: { async update() {} },
+    windows: { async update() {}, onFocusChanged: simpleEvent() },
   };
 
   await import(`../extension/src/background.js?session-security=${Date.now()}`);
@@ -165,10 +165,17 @@ test("actions stay bound to their authenticated socket and current tab authoriza
     const proof = await hmacHex(
       pairingCode, `broker:browser:${hello.browserId}:${hello.nonce}`,
     );
-    socket.emit({ type: "paired", ok: true, proof, protocol: 4, brokerState: {} });
+    socket.emit({ type: "paired", ok: true, proof, protocol: 4,
+      brokerState: { protocol: 4, browsers: [], agentProfiles: [] } });
+    // Brokers send their fresh state immediately after the paired frame. The async HMAC/storage
+    // handshake must not let this next frame overtake authentication and get discarded.
+    socket.emit({ type: "broker_state",
+      data: { protocol: 4, browsers: [], agentProfiles: ["profile"] } });
     await waitFor(
       () => socket.sent.find((message) => message.type === "binding_sync"), "binding sync",
     );
+    const current = await runtime({ cmd: "getState" });
+    assert.deepEqual(current.brokerState.agentProfiles, ["profile"]);
   }
 
   const first = await waitFor(() => FakeWebSocket.instances[0], "initial socket");
@@ -230,5 +237,17 @@ test("actions stay bound to their authenticated socket and current tab authoriza
   assert.equal(Object.hasOwn(revoked, "data"), false);
   assert.match(revoked.error, /authorization changed/);
 
+  await runtime({ cmd: "unpair" });
+  await runtime({ cmd: "connect", browserName: "Test Chrome" });
+  const hostile = await waitFor(() => FakeWebSocket.instances[2], "hostile local socket");
+  await waitFor(() => hostile.readyState === FakeWebSocket.OPEN, "hostile socket open");
+  hostile.emit({ type: "challenge", nonce: "hostile-server-nonce", protocol: 4 });
+  for (let index = 0; index < 8; index += 1) {
+    hostile.emit({ type: "broker_state", data: { index } });
+  }
+  await waitFor(
+    () => hostile.readyState >= FakeWebSocket.CLOSING,
+    "bounded unauthenticated message queue shutdown",
+  );
   await runtime({ cmd: "unpair" });
 });

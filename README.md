@@ -7,15 +7,17 @@ automation browser or guessing which tab belongs to which task.
 
 ![Hermes Connector — local AI, your tabs](store/promo-marquee-1400x560.png)
 
+![Hermes Connector reading an explicitly attached Example Domain tab through a real Hermes session](store/screenshot-product-1280x800.png)
+
+[**Watch the verified 9-second real-product demo**](marketing/video/hermes-connector-real-e2e-1080p.mp4)
+
 [**Install from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
-· [Download companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip)
+· [Download companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
 
 > Unofficial community project by Corsen AI. Not affiliated with or endorsed
 > by Nous Research or Google.
-
-![Hermes Connector demo showing explicit tab scope and browser actions](marketing/video/hermes-connector-demo.gif)
 
 ## Your Hermes session, inside the Chrome you already use
 
@@ -23,8 +25,6 @@ Hermes Connector embeds the real local Hermes dashboard in Chrome's side panel.
 You decide which tabs each Hermes session may access, and the connector keeps
 that scope exact even when several projects, sessions, or Chrome profiles are
 running at the same time.
-
-![Hermes Connector controlling an explicitly attached Chrome tab from the side panel](store/screenshot-product-1280x800.png)
 
 With an attached tab, Hermes can:
 
@@ -73,7 +73,7 @@ It does not send this check to the internet.
 - Otherwise, use the panel's **Download companion** button and extract the ZIP.
 
 The current matching download is
-[`hermes-connector-0.2.1-companion.zip`](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip).
+[`hermes-connector-0.2.2-companion.zip`](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip).
 
 ### 3. Install the companion once
 
@@ -97,7 +97,7 @@ In the Hermes Connector side panel:
 1. Give this Chrome profile a recognizable name.
 2. Paste the pairing code printed by the installer and save.
 3. Select the Hermes profile and session you want to use.
-4. Choose **Attach active tab** or **Choose tabs**.
+4. Choose **Attach current** or open **Tabs**.
 5. Ask Hermes to work with the selected page.
 
 For example:
@@ -112,7 +112,7 @@ or:
 Click the requested action in my attached tab, then explain what changed.
 ```
 
-Tab titles and URLs are displayed locally when you open **Choose tabs** so that
+Tab titles and URLs are displayed locally when you open **Tabs** so that
 you can make the selection yourself.
 
 ## Why a companion is required

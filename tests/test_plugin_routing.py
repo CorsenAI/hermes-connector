@@ -95,6 +95,30 @@ class PluginRoutingTests(unittest.TestCase):
         self.assertNotIn("bridge_pin", self.context.tools)
         self.assertIn("bridge_tab", self.context.tools)
 
+    def test_bridge_status_success_has_no_false_error_key(self):
+        result = json.loads(
+            self.context.tools["bridge_status"]["handler"]({})
+        )
+
+        self.assertIs(result["ok"], True)
+        self.assertEqual(result["bridge"], {
+            "connected": True,
+            "profile": "real-profile",
+        })
+        self.assertNotIn("error", result)
+        self.assertNotIn("error", result["bridge"])
+
+    def test_bridge_status_reports_unregistered_plugin(self):
+        plugin.BRIDGE = None
+
+        result = json.loads(
+            self.context.tools["bridge_status"]["handler"]({})
+        )
+
+        self.assertIs(result["ok"], False)
+        self.assertEqual(result["error"], "Connector plugin is not registered")
+        self.assertNotIn("bridge", result)
+
     def test_reregister_stops_the_previous_companion_client(self):
         first = self.client
         replacement_context = FakeContext()

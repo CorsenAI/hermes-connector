@@ -169,6 +169,20 @@ def validate_source(source: Path) -> None:
             raise RuntimeError(f"symbolic links are not allowed in the companion payload: {path.name}")
 
 
+def verify_installed_payload(source: Path, target: Path) -> None:
+    """Prove that the published target is the exact bundled companion payload."""
+
+    expected = set(PLUGIN_FILES)
+    actual = {path.name for path in target.iterdir() if path.is_file()}
+    if actual != expected:
+        raise RuntimeError(
+            f"installed companion file set differs from source: expected={sorted(expected)}, actual={sorted(actual)}"
+        )
+    for name in PLUGIN_FILES:
+        if (target / name).read_bytes() != (source / name).read_bytes():
+            raise RuntimeError(f"installed companion verification failed for {name}")
+
+
 def install(source: Path, hermes_home: Path) -> tuple[Path, Path | None]:
     source = source.resolve()
     hermes_home = hermes_home.expanduser().resolve()
@@ -197,6 +211,7 @@ def install(source: Path, hermes_home: Path) -> tuple[Path, Path | None]:
             os.replace(target, previous)
         publish_started = True
         os.replace(stage, target)
+        verify_installed_payload(source, target)
     except BaseException:
         # A KeyboardInterrupt can arrive after an atomic OS move completed but
         # before os.replace returned to Python. Infer that state from the paths

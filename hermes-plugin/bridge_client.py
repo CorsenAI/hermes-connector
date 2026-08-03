@@ -384,10 +384,16 @@ class BridgeClient:
             "timeout": timeout,
         }
         response = self._call(payload, float(timeout))
+        # Hermes' generic tool-result detector treats the literal JSON key
+        # ``"error"`` as a failure even when its value is null.  Keep success
+        # payloads unambiguous: return data on success and an error only on
+        # failure.  This prevents a working Connector call from being shown to
+        # the model (and the user) as a failed browser action.
+        if response.get("ok"):
+            return {"ok": True, "data": response.get("data")}
         return {
-            "ok": bool(response.get("ok")),
-            "data": response.get("data"),
-            "error": response.get("error"),
+            "ok": False,
+            "error": response.get("error") or "Connector request failed",
         }
 
     def refresh_status(self, timeout: float = 3) -> dict:
@@ -397,7 +403,7 @@ class BridgeClient:
         return self.status()
 
     def status(self) -> dict:
-        return {
+        status = {
             "server": self.connected,
             "connected": self.connected,
             "paired": self.paired,
@@ -407,5 +413,7 @@ class BridgeClient:
             "browsers": self.broker_state.get("browsers") or [],
             "agent_profiles": self.broker_state.get("agentProfiles") or [],
             "protocol": broker.PROTOCOL_VERSION,
-            "error": self.last_error,
         }
+        if self.last_error:
+            status["error"] = self.last_error
+        return status
