@@ -5,7 +5,9 @@
 - `store-icon-128.png` — 128×128 Store icon.
 - `promo-small-440x280.png` — 440×280 small promotional tile.
 - `promo-marquee-1400x560.png` — 1400×560 marquee promotional banner.
-- `screenshot-product-1280x800.png` — 1280×800 actual-product screenshot.
+- `screenshot-product-1280x800.png` — 1280×800 verified live end-to-end product
+  capture; SHA-256
+  `8F5DEAA207A2F513D5D9B6C5EF9E88CEBC44C9344209670095A71953AC7D3585`.
 
 The fast release gate reads each PNG's IHDR and refuses dimensions that do not
 match the Chrome Web Store requirements.
@@ -32,25 +34,35 @@ Typography: clean bold geometric sans-serif, high contrast, render both lines ex
 Constraints: preserve the recognizable brand identity from Image 1; no browser or Google logos; no third-party marks; no people; no watermark; no extra text; no misspellings; no fine print; no fake interface screenshot
 ```
 
-## Product screenshot
+## Verified live product capture
 
-The screenshot is not generated or composited. It is an OS-level capture of a
-real headed Chrome for Testing window running the unpacked extension and its
-actual side panel. The test harness supplies an isolated browser profile,
-loopback companion, authenticated dashboard fixture, two non-sensitive Hermes
-sessions, and a release-workspace fixture tab. It opens the extension via the
-real `Ctrl+Shift+H` action gesture and verifies `browser paired`, the selected
-session, and one exact attachment before capture.
+The screenshot is not generated, composited, or backed by prewritten dashboard
+content. It is an OS-level capture of a real headed Chrome for Testing window
+running the 0.2.2 candidate extension, the matching candidate companion, and a
+real local Hermes model session. The browser and Hermes profile are isolated;
+the attached page is the public, non-sensitive `https://example.com/` test page.
 
-On Windows, run the capture with a Python environment containing `websockets`
-and Pillow:
+Before capture, the acceptance test proves from Hermes' own session-scoped
+agent log that `bridge_status`, `bridge_current_url`, and `bridge_read` each
+completed successfully against the exact attached Chrome tab. It independently
+requires Chrome to report `https://example.com/` and title `Example Domain`,
+checks the model's four-line proof response, verifies the saved tab binding,
+opens the real side panel through `Ctrl+Shift+H`, and captures only after the
+proven transcript is visible and the panel reports `Ready · Hermes + Chrome`.
+
+Reproduce the live acceptance and write a review copy outside the repository:
 
 ```powershell
-python tests/capture_store_screenshot.py
+& "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" `
+  tests/e2e_real_hermes.py --headed `
+  --capture "$env:TEMP\hermes-connector-real-e2e.png"
 ```
 
-The script refuses to overwrite the final screenshot unless `--force` is
-provided.
+Visually review the temporary PNG before intentionally copying it to the Store
+asset path. The deterministic fixture-only renderer remains available as
+`python tests/capture_store_screenshot.py`; its default output is
+`tests/artifacts/store-fixture-preview-1280x800.png`, so it cannot overwrite the
+verified product screenshot.
 
 ## Marquee promotional banner
 

@@ -11,11 +11,15 @@ const dot = document.getElementById("dot");
 const statusEl = document.getElementById("status");
 const frame = document.getElementById("hermes");
 const hint = document.getElementById("hint");
+const cfg = document.getElementById("cfg");
+const scopeSection = document.getElementById("scope");
 const sessionSelect = document.getElementById("sessionSelect");
 const attachActiveButton = document.getElementById("attachActive");
 const manageTabsButton = document.getElementById("manageTabs");
 const attachedTabs = document.getElementById("attachedTabs");
 const tabPicker = document.getElementById("tabPicker");
+const privacyButton = document.getElementById("privacyButton");
+const privacyPopover = document.getElementById("privacyPopover");
 const scopeInfo = document.getElementById("scopeInfo");
 const setupNotice = document.getElementById("setupNotice");
 const setupTitle = document.getElementById("setupTitle");
@@ -35,20 +39,153 @@ let state = {};
 let selectedScope = null;
 let pickerOpen = false;
 let platformOS = "unknown";
+let tabsRenderGeneration = 0;
+let sessionsLoadGeneration = 0;
+let scopeSelectionGeneration = 0;
+let dashboardGeneration = 0;
+let scopePersistence = Promise.resolve();
+let targetReadiness = null;
 
 const setDot = (kind) => { dot.className = `dot ${kind}`; };
 const keyFor = (scope) => scope ? `${scope.profileId}\u001f${scope.sessionId}` : "";
+const copyScope = (scope) => scope ? Object.freeze({
+  profileId: String(scope.profileId || ""),
+  sessionId: String(scope.sessionId || ""),
+}) : null;
+const scopeIsCurrent = (scope) => !!scope && keyFor(scope) === keyFor(selectedScope);
+
+function selectedBinding() {
+  return selectedScope && state.bindings ? state.bindings[keyFor(selectedScope)] || null : null;
+}
+
+function selectedTargetReady() {
+  const binding = selectedBinding();
+  return !!binding && Number.isInteger(binding.activeTabId) &&
+    Array.isArray(binding.tabIds) && binding.tabIds.includes(binding.activeTabId) &&
+    !!targetReadiness && targetReadiness.scopeKey === keyFor(selectedScope) &&
+    targetReadiness.tabId === binding.activeTabId && targetReadiness.controllable === true;
+}
+
+function selectedAgentReady() {
+  const profiles = (state.brokerState && state.brokerState.agentProfiles) || [];
+  return !!state.paired && !!selectedScope && profiles.includes(selectedScope.profileId);
+}
+
+function setupRequired() {
+  return !String((state.settings && state.settings.pairingCode) || "").trim();
+}
+
+function persistScope(scope) {
+  const operation = scopePersistence.then(async () => {
+    if (!scope) {
+      await chrome.storage.local.remove("selectedScope");
+      return { ok: true };
+    }
+    return runtime({ cmd: "selectScope", ...scope });
+  });
+  scopePersistence = operation.catch(() => {});
+  return operation;
+}
+
+function renderConnectionState(message = "", dotKind = "") {
+  if (message) {
+    if (dotKind) setDot(dotKind);
+    statusEl.textContent = message;
+    return;
+  }
+  if (setupRequired()) {
+    setDot(state.companionDetected ? "warn" : "off");
+    statusEl.textContent = state.companionDetected
+      ? "companion detected — enter pairing code"
+      : "setup required";
+    return;
+  }
+  if (!state.paired) {
+    setDot("off");
+    statusEl.textContent = "Connector offline";
+    return;
+  }
+  if (state.dashboardAvailable === false) {
+    setDot("warn");
+    statusEl.textContent = "Hermes dashboard unavailable";
+    return;
+  }
+  if (!selectedScope) {
+    setDot("warn");
+    statusEl.textContent = "Chrome linked · choose a session";
+    return;
+  }
+  if (!selectedAgentReady()) {
+    setDot("warn");
+    statusEl.textContent = `Chrome linked · start Hermes [${selectedScope.profileId}]`;
+    return;
+  }
+  if (!selectedTargetReady()) {
+    setDot("warn");
+    const readinessMatchesScope = !!targetReadiness && !!selectedScope &&
+      targetReadiness.scopeKey === keyFor(selectedScope);
+    statusEl.textContent = readinessMatchesScope
+      ? "Hermes linked · target loading"
+      : "Hermes linked · attach a target";
+    return;
+  }
+  setDot("on");
+  statusEl.textContent = "Ready · Hermes + Chrome";
+}
+
+function modalElement() {
+  if (cfg.classList.contains("open")) return cfg;
+  if (!setupNotice.hidden) return setupNotice;
+  if (!upgradeNotice.hidden) return upgradeNotice;
+  return null;
+}
+
+function focusableElements(element) {
+  return [...element.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )].filter((item) => !item.hidden && item.getClientRects().length);
+}
+
+function syncModalState() {
+  const blocked = !!modalElement();
+  frame.inert = blocked;
+  scopeSection.inert = blocked;
+}
+
+function focusFirst(element) {
+  requestAnimationFrame(() => {
+    const first = focusableElements(element)[0];
+    if (first) first.focus();
+  });
+}
+
+function positionPopover(element) {
+  const bottom = scopeSection.getBoundingClientRect().bottom + 5;
+  element.style.top = `${Math.max(38, Math.round(bottom))}px`;
+}
+
+function syncNoticeVisibility() {
+  const setupWasHidden = setupNotice.hidden;
+  const upgradeWasHidden = upgradeNotice.hidden;
+  const settingsOpen = cfg.classList.contains("open");
+  const needsSetup = setupRequired();
+  setupNotice.hidden = settingsOpen || !needsSetup;
+  upgradeNotice.hidden = settingsOpen || needsSetup || !state.upgradeNotice;
+  customPortUpgrade.hidden = !state.upgradeNotice || !state.upgradeNotice.customBridge;
+  syncModalState();
+  if (setupWasHidden && !setupNotice.hidden) focusFirst(setupNotice);
+  else if (upgradeWasHidden && !upgradeNotice.hidden) focusFirst(upgradeNotice);
+  return needsSetup;
+}
 
 function renderUpgradeNotice(notice) {
   state.upgradeNotice = notice || null;
-  upgradeNotice.hidden = !state.upgradeNotice;
-  customPortUpgrade.hidden = !state.upgradeNotice || !state.upgradeNotice.customBridge;
+  syncNoticeVisibility();
 }
 
 function renderSetupNotice(settings) {
-  const required = !String((settings && settings.pairingCode) || "").trim();
-  setupNotice.hidden = !required;
-  return required;
+  state.settings = { ...(state.settings || {}), ...(settings || {}) };
+  return syncNoticeVisibility();
 }
 
 function platformLabel() {
@@ -110,7 +247,7 @@ function renderCompanionDetection(detected, checking = false) {
   renderPlatformInstallStep();
   setupStepRestart.textContent = "Restart Hermes, then copy the private pairing code the installer displays.";
   setupStepPair.textContent = "Paste that code below, choose a Hermes session, and attach only the tabs it may use.";
-  downloadCompanion.textContent = "Download companion 0.2.1";
+  downloadCompanion.textContent = "Download companion 0.2.2";
   if (!setupNotice.hidden) statusEl.textContent = "setup required — companion not reachable";
 }
 
@@ -152,13 +289,19 @@ async function dashboardUrl(scope = null) {
   return makeDashboardUrl(await getUrl(), scope);
 }
 
-async function showDashboard(scope = null) {
-  frame.src = await dashboardUrl(scope);
+async function showDashboard(scope = null, selectionGeneration = null) {
+  const generation = ++dashboardGeneration;
+  const url = await dashboardUrl(scope);
+  if (generation !== dashboardGeneration) return false;
+  if (selectionGeneration !== null && selectionGeneration !== scopeSelectionGeneration) return false;
+  frame.src = url;
+  hint.hidden = true;
+  return true;
 }
 
 function updateScopeControls() {
   const ready = !!selectedScope;
-  attachActiveButton.disabled = !ready;
+  attachActiveButton.disabled = !ready || !state.paired;
   manageTabsButton.disabled = !ready;
   if (!ready) {
     scopeInfo.textContent = "Choose the Hermes project/session that should own browser tabs.";
@@ -166,6 +309,7 @@ function updateScopeControls() {
     tabPicker.replaceChildren();
     tabPicker.hidden = true;
   }
+  renderConnectionState();
 }
 
 function optionValue(profileId, sessionId) {
@@ -187,9 +331,14 @@ function sessionLabel(session) {
 }
 
 async function loadSessions() {
-  const currentValue = selectedScope ? optionValue(selectedScope.profileId, selectedScope.sessionId) : "";
+  const generation = ++sessionsLoadGeneration;
   try {
-    const sessions = await listDashboardSessions(await getUrl());
+    const url = await getUrl();
+    if (generation !== sessionsLoadGeneration) return false;
+    const sessions = await listDashboardSessions(url);
+    if (generation !== sessionsLoadGeneration) return false;
+    const currentScope = copyScope(selectedScope);
+    const currentValue = currentScope ? optionValue(currentScope.profileId, currentScope.sessionId) : "";
     const options = [];
     const placeholder = document.createElement("option");
     placeholder.value = "";
@@ -212,60 +361,125 @@ async function loadSessions() {
     if (currentValue && !seen.has(currentValue)) {
       const option = document.createElement("option");
       option.value = currentValue;
-      option.textContent = `[${selectedScope.profileId}] ${selectedScope.sessionId}`;
+      option.textContent = `[${currentScope.profileId}] ${currentScope.sessionId}`;
       options.push(option);
     }
+    if (generation !== sessionsLoadGeneration) return false;
     sessionSelect.replaceChildren(...options);
     sessionSelect.value = currentValue;
-    if (statusEl.textContent === "Hermes sessions unavailable") statusEl.textContent = "browser paired";
+    hint.hidden = true;
+    state.dashboardAvailable = true;
+    renderConnectionState();
+    return true;
   } catch (_) {
-    statusEl.textContent = "Hermes sessions unavailable";
+    if (generation !== sessionsLoadGeneration) return false;
+    hint.hidden = false;
+    state.dashboardAvailable = false;
+    renderConnectionState("Hermes dashboard unavailable", state.paired ? "warn" : "off");
+    return false;
   }
 }
 
 async function selectScope(scope, navigate = true) {
-  selectedScope = scope;
+  const generation = ++scopeSelectionGeneration;
+  sessionsLoadGeneration++;
+  tabsRenderGeneration++;
+  const requestedScope = copyScope(scope);
+  selectedScope = requestedScope;
+  state.selectedScope = requestedScope;
+  sessionSelect.value = requestedScope
+    ? optionValue(requestedScope.profileId, requestedScope.sessionId)
+    : "";
   updateScopeControls();
-  if (!scope) return;
-  const result = await runtime({ cmd: "selectScope", ...scope });
+  if (!requestedScope) {
+    const result = await persistScope(null);
+    if (generation !== scopeSelectionGeneration) return false;
+    if (!result || !result.ok) {
+      scopeInfo.textContent = result && result.error ? result.error : "Could not clear this session";
+      return false;
+    }
+    if (navigate) await showDashboard(null, generation);
+    if (generation !== scopeSelectionGeneration) return false;
+    await renderTabs();
+    return true;
+  }
+  const result = await persistScope(requestedScope);
+  if (generation !== scopeSelectionGeneration) return false;
   if (!result || !result.ok) {
     scopeInfo.textContent = result && result.error ? result.error : "Could not select this session";
-    return;
+    return false;
   }
-  if (navigate) await showDashboard(scope);
+  if (navigate) await showDashboard(requestedScope, generation);
+  if (generation !== scopeSelectionGeneration) return false;
   await renderTabs();
+  return true;
 }
 
-function tabRow(tab, binding, inPicker = false) {
+function tabRow(tab, binding, inPicker = false, scope = selectedScope) {
+  const actionScope = copyScope(scope);
   const row = document.createElement("div");
   row.className = `tabRow${binding && binding.activeTabId === tab.tabId ? " current" : ""}`;
   const title = document.createElement("span");
   title.className = "tabTitle";
-  title.textContent = tab.title || tab.url || `Tab ${tab.tabId}`;
+  title.textContent = `${inPicker ? "" : "Target · "}${tab.title || tab.url || `Tab ${tab.tabId}`}`;
   title.title = tab.url || "";
   row.appendChild(title);
 
   if (inPicker) {
     const button = document.createElement("button");
     button.className = "smallBtn";
-    const sameOwner = tab.owner && selectedScope &&
-      tab.owner.profileId === selectedScope.profileId && tab.owner.sessionId === selectedScope.sessionId;
-    button.textContent = sameOwner ? (tab.owner.active ? "Current" : "Use") : (tab.owner ? "Move here" : "Attach");
-    button.disabled = sameOwner && tab.owner.active;
+    const sameOwner = tab.owner && actionScope &&
+      tab.owner.profileId === actionScope.profileId && tab.owner.sessionId === actionScope.sessionId;
+    button.textContent = sameOwner ? (tab.owner.active ? "Target" : "Use") : (tab.owner ? "Move here" : "Attach");
+    button.disabled = (sameOwner && tab.owner.active) || tab.controllable === false ||
+      (!sameOwner && !state.paired);
+    if (tab.reason) button.title = tab.reason;
     button.onclick = async () => {
+      if (!scopeIsCurrent(actionScope)) {
+        scopeInfo.textContent = "Session changed; reopen Tabs before changing access.";
+        return;
+      }
       const command = sameOwner ? "activateTab" : "attachTab";
-      const result = await runtime({ cmd: command, ...selectedScope, tabId: tab.tabId });
-      if (!result.ok) scopeInfo.textContent = result.error || "Could not attach tab";
+      const result = await runtime({ cmd: command, ...actionScope, tabId: tab.tabId });
+      if (!result || !result.ok) {
+        scopeInfo.textContent = result && result.error ? result.error : "Could not attach tab";
+        return;
+      }
       await renderTabs();
     };
     row.appendChild(button);
+    if (sameOwner) {
+      const remove = document.createElement("button");
+      remove.className = "smallBtn";
+      remove.textContent = "×";
+      remove.title = "Revoke this tab from the selected Hermes session";
+      remove.setAttribute("aria-label", `Revoke access to ${tab.title || tab.url || "this tab"}`);
+      remove.onclick = async () => {
+        if (!scopeIsCurrent(actionScope)) {
+          scopeInfo.textContent = "Session changed; reopen Tabs before changing access.";
+          return;
+        }
+        const result = await runtime({ cmd: "detachTab", ...actionScope, tabId: tab.tabId });
+        if (!result || !result.ok) {
+          scopeInfo.textContent = result && result.error ? result.error : "Could not revoke tab access";
+          return;
+        }
+        await renderTabs();
+      };
+      row.appendChild(remove);
+    }
   } else {
     if (binding.activeTabId !== tab.tabId) {
       const use = document.createElement("button");
       use.className = "smallBtn";
       use.textContent = "Use";
       use.onclick = async () => {
-        await runtime({ cmd: "activateTab", ...selectedScope, tabId: tab.tabId });
+        if (!scopeIsCurrent(actionScope)) return;
+        const result = await runtime({ cmd: "activateTab", ...actionScope, tabId: tab.tabId });
+        if (!result || !result.ok) {
+          scopeInfo.textContent = result && result.error ? result.error : "Could not switch browser target";
+          return;
+        }
         await renderTabs();
       };
       row.appendChild(use);
@@ -275,7 +489,12 @@ function tabRow(tab, binding, inPicker = false) {
     remove.textContent = "×";
     remove.title = "Detach this tab from the Hermes session";
     remove.onclick = async () => {
-      await runtime({ cmd: "detachTab", ...selectedScope, tabId: tab.tabId });
+      if (!scopeIsCurrent(actionScope)) return;
+      const result = await runtime({ cmd: "detachTab", ...actionScope, tabId: tab.tabId });
+      if (!result || !result.ok) {
+        scopeInfo.textContent = result && result.error ? result.error : "Could not revoke tab access";
+        return;
+      }
       await renderTabs();
     };
     row.appendChild(remove);
@@ -284,30 +503,85 @@ function tabRow(tab, binding, inPicker = false) {
 }
 
 async function renderTabs() {
-  if (!selectedScope) {
+  const renderGeneration = ++tabsRenderGeneration;
+  const renderScope = copyScope(selectedScope);
+  targetReadiness = null;
+  state.activeChromeTab = null;
+  if (!renderScope) {
     updateScopeControls();
     return;
   }
-  const result = await runtime({ cmd: "listTabs", ...selectedScope, includeAvailable: pickerOpen });
+  renderConnectionState();
+  const includeAvailable = pickerOpen;
+  const result = await runtime({ cmd: "listTabs", ...renderScope, includeAvailable });
+  if (renderGeneration !== tabsRenderGeneration || !scopeIsCurrent(renderScope)) return;
   if (!result || !result.ok) {
     scopeInfo.textContent = result && result.error ? result.error : "Could not read Chrome tabs";
     return;
   }
-  const binding = (result.bindings || {})[keyFor(selectedScope)] || null;
+  state.bindings = result.bindings || {};
+  const binding = state.bindings[keyFor(renderScope)] || null;
   const byId = new Map((result.tabs || []).map((tab) => [tab.tabId, tab]));
-  const rows = [];
-  for (const tabId of binding ? binding.tabIds : []) {
-    const tab = byId.get(tabId);
-    if (tab) rows.push(tabRow(tab, binding));
+  const current = result.activeTab || null;
+  state.activeChromeTab = current;
+  let target = binding ? byId.get(binding.activeTabId) : null;
+  if (!target && binding) {
+    target = current && current.tabId === binding.activeTabId ? current : {
+      tabId: binding.activeTabId,
+      title: `Attached tab ${binding.activeTabId}`,
+      url: "",
+      controllable: false,
+      reason: "The attached target is still loading.",
+    };
   }
-  attachedTabs.replaceChildren(...rows);
-  scopeInfo.textContent = binding
-    ? `${binding.tabIds.length} attached tab${binding.tabIds.length === 1 ? "" : "s"} · green = current target`
-    : "No tab attached. Hermes will refuse browser actions until you attach one.";
+  targetReadiness = target ? {
+    scopeKey: keyFor(renderScope),
+    tabId: target.tabId,
+    controllable: target.controllable === true,
+  } : null;
+  attachedTabs.replaceChildren(...(target ? [tabRow(target, binding, false, renderScope)] : []));
 
-  if (pickerOpen) {
+  const usingCurrent = !!current && !!binding && current.tabId === binding.activeTabId;
+  const currentOwnedHere = !!current && !!current.owner &&
+    current.owner.profileId === renderScope.profileId && current.owner.sessionId === renderScope.sessionId;
+  attachActiveButton.textContent = usingCurrent ? "Current target" :
+    currentOwnedHere ? "Use current" : current && current.owner ? "Move current" : "Attach current";
+  attachActiveButton.disabled = !state.paired || !current || current.controllable === false || usingCurrent;
+  attachActiveButton.title = current && current.reason ? current.reason :
+    "Attach the Chrome tab you are looking at to this exact Hermes session";
+
+  const attachedCount = binding ? binding.tabIds.length : 0;
+  manageTabsButton.textContent = pickerOpen ? "Close" : `Tabs${attachedCount ? ` (${attachedCount})` : ""}`;
+  manageTabsButton.setAttribute("aria-expanded", String(pickerOpen));
+  if (!target) {
+    scopeInfo.textContent = current && current.controllable === false
+      ? `No target · ${current.reason || "this Chrome page cannot be controlled"}`
+      : "No target · Hermes browser actions are blocked until you attach a tab.";
+  } else if (target.controllable === false) {
+    scopeInfo.textContent = `Target retained · ${target.reason || "waiting for the attached page"}`;
+  } else if (!current || current.tabId === target.tabId) {
+    scopeInfo.textContent = selectedAgentReady()
+      ? "Hermes is ready on the target shown above."
+      : `Target saved · start or restart Hermes profile “${renderScope.profileId}”.`;
+  } else if (current.controllable === false) {
+    scopeInfo.textContent = `Hermes still targets “${target.title || target.url}” · ${current.reason || "current page cannot be attached"}`;
+  } else {
+    scopeInfo.textContent = `Hermes still targets “${target.title || target.url}” · press Use current to switch.`;
+  }
+  scopeInfo.title = scopeInfo.textContent;
+  renderConnectionState();
+
+  if (includeAvailable && pickerOpen) {
+    positionPopover(tabPicker);
     tabPicker.hidden = false;
-    tabPicker.replaceChildren(...(result.tabs || []).map((tab) => tabRow(tab, binding, true)));
+    const rows = (result.tabs || []).map((tab) => tabRow(tab, binding, true, renderScope));
+    if (!rows.length) {
+      const empty = document.createElement("div");
+      empty.className = "tabTitle";
+      empty.textContent = "No controllable web tabs are open.";
+      rows.push(empty);
+    }
+    tabPicker.replaceChildren(...rows);
   } else {
     tabPicker.hidden = true;
     tabPicker.replaceChildren();
@@ -317,9 +591,14 @@ async function renderTabs() {
 // --- settings ---------------------------------------------------------------
 
 async function setSettingsOpen(open) {
-  const cfg = document.getElementById("cfg");
   cfg.classList.toggle("open", open);
-  if (!open) return;
+  document.getElementById("gear").setAttribute("aria-expanded", String(open));
+  syncNoticeVisibility();
+  renderConnectionState();
+  if (!open) {
+    document.getElementById("gear").focus();
+    return;
+  }
   state = await runtime({ cmd: "getState" });
   const settings = state.settings || {};
   document.getElementById("browserName").value = (state.identity && state.identity.browserName) || "Chrome";
@@ -327,10 +606,10 @@ async function setSettingsOpen(open) {
   document.getElementById("bridgeUrl").value = settings.bridgeUrl || DEFAULT_BRIDGE;
   document.getElementById("pairingCode").value = settings.pairingCode || "";
   document.getElementById("trustedInput").checked = !!settings.trustedInput;
+  focusFirst(cfg);
 }
 
 document.getElementById("gear").onclick = async () => {
-  const cfg = document.getElementById("cfg");
   await setSettingsOpen(!cfg.classList.contains("open"));
 };
 openSetupSettings.onclick = () => setSettingsOpen(true);
@@ -364,8 +643,8 @@ document.getElementById("save").onclick = async () => {
     statusEl.textContent = identityResult.error || settingsResult.error || "Could not save settings";
     return;
   }
-  document.getElementById("cfg").classList.remove("open");
-  renderSetupNotice({ pairingCode });
+  state.settings = { ...(state.settings || {}), bridgeUrl, pairingCode, trustedInput };
+  await setSettingsOpen(false);
   await showDashboard(selectedScope);
   await connect();
   await loadSessions();
@@ -384,17 +663,75 @@ document.getElementById("refreshSessions").onclick = async () => {
 };
 
 attachActiveButton.onclick = async () => {
-  if (!selectedScope) return;
-  const result = await runtime({ cmd: "attachActiveTab", ...selectedScope });
-  if (!result.ok) scopeInfo.textContent = result.error || "Could not attach the active tab";
+  const actionScope = copyScope(selectedScope);
+  const expectedTabId = state.activeChromeTab && state.activeChromeTab.tabId;
+  if (!actionScope || !state.paired || !Number.isInteger(expectedTabId)) return;
+  const result = await runtime({ cmd: "attachActiveTab", ...actionScope, expectedTabId });
+  if (!scopeIsCurrent(actionScope)) return;
+  if (!result || !result.ok) {
+    scopeInfo.textContent = result && result.error ? result.error : "Could not attach the active tab";
+    return;
+  }
   await renderTabs();
 };
 
 manageTabsButton.onclick = async () => {
   pickerOpen = !pickerOpen;
-  manageTabsButton.textContent = pickerOpen ? "Hide tabs" : "Choose tabs";
+  privacyPopover.hidden = true;
+  privacyButton.setAttribute("aria-expanded", "false");
   await renderTabs();
+  if (pickerOpen) focusFirst(tabPicker);
 };
+
+privacyButton.onclick = () => {
+  const open = privacyPopover.hidden;
+  privacyPopover.hidden = !open;
+  privacyButton.setAttribute("aria-expanded", String(open));
+  if (open && pickerOpen) {
+    pickerOpen = false;
+    tabPicker.hidden = true;
+    renderTabs();
+  }
+  if (open) {
+    positionPopover(privacyPopover);
+    privacyPopover.tabIndex = -1;
+    privacyPopover.focus();
+  }
+};
+
+document.addEventListener("keydown", (event) => {
+  const modal = modalElement();
+  if (event.key === "Tab" && modal) {
+    const items = focusableElements(modal);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+    return;
+  }
+  if (event.key !== "Escape") return;
+  if (cfg.classList.contains("open")) {
+    event.preventDefault();
+    setSettingsOpen(false);
+    document.getElementById("gear").focus();
+  } else if (!privacyPopover.hidden) {
+    event.preventDefault();
+    privacyPopover.hidden = true;
+    privacyButton.setAttribute("aria-expanded", "false");
+    privacyButton.focus();
+  } else if (pickerOpen) {
+    event.preventDefault();
+    pickerOpen = false;
+    renderTabs();
+    manageTabsButton.focus();
+  }
+});
 
 dismissUpgradeNotice.onclick = async () => {
   if (!state.upgradeNotice) return;
@@ -402,17 +739,17 @@ dismissUpgradeNotice.onclick = async () => {
     cmd: "dismissUpgradeNotice",
     id: state.upgradeNotice.id,
   });
-  if (result && result.ok) renderUpgradeNotice(result.upgradeNotice);
+  if (result && result.ok) {
+    renderUpgradeNotice(result.upgradeNotice);
+    document.getElementById("gear").focus();
+  }
 };
 
 // --- pairing status ---------------------------------------------------------
 
 async function connect() {
   state = await runtime({ cmd: "getState" });
-  if (state && state.paired) {
-    setDot("on");
-    statusEl.textContent = "browser paired";
-  }
+  renderConnectionState();
   const name = (state.identity && state.identity.browserName) || "Chrome";
   await runtime({ cmd: "connect", browserName: name });
 }
@@ -421,19 +758,31 @@ chrome.runtime.onMessage.addListener((message) => {
   if (!message || message.from !== "bg") return;
   switch (message.cmd) {
     case "paired":
-      setDot(message.ok ? "on" : "off");
-      statusEl.textContent = message.ok ? "browser paired" : "pairing failed";
+      state.paired = !!message.ok;
+      targetReadiness = null;
+      if (message.brokerState && typeof message.brokerState === "object") {
+        state.brokerState = message.brokerState;
+      }
+      renderConnectionState(message.ok ? "" : "Pairing failed", message.ok ? "" : "err");
+      renderTabs();
       break;
     case "pairDenied":
+      state.paired = false;
+      targetReadiness = null;
+      state.brokerState = { agentProfiles: [], browsers: [] };
       setDot("err");
       statusEl.textContent = "pairing denied — check the code (⚙)";
+      renderTabs().then(() => renderConnectionState("Pairing denied — check the code (⚙)", "err"));
       break;
     case "companionDetected":
       renderCompanionDetection(!!message.detected);
       break;
     case "disconnected":
-      setDot("off");
-      statusEl.textContent = "Connector broker not reachable";
+      state.paired = false;
+      targetReadiness = null;
+      state.brokerState = { agentProfiles: [], browsers: [] };
+      renderConnectionState("Connector broker not reachable", "off");
+      renderTabs().then(() => renderConnectionState("Connector broker not reachable", "off"));
       break;
     case "hostError":
       setDot("err");
@@ -441,6 +790,8 @@ chrome.runtime.onMessage.addListener((message) => {
       break;
     case "brokerState":
       if (message.state) state.brokerState = message.state;
+      renderConnectionState();
+      renderTabs();
       break;
     case "upgradeNoticeChanged":
       renderUpgradeNotice(message.notice);
@@ -448,17 +799,25 @@ chrome.runtime.onMessage.addListener((message) => {
     case "bindingsChanged":
       renderTabs();
       break;
-    case "bindingRevoked":
-      if (selectedScope && message.profileId === selectedScope.profileId &&
-          message.sessionId === selectedScope.sessionId) {
-        scopeInfo.textContent = message.reason || "This session moved to another Chrome profile.";
-      }
+    case "activeTabChanged":
+    case "attachedTabChanged":
       renderTabs();
+      break;
+    case "bindingRevoked":
+      {
+        const revokedScope = copyScope(selectedScope);
+        const reason = message.reason || "This session moved to another Chrome profile.";
+        renderTabs().then(() => {
+          if (scopeIsCurrent(revokedScope) && message.profileId === revokedScope.profileId &&
+              message.sessionId === revokedScope.sessionId) {
+            scopeInfo.textContent = reason;
+            scopeInfo.title = reason;
+          }
+        });
+      }
       break;
   }
 });
-
-frame.addEventListener("load", () => { hint.hidden = true; });
 
 async function init() {
   try {
@@ -467,14 +826,13 @@ async function init() {
   } catch (_) {}
   state = await runtime({ cmd: "getState" });
   renderUpgradeNotice(state.upgradeNotice);
-  const setupRequired = renderSetupNotice(state.settings);
-  selectedScope = state.selectedScope || null;
+  const needsSetup = renderSetupNotice(state.settings);
+  selectedScope = copyScope(state.selectedScope);
   updateScopeControls();
   await showDashboard(selectedScope);
-  if (setupRequired) {
+  if (needsSetup) {
     setDot("off");
     statusEl.textContent = "setup required";
-    await setSettingsOpen(true);
     probeCompanion();
   } else {
     await connect();

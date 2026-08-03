@@ -34,12 +34,12 @@
     "alternateName": "Hermes Connector",
     "url": "https://corsenai.github.io/hermes-connector/",
     "installUrl": "https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm",
-    "downloadUrl": "https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip",
+    "downloadUrl": "https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip",
     "applicationCategory": "BrowserApplication",
     "operatingSystem": "Google Chrome 120+ on Windows, macOS, and Linux",
-    "softwareVersion": "0.2.1",
+    "softwareVersion": "0.2.2",
     "description": "An unofficial Chrome browser extension that connects exact local Hermes Agent sessions to user-selected tabs in a real signed-in Chrome profile.",
-    "image": "https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/store-icon-128.png",
+    "image": "https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/screenshot-product-1280x800.png",
     "softwareRequirements": "Google Chrome 120 or later, a local Hermes installation, and the Hermes Connector companion",
     "publisher": {
       "@type": "Organization",
@@ -113,7 +113,7 @@
     .nav-links a:hover { color: #fff; }
 
     .hero { padding: 86px 0 54px; }
-    .hero-grid { display: grid; grid-template-columns: 1.02fr .98fr; align-items: center; gap: clamp(38px, 7vw, 88px); }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, .82fr) minmax(520px, 1.18fr); gap: 48px; align-items: center; }
     .eyebrow { display: inline-flex; align-items: center; gap: 9px; margin: 0 0 18px; color: #8ce8fb; font-size: 13px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
     .eyebrow::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--green); box-shadow: 0 0 17px var(--green); }
     h1 { max-width: 790px; margin: 0; font-size: clamp(43px, 6.2vw, 76px); line-height: .98; letter-spacing: -.057em; }
@@ -247,14 +247,18 @@
           <p class="lead">Hermes Connector links exact local Hermes Agent sessions to only the Chrome tabs you attach—inside the signed-in browser profile you already use.</p>
           <div class="actions">
             <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Add to Chrome</a>
-            <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Download companion 0.2.1</a>
+            <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Download companion 0.2.2</a>
+            <a class="button" href="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/marketing/video/hermes-connector-real-e2e-1080p.mp4">Watch verified demo</a>
           </div>
           <p class="microcopy">Local companion required · Chrome 120+ · Windows, macOS, and Linux</p>
         </div>
-
-        <figure class="product-frame hero-visual">
-          <img src="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/screenshot-product-1280x800.png" width="1280" height="800" alt="Hermes Connector side panel attached to the Project Atlas tab in Chrome" fetchpriority="high">
-          <figcaption>Hermes Connector routes the selected Hermes session to its explicitly attached tab.</figcaption>
+        <figure class="hero-visual">
+          <div class="product-frame">
+            <img src="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/screenshot-product-1280x800.png"
+              width="1280" height="800" fetchpriority="high"
+              alt="Hermes Connector side panel showing a real Hermes model reading the explicitly attached Example Domain tab">
+            <figcaption>Verified live E2E · exact attached tab · real Hermes tool calls</figcaption>
+          </div>
         </figure>
       </div>
 
