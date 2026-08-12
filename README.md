@@ -7,13 +7,28 @@ automation browser or guessing which tab belongs to which task.
 
 ![Hermes Connector — local AI, your tabs](store/promo-marquee-1400x560.png)
 
-[**Install from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
+[**Install version 0.2.2 from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
-· [Download companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip)
+· [Download companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
 
 > Unofficial community project by Corsen AI. Not affiliated with or endorsed
 > by Nous Research or Google.
+
+## Current release and compatibility
+
+The public Chrome Web Store release is **0.2.2**. The Chrome extension and local
+companion must use exactly the same version.
+
+| Chrome extension | Matching companion | Protocol / default broker | Status |
+| --- | --- | --- | --- |
+| 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public release |
+| 0.2.1 | [Companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released or sideloaded pair |
+| 0.2.0 | [Companion 0.2.0](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip) | Protocol 3 / `127.0.0.1:8765` | Legacy pair; see the disk-recovery procedure |
+
+Do not mix versions. Check `chrome://extensions` before installing a companion.
+The complete compatibility, upgrade, and version 0.2.0 LevelDB recovery guide
+is available on the [support page](https://corsenai.github.io/hermes-connector/support/).
 
 ![Hermes Connector demo showing explicit tab scope and browser actions](marketing/video/hermes-connector-demo.gif)
 
@@ -61,24 +76,25 @@ the appropriate Windows, macOS, or Linux instructions.
 ### 1. Install the Chrome extension
 
 [Install Hermes Connector from the Chrome Web Store](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm),
-then click its toolbar icon or press `Ctrl+Shift+H` (`Command+Shift+H` on macOS)
-to open the side panel.
+verify that `chrome://extensions` shows version **0.2.2**, then click its toolbar
+icon or press `Ctrl+Shift+H` (`Command+Shift+H` on macOS) to open the side panel.
 
 ### 2. Let the extension check the companion
 
 On first launch, Hermes Connector checks only your computer's loopback address.
 It does not send this check to the internet.
 
-- If the panel says the companion is already reachable, do not reinstall it.
+- If the panel says the matching companion is already reachable, do not reinstall it.
 - Otherwise, use the panel's **Download companion** button and extract the ZIP.
 
 The current matching download is
-[`hermes-connector-0.2.1-companion.zip`](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip).
+[`hermes-connector-0.2.2-companion.zip`](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip).
 
 ### 3. Install the companion once
 
 **Windows:** double-click `Install Hermes Connector.cmd` in the extracted
-folder. Keep the result window open so you can copy the pairing code.
+folder, or run `.\install.ps1` from PowerShell. Keep the result window open so
+you can copy the pairing code.
 
 **macOS or Linux:** open a terminal in the extracted folder and run:
 
@@ -88,7 +104,8 @@ folder. Keep the result window open so you can copy the pairing code.
 
 Restart any Hermes dashboard, gateway, or chat process that was already
 running. The installer adds the connector plugin to the shared Hermes home and
-existing named profiles, then prints one private pairing code.
+existing named profiles, then prints one private pairing code. Re-run the
+installer after creating a new named Hermes profile.
 
 ### 4. Pair Chrome and choose the tabs
 
@@ -132,11 +149,11 @@ Hermes profile and session
 ```
 
 Chrome automatically updates the Store extension. It cannot update a local
-companion, so after an extension protocol upgrade the panel keeps a clear
-update notice visible until you confirm that the matching companion was
-installed. If you remove and reinstall the extension, or add it to another
-Chrome profile, the first-run check detects an already-running companion and
-avoids asking you to install it again.
+companion, so after an extension version change you must install the companion
+with exactly the same version and restart Hermes. If you remove and reinstall
+the extension, or add it to another Chrome profile, the first-run check detects
+an already-running compatible companion and avoids asking you to install it
+again.
 
 ## Privacy and security
 
@@ -200,7 +217,7 @@ builds are isolated under `dist/dev/` and must not be uploaded to the Store.
 
 - [Chrome Web Store listing](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
 - [Setup and downloads](https://corsenai.github.io/hermes-connector/)
-- [Troubleshooting and support](https://corsenai.github.io/hermes-connector/support/)
+- [Version compatibility, upgrade, and troubleshooting](https://corsenai.github.io/hermes-connector/support/)
 - [Privacy policy](https://corsenai.github.io/hermes-connector/privacy/)
 - [Source code and releases](https://github.com/CorsenAI/hermes-connector)
 
