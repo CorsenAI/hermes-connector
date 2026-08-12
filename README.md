@@ -93,7 +93,7 @@ The current matching download is
 ### 3. Install the companion once
 
 **Windows:** double-click `Install Hermes Connector.cmd` in the extracted
-folder, or run `\.\install.ps1` from PowerShell. Keep the result window open so
+folder, or run `.\install.ps1` from PowerShell. Keep the result window open so
 you can copy the pairing code.
 
 **macOS or Linux:** open a terminal in the extracted folder and run:
