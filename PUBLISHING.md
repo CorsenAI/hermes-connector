@@ -28,6 +28,7 @@ separately under the same release version.
 
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
+- Complete video demo: `https://www.youtube.com/watch?v=4akSq9cMmFw`
 - Companion 0.2.1: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
@@ -139,7 +140,7 @@ so use deferred publishing and answer reviewer questions promptly.
       copy is limited to verified platforms.
 - [ ] Pre-submit end-to-end pass in the intended signed-in Google Chrome
       profile using the exact extracted release ZIP.
-- [ ] Privacy URL, support URL, companion URL, listing, and dashboard
+- [ ] Privacy URL, support URL, video URL, companion URL, listing, and dashboard
       declarations are mutually consistent.
 - [x] 128×128 icon, 440×280 promo, and one real 1280×800 screenshot are ready
       and contain no personal data.

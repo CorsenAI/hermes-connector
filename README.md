@@ -8,6 +8,7 @@ automation browser or guessing which tab belongs to which task.
 ![Hermes Connector — local AI, your tabs](store/promo-marquee-1400x560.png)
 
 [**Install version 0.2.2 from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
+· [Watch the complete installation and live browser-control demo](https://youtu.be/4akSq9cMmFw)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
 · [Download companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)

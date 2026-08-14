@@ -10,6 +10,8 @@ Companion download: `https://github.com/CorsenAI/hermes-connector/releases/downl
 
 Source: `https://github.com/CorsenAI/hermes-connector`
 
+Localized promo video (English): `https://www.youtube.com/watch?v=4akSq9cMmFw`
+
 ## Upload assets
 
 - Icon: `store/store-icon-128.png` (128×128)
@@ -44,6 +46,11 @@ Connect Hermes Agent to the Chrome tabs you choose.
 Hermes Connector is a local AI browser automation bridge for Hermes Agent. It embeds your local Hermes dashboard in Chrome’s side panel and routes each selected Hermes session only to the tabs you explicitly attach.
 
 Use your normal signed-in Chrome profile and existing website sessions—without a hidden automation profile and without guessing which tab an agent should control.
+
+WATCH THE DEMO
+
+See Hermes Connector installation and live browser control in action (3:14):
+https://youtu.be/4akSq9cMmFw
 
 WHAT YOU CAN DO
 
