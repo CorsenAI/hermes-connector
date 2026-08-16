@@ -31,7 +31,19 @@ Do not mix versions. Check `chrome://extensions` before installing a companion.
 The complete compatibility, upgrade, and version 0.2.0 LevelDB recovery guide
 is available on the [support page](https://corsenai.github.io/hermes-connector/support/).
 
-![Hermes Connector demo showing explicit tab scope and browser actions](marketing/video/hermes-connector-demo.gif)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=4akSq9cMmFw">
+    <img
+      src="https://i.ytimg.com/vi/4akSq9cMmFw/maxresdefault.jpg"
+      alt="Watch the complete Hermes Connector installation and live browser-control demo"
+      width="900"
+    >
+  </a>
+</p>
+
+<p align="center">
+  <strong><a href="https://www.youtube.com/watch?v=4akSq9cMmFw">▶ Watch the complete installation and live browser-control demo</a></strong>
+</p>
 
 ## Your Hermes session, inside the Chrome you already use
 
