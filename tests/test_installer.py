@@ -281,9 +281,9 @@ class CompanionInstallerTests(unittest.TestCase):
             work.mkdir(parents=True)
             marker = work / "config.yaml"
             marker.write_text("plugins:\n  enabled: [keep]\n", encoding="utf-8")
-            junction = root / "profiles"
+            profiles = root / "profiles"
             created = subprocess.run(
-                ["cmd.exe", "/d", "/c", "mklink", "/J", str(junction), str(destination)],
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(profiles), str(destination)],
                 capture_output=True,
                 text=True,
             )
@@ -293,7 +293,7 @@ class CompanionInstallerTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "unsafe Hermes profiles directory"):
                     installer.installation_homes(root)
             finally:
-                os.rmdir(junction)
+                os.rmdir(profiles)
             self.assertEqual(marker.read_text(encoding="utf-8"), "plugins:\n  enabled: [keep]\n")
 
     def test_enable_uses_the_exact_profile_home(self):
@@ -446,7 +446,7 @@ class CompanionInstallerTests(unittest.TestCase):
             previous_snapshot = snapshot_tree(target)
 
             def reject_published_payload(source, published_target):
-                self.assertEqual(published_target, target)
+                self.assertTrue(published_target.samefile(target))
                 self.assertEqual(
                     {path.name for path in published_target.iterdir() if path.is_file()},
                     set(installer.PLUGIN_FILES),
