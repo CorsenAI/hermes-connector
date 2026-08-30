@@ -89,7 +89,7 @@ last-used, or first controllable tab.
 - A full Chrome restart preserves browser identity and session preference. Any
   tab that cannot be proven to be the same restored tab must be attached again.
 - Broker or Hermes restarts do not rotate the pairing code.
-- When Chrome updates an older build to 0.2.1, it migrates only the legacy
+- When Chrome updates an older build to a protocol-4 release (0.2.1+), it migrates only the legacy
   default 8765 address to 8766 and keeps a local notice visible until the user
   confirms the separately downloaded companion was reinstalled. The new port
   prevents a detached 0.2.0 broker from silently serving the hardened build.

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Capture a real 1280x800 Chrome window with the actual extension side panel.
+"""Capture a deterministic 1280x800 fixture preview of the extension panel.
 
-The browser profile, broker secret, dashboard data, and attached page are all
-isolated fixtures. The resulting Store asset therefore demonstrates the real
-unpacked extension without exposing a user's browser or Hermes history.
+The browser profile, broker secret, dashboard data, page, and visible reply are
+all isolated fixtures. This script is for UI regression previews only; it must
+not overwrite or be represented as the verified live Store product capture.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ import e2e_chromium as live
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = ROOT / "store" / "screenshot-product-1280x800.png"
+DEFAULT_OUTPUT = ROOT / "tests" / "artifacts" / "store-fixture-preview-1280x800.png"
 WIDTH = 1280
 HEIGHT = 800
 
@@ -71,7 +71,7 @@ def wait_panel(panel: live.Cdp, timeout: float = 12) -> dict:
           const scope=document.querySelector('#scopeInfo')?.textContent||'';
           const selected=document.querySelector('#sessionSelect')?.value||'';
           const frame=document.querySelector('#hermes');
-          if(status==='browser paired' && scope.startsWith('1 attached tab') &&
+          if(status==='Ready · Hermes + Chrome' && scope.includes('ready on the target') &&
              selected.includes('session-a') && frame?.src.includes('resume=session-a')){
             return {ready:true,status,scope,selected,frame:frame.src};
           }
@@ -165,24 +165,54 @@ def open_extension_from_keyboard(hwnd: int) -> None:
         user32.keybd_event(virtual_key, 0, key_up, 0)
 
 
-def open_side_panel(debug_port: int, hwnd: int) -> list[dict]:
+def set_window_topmost(hwnd: int, enabled: bool) -> None:
+    user32 = ctypes.windll.user32
+    no_move_or_size = 0x0001 | 0x0002
+    show_window = 0x0040
+    insert_after = -1 if enabled else -2  # HWND_TOPMOST / HWND_NOTOPMOST
+    user32.SetWindowPos(hwnd, insert_after, 0, 0, 0, 0, no_move_or_size | show_window)
+    if enabled:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+
+
+def open_side_panel(
+    debug_port: int, hwnd: int, exclude_target_ids: set[str] | None = None
+) -> list[dict]:
     last_error = None
+    excluded = exclude_target_ids or set()
+    set_window_topmost(hwnd, True)
     for _attempt in range(3):
         open_extension_from_keyboard(hwnd)
         try:
             return live.wait_for_targets(debug_port, lambda items: any(
-                item.get("url", "").endswith("/src/sidepanel.html") for item in items
+                item.get("url", "").endswith("/src/sidepanel.html")
+                and item.get("id") not in excluded for item in items
             ), timeout=4)
         except RuntimeError as error:
             last_error = error
+    set_window_topmost(hwnd, False)
     raise RuntimeError(f"extension keyboard action did not open the side panel: {last_error}")
 
 
 def capture_window(hwnd: int, output: Path) -> tuple[int, int]:
-    time.sleep(1.5)
-    rect = visible_window_rect(hwnd)
-    bounds = (rect.left, rect.top, rect.right, rect.bottom)
-    image = ImageGrab.grab(bbox=bounds, all_screens=True)
+    user32 = ctypes.windll.user32
+    title_length = user32.GetWindowTextLengthW(hwnd)
+    title_buffer = ctypes.create_unicode_buffer(title_length + 1)
+    user32.GetWindowTextW(hwnd, title_buffer, len(title_buffer))
+    if "Chrome" not in title_buffer.value and "Chromium" not in title_buffer.value:
+        raise RuntimeError(f"refusing to capture a non-Chrome window: {title_buffer.value!r}")
+    # Codex or a terminal can take focus while the acceptance script performs
+    # its final CDP checks. Keep only the verified Chrome HWND topmost for the
+    # grab, then immediately restore its normal z-order.
+    set_window_topmost(hwnd, True)
+    try:
+        time.sleep(1.5)
+        rect = visible_window_rect(hwnd)
+        bounds = (rect.left, rect.top, rect.right, rect.bottom)
+        image = ImageGrab.grab(bbox=bounds, all_screens=True)
+    finally:
+        set_window_topmost(hwnd, False)
     if image.size != (WIDTH, HEIGHT):
         raise RuntimeError(f"captured window is {image.width}x{image.height}, expected {WIDTH}x{HEIGHT}")
     output.parent.mkdir(parents=True, exist_ok=True)

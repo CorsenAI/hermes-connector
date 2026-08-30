@@ -445,19 +445,10 @@ class BrokerServer:
             return None
 
         name = str(hello.get("browserName") or "Chrome")[:120]
-        old = self.browsers.get(browser_id)
-        peer = BrowserPeer(websocket, browser_id, name, origin)
-        self.browsers[browser_id] = peer
-        if old is not None and old.websocket is not websocket:
-            await self._fail_browser_pending(
-                old, "the bound Chrome instance reconnected during the browser action"
-            )
-            try:
-                await old.websocket.close(code=1000, reason="browser reconnected")
-            except Exception:
-                pass
-
         client_nonce = clean_id(hello.get("nonce"), "nonce")
+        peer = BrowserPeer(websocket, browser_id, name, origin)
+        # Do not evict a healthy peer until every attacker-controlled field is
+        # valid and the new socket has successfully received its proof.
         await websocket.send(json.dumps({
             "type": "paired",
             "ok": True,
@@ -468,7 +459,28 @@ class BrokerServer:
             "protocol": PROTOCOL_VERSION,
             "brokerState": self._public_state(),
         }))
-        await self._broadcast_state()
+        old = self.browsers.get(browser_id)
+        self.browsers[browser_id] = peer
+        try:
+            if old is not None and old.websocket is not websocket:
+                await self._fail_browser_pending(
+                    old, "the bound Chrome instance reconnected during the browser action"
+                )
+                try:
+                    await old.websocket.close(code=1000, reason="browser reconnected")
+                except Exception:
+                    pass
+            await self._broadcast_state()
+        except BaseException:
+            # `_handler` has not received `peer` yet, so its finally block
+            # cannot remove an entry if cancellation lands during these awaits.
+            # Restore the old mapping (or remove ours) synchronously first.
+            if self.browsers.get(browser_id) is peer:
+                if old is None:
+                    self.browsers.pop(browser_id, None)
+                else:
+                    self.browsers[browser_id] = old
+            raise
         return peer
 
     async def _authenticate_agent(self, websocket: Any, hello: dict,
@@ -487,16 +499,10 @@ class BrokerServer:
             await websocket.close(code=1008, reason="authentication failed")
             return None
 
-        peer = AgentPeer(websocket, profile_id, process_id)
-        old = self.agents.get(peer.key)
-        self.agents[peer.key] = peer
-        if old is not None and old.websocket is not websocket:
-            try:
-                await old.websocket.close(code=1000, reason="agent reconnected")
-            except Exception:
-                pass
-
         client_nonce = clean_id(hello.get("nonce"), "nonce")
+        peer = AgentPeer(websocket, profile_id, process_id)
+        # As with browsers, authenticate completely and prove the broker role
+        # before replacing a live agent entry.
         await websocket.send(json.dumps({
             "type": "agent_paired",
             "ok": True,
@@ -506,7 +512,22 @@ class BrokerServer:
             "protocol": PROTOCOL_VERSION,
             "brokerState": self._public_state(),
         }))
-        await self._broadcast_state()
+        old = self.agents.get(peer.key)
+        self.agents[peer.key] = peer
+        try:
+            if old is not None and old.websocket is not websocket:
+                try:
+                    await old.websocket.close(code=1000, reason="agent reconnected")
+                except Exception:
+                    pass
+            await self._broadcast_state()
+        except BaseException:
+            if self.agents.get(peer.key) is peer:
+                if old is None:
+                    self.agents.pop(peer.key, None)
+                else:
+                    self.agents[peer.key] = old
+            raise
         return peer
 
     # -- browser messages ------------------------------------------------

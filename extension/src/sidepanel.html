@@ -8,14 +8,18 @@
     html, body { margin: 0; height: 100%; background: #0b0f14; color: #eaeaee;
       font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
     body { display: flex; flex-direction: column; overflow: hidden; }
-    header { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    header { display: flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 9px;
       border-bottom: 1px solid #23262b; font-size: 13px; flex: none; }
     .dot { width: 9px; height: 9px; border-radius: 50%; background: #666; flex: none; }
-    .dot.on { background: #39d353; } .dot.off { background: #666; } .dot.err { background: #e5534b; }
-    #status { color: #9a9aa2; font-size: 12px; margin-left: auto; }
+    .dot.on { background: #39d353; } .dot.warn { background: #d29922; }
+    .dot.off { background: #666; } .dot.err { background: #e5534b; }
+    #status { color: #9a9aa2; font-size: 11px; margin-left: auto; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
     #gear { background: none; border: 0; color: #9a9aa2; cursor: pointer; font-size: 14px; padding: 2px 4px; }
-    #cfg { display: none; flex-direction: column; gap: 6px; padding: 8px 10px;
-      border-bottom: 1px solid #23262b; flex: none; max-height: 55vh; overflow: auto; }
+    #cfg { display: none; position: fixed; z-index: 90; top: 38px; left: 8px; right: 8px;
+      flex-direction: column; gap: 6px; padding: 10px; max-height: calc(100vh - 58px); overflow: auto;
+      border: 1px solid #3b4658; border-radius: 9px; background: #10151d;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, .55); }
     #cfg.open { display: flex; }
     #cfg label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #9a9aa2; }
     #cfg input { background: #1a1f27; color: #eaeaee; border: 1px solid #23262b;
@@ -23,26 +27,41 @@
     #cfg label.chk { flex-direction: row; align-items: flex-start; gap: 6px; color: #c7cdda; line-height: 1.35; }
     #cfg label.chk input { width: auto; margin-top: 2px; flex: none; }
     #cfg button { background: #3159d8; color: #fff; border: 0; border-radius: 6px; padding: 6px 10px; cursor: pointer; margin-top: 2px; }
-    #scope { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
+    #scope { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 5px 8px 6px;
       border-bottom: 1px solid #23262b; background: #10151d; flex: none; }
     .scopeRow { display: flex; gap: 5px; }
     #sessionSelect { flex: 1; min-width: 0; background: #1a1f27; color: #eaeaee;
-      border: 1px solid #343b48; border-radius: 6px; padding: 6px; }
+      border: 1px solid #343b48; border-radius: 6px; padding: 4px 6px; min-height: 27px; }
     .smallBtn { background: #283142; color: #eaeaee; border: 1px solid #3b4658;
-      border-radius: 6px; padding: 5px 7px; cursor: pointer; white-space: nowrap; }
+      border-radius: 6px; padding: 4px 7px; min-height: 27px; cursor: pointer; white-space: nowrap; }
     .smallBtn.primary { background: #3159d8; border-color: #3159d8; }
     .smallBtn:disabled { opacity: .45; cursor: default; }
-    #scopeInfo { color: #9a9aa2; font-size: 11px; min-height: 14px; }
-    #privacyNote { color: #8b95a8; font-size: 10px; line-height: 1.35; }
-    #attachedTabs, #tabPicker { display: flex; flex-direction: column; gap: 4px; max-height: 128px; overflow: auto; }
-    #tabPicker { border-top: 1px solid #23262b; padding-top: 5px; }
+    #scopeInfo { color: #9a9aa2; font-size: 10px; line-height: 1.25; min-height: 13px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #attachedTabs { display: flex; min-width: 0; flex: 1; overflow: hidden; }
+    #attachedTabs:empty::before { content: "No target attached"; color: #8b95a8; font-size: 11px;
+      align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #tabPicker, #privacyPopover { position: fixed; z-index: 70; top: 101px; left: 8px; right: 8px;
+      max-height: min(52vh, 360px); overflow: auto; padding: 8px; border: 1px solid #3b4658;
+      border-radius: 9px; background: #10151d; box-shadow: 0 12px 36px rgba(0, 0, 0, .55); }
+    #tabPicker { display: flex; flex-direction: column; gap: 5px; }
+    #tabPicker[hidden], #privacyPopover[hidden] { display: none; }
+    #privacyPopover { color: #c7cdda; font-size: 11px; line-height: 1.45; }
+    #privacyPopover p { margin: 0 0 7px; }
+    #privacyPopover p:last-child { margin-bottom: 0; }
+    #dataNotice { color: #8b95a8; font-size: 9px; line-height: 1.2; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; }
     .tabRow { display: flex; align-items: center; gap: 5px; min-width: 0; font-size: 11px; }
+    #attachedTabs .tabRow { flex: 1; }
     .tabTitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c7cdda; }
     .tabRow.current .tabTitle { color: #7ee787; font-weight: 600; }
     iframe { width: 100%; min-height: 0; flex: 1; border: 0; display: block; background: #fff; }
-    #hint { padding: 20px; color: #9a9aa2; font-size: 13px; line-height: 1.5; flex: 1; }
-    #setupNotice { flex: none; padding: 10px; background: #10243a;
-      border-bottom: 1px solid #285a86; color: #dceeff; font-size: 12px; }
+    #hint { padding: 8px 10px; color: #c7cdda; background: #151b24; border-top: 1px solid #343b48;
+      font-size: 11px; line-height: 1.4; flex: none; }
+    #setupNotice { position: fixed; z-index: 80; top: 38px; left: 8px; right: 8px;
+      max-height: calc(100vh - 58px); overflow: auto; padding: 10px; background: #10243a;
+      border: 1px solid #285a86; border-radius: 9px; color: #dceeff; font-size: 12px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, .55); }
     #setupNotice[hidden] { display: none; }
     #setupNotice p { margin: 5px 0; line-height: 1.4; }
     #setupNotice ol { margin: 6px 0 8px; padding-left: 20px; line-height: 1.5; }
@@ -52,8 +71,10 @@
       text-decoration: none; border-radius: 6px; padding: 6px 8px; }
     .setupActions button { background: #1c3853; color: #dceeff; border: 1px solid #3b6d99;
       border-radius: 6px; padding: 5px 7px; cursor: pointer; }
-    #upgradeNotice { flex: none; padding: 10px; background: #2b2110;
-      border-bottom: 1px solid #76551f; color: #f6dda5; font-size: 12px; }
+    #upgradeNotice { position: fixed; z-index: 75; top: 38px; left: 8px; right: 8px;
+      max-height: calc(100vh - 58px); overflow: auto; padding: 10px; background: #2b2110;
+      border: 1px solid #76551f; border-radius: 9px; color: #f6dda5; font-size: 12px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, .55); }
     #upgradeNotice[hidden] { display: none; }
     #upgradeNotice p { margin: 5px 0 8px; line-height: 1.4; }
     .upgradeActions { display: flex; align-items: center; gap: 8px; }
@@ -67,9 +88,9 @@
     <span id="dot" class="dot off" title="browser pairing"></span>
     <strong>Hermes</strong>
     <button id="gear" title="Set your Hermes address">⚙</button>
-    <span id="status">connecting…</span>
+    <span id="status" role="status" aria-live="polite">connecting…</span>
   </header>
-  <aside id="setupNotice" role="status" hidden>
+  <aside id="setupNotice" role="dialog" aria-modal="true" aria-labelledby="setupTitle" hidden>
     <strong id="setupTitle">Finish setup — about 2 minutes</strong>
     <p id="companionDetection">Checking whether the companion is already installed…</p>
     <ol>
@@ -81,27 +102,28 @@
     <details>
       <summary>What is the companion?</summary>
       <p>It is the small Hermes Connector plugin installed inside your existing Hermes setup. It includes
-        the local broker automatically; it is not another app or account. Communication stays on this PC
-        through <code>127.0.0.1</code>, and Corsen AI operates no relay or telemetry service.</p>
+        the local broker automatically; it is not another app or account. The Connector transport between
+        Chrome and Hermes stays on this PC through <code>127.0.0.1</code>, and Corsen AI operates no relay or
+        telemetry service. Hermes may still send prompts and attached content to the model provider you configure.</p>
       <p>On macOS or Linux, run <code>./install.sh</code> instead. Keep the pairing code private. Run the
         installer again after creating a new named Hermes profile.</p>
     </details>
     <div class="setupActions">
       <a id="downloadCompanion" class="primaryLink"
-        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip"
-        target="_blank" rel="noopener noreferrer">Download companion 0.2.1</a>
+        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip"
+        target="_blank" rel="noopener noreferrer">Download companion 0.2.2</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Detailed instructions</a>
       <button id="openSetupSettings">Enter pairing code</button>
       <button id="checkCompanion">Check again</button>
     </div>
   </aside>
-  <aside id="upgradeNotice" role="alert" hidden>
-    <strong>Companion update required</strong>
-    <p>Re-download and run the 0.2.1 companion installer, then restart running Hermes processes.
+  <aside id="upgradeNotice" role="alertdialog" aria-modal="true" aria-labelledby="upgradeTitle" hidden>
+    <strong id="upgradeTitle">Companion update required</strong>
+    <p>Re-download and run the 0.2.2 companion installer, then restart running Hermes processes.
       Browser tools may fail until this is done.</p>
     <p id="customPortUpgrade" hidden><b>Custom bridge port:</b> an older detached broker may still own it.
-      After installing 0.2.1, reboot this computer once (or safely stop only that legacy broker),
+      After installing 0.2.2, reboot this computer once (or safely stop only that legacy broker),
       then start Hermes again.</p>
     <div class="upgradeActions">
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
@@ -109,7 +131,7 @@
       <button id="dismissUpgradeNotice">I’ve reinstalled it</button>
     </div>
   </aside>
-  <div id="cfg">
+  <div id="cfg" role="dialog" aria-modal="true" aria-label="Hermes Connector settings">
     <label>This Chrome profile name
       <input id="browserName" type="text" spellcheck="false" placeholder="Work Chrome" /></label>
     <label>Hermes dashboard address
@@ -119,7 +141,7 @@
     <label>Pairing code (from companion installer)
       <input id="pairingCode" type="password" spellcheck="false" placeholder="paste the installer's private code" /></label>
     <div class="setupActions">
-      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip"
+      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip"
         target="_blank" rel="noopener noreferrer">Download companion</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Setup help</a>
@@ -137,15 +159,22 @@
       <button id="refreshSessions" class="smallBtn" title="Refresh Hermes sessions">↻</button>
     </div>
     <div class="scopeRow">
-      <button id="attachActive" class="smallBtn primary" disabled>Attach active tab</button>
-      <button id="manageTabs" class="smallBtn" disabled>Choose tabs</button>
+      <div id="attachedTabs" aria-label="Current Hermes browser target"></div>
+      <button id="attachActive" class="smallBtn primary" aria-describedby="scopeInfo dataNotice" disabled>Attach current</button>
+      <button id="manageTabs" class="smallBtn" aria-controls="tabPicker" aria-expanded="false" disabled>Tabs</button>
+      <button id="privacyButton" class="smallBtn" title="What Hermes Connector can access"
+        aria-label="Privacy and tab access information" aria-controls="privacyPopover" aria-expanded="false">ⓘ</button>
     </div>
-    <div id="scopeInfo">Choose the Hermes project/session that should own browser tabs.</div>
-    <div id="privacyNote">Only tabs you attach can be read or controlled. Their URL, visible content and
-      requested screenshots are shared with your locally configured Hermes session. “Choose tabs” shows tab
-      titles locally so you can select them.</div>
-    <div id="attachedTabs"></div>
-    <div id="tabPicker" hidden></div>
+    <div id="scopeInfo" role="status" aria-live="polite">Choose the Hermes project/session that should own browser tabs.</div>
+    <div id="dataNotice">Attached content may be sent to the model provider configured in Hermes.</div>
+    <div id="tabPicker" role="dialog" aria-label="Choose and revoke Chrome tab access" hidden></div>
+    <div id="privacyPopover" role="dialog" aria-label="Privacy and tab access information" hidden>
+      <p><b>Only tabs you explicitly attach can be read or controlled.</b> Switching Chrome tabs does not
+        silently move Hermes: the target shown here stays selected until you press “Use current”.</p>
+      <p>The Connector sends the attached tab URL, visible content and requested screenshots locally to Hermes.
+        Hermes may then send them to the model provider you configured. The Tabs menu reads tab titles locally
+        so you can choose or revoke access.</p>
+    </div>
   </section>
   <!-- The user's real Hermes dashboard (sessions, agent picker, model, chat). src is set at runtime
        from the saved address (default the Hermes dashboard port 9119) — never hardcoded in the page. -->

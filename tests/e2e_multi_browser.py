@@ -161,7 +161,7 @@ def run(browser: Path, headed: bool) -> dict:
         temp_root = Path(temp)
         broker_log = (temp_root / "broker.log").open("w", encoding="utf-8")
         broker_process = subprocess.Popen(
-            [sys.executable, str(ROOT / "hermes-plugin" / "broker.py"), "--serve",
+            [sys.executable, str(live.PLUGIN / "broker.py"), "--serve",
              "--root", str(temp_root), "--port", str(broker_port)],
             stdin=subprocess.DEVNULL, stdout=broker_log, stderr=subprocess.STDOUT,
         )

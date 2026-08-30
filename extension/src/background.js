@@ -17,10 +17,10 @@ let reconnectTimer = null;
 let pingTimer = null;       // 20s WebSocket keepalive while the socket is open (Chrome docs)
 let actionQueue = Promise.resolve();  // serialize agent actions so they never race each other
 let queueDepth = 0;         // bound the pending queue so a runaway/hostile agent can't OOM the worker
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const COMPANION_REINSTALL_NOTICE = Object.freeze({
-  id: "companion-reinstall-0.2.1",
-  previousVersion: "0.2.0",
-  extensionVersion: "0.2.1",
+  id: `companion-reinstall-${EXTENSION_VERSION}`,
+  extensionVersion: EXTENSION_VERSION,
 });
 const LEGACY_DEFAULT_BRIDGE_URLS = new Set([
   "ws://127.0.0.1:8765",
@@ -28,16 +28,33 @@ const LEGACY_DEFAULT_BRIDGE_URLS = new Set([
 ]);
 let sessionGen = 0;         // bumped on disconnect/unpair -> already-queued actions are cancelled
 const MAX_QUEUED = 32;
+const MAX_UNPAIRED_PENDING_FRAMES = 8;
+const MAX_UNPAIRED_PENDING_CHARS = 2_500_000;
+const MAX_PAIRED_PENDING_FRAMES = 32;
+const MAX_PAIRED_PENDING_CHARS = 8_000_000;
 let desiredName = "Chrome"; // browser name to announce once the agent challenges us
 let bindingTransaction = Promise.resolve(); // prevent concurrent read/modify/write updates from losing tabs
 let authorizationGen = 0;   // binding/trusted-input revocations cancel in-flight action authority
 const activationGeneration = new Map(); // windowId -> every active-tab change, including A→B→A
+let activeTabEventGeneration = 0; // suppress stale async UI events after rapid activation/navigation
+const attachedTabEventGeneration = new Map(); // tabId -> newest navigation/status event
 
-chrome.tabs.onActivated.addListener(({ windowId }) => {
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
   if (Number.isInteger(windowId)) {
     activationGeneration.set(windowId, (activationGeneration.get(windowId) || 0) + 1);
   }
+  scheduleActiveTabBroadcast(tabId);
 });
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!(Object.hasOwn(changeInfo || {}, "url") || Object.hasOwn(changeInfo || {}, "pendingUrl") ||
+      Object.hasOwn(changeInfo || {}, "status"))) return;
+  scheduleAttachedTabRefresh(tabId);
+  if (tab && tab.active) scheduleActiveTabBroadcast(tabId, tab);
+});
+
+// Focusing another Chrome window changes the user-visible active tab without firing tabs.onActivated.
+chrome.windows.onFocusChanged.addListener(() => scheduleActiveTabBroadcast(null));
 
 // ---- mutual auth (challenge-response over the shared pairing code) -----------
 
@@ -128,7 +145,7 @@ async function validateBindings(sync = true) {
       for (const tabId of binding.tabIds) {
         try {
           const tab = await chrome.tabs.get(tabId);
-          if (!isControllableTab(tab)) next = removeTabEverywhere(next, tabId);
+          if (!isRetainableTab(tab)) next = removeTabEverywhere(next, tabId);
         } catch (_) {
           next = removeTabEverywhere(next, tabId);
         }
@@ -220,7 +237,7 @@ async function ensureBridgeMigration() {
     await chrome.storage.local.set(updates);
   } catch (_) {
     // Even if local persistence is temporarily unavailable, never make the
-    // first 0.2.1 connection to the detached 0.2.0 default broker.
+    // first protocol-4 connection to the detached 0.2.0 default broker.
   }
   return { url: migrated ? DEFAULT_BRIDGE_URL : (current || DEFAULT_BRIDGE_URL),
     migrated, customBridge };
@@ -233,6 +250,7 @@ async function bridgeUrl() {
 function invalidateSession(sock = null) {
   sessionGen++;
   paired = false;
+  brokerState = { protocol: PROTOCOL_VERSION, browsers: [], agentProfiles: [] };
   if (sock) sock._paired = false;
 }
 
@@ -276,10 +294,38 @@ async function connectBridge(probeOnly = false) {
     // Size gate BEFORE JSON.parse: never parse an unbounded payload — a rogue local server could
     // otherwise OOM the worker with one giant frame, no pairing needed. Legit messages are tiny.
     if (typeof ev.data !== "string" || ev.data.length > 2000000) { try { sock.close(); } catch (_) {} return; }
-    let m; try { m = JSON.parse(ev.data); } catch (_) { return; }
-    // onHostMessage is async — a sync try/catch would miss post-await errors, so catch the promise.
-    // Pass THIS socket so the handler can bail if it's superseded across an await (connection race).
-    Promise.resolve(onHostMessage(m, sock)).catch((e) => console.error("agent-bridge:", e));
+    let m;
+    try { m = JSON.parse(ev.data); } catch (_) {
+      // Invalid frames are a protocol violation. Dropping them silently would
+      // let a fake local endpoint bypass the bounded async queue and burn CPU.
+      try { sock.close(); } catch (_) {}
+      return;
+    }
+    const pendingFrames = (sock._pendingFrames || 0) + 1;
+    const pendingChars = (sock._pendingChars || 0) + ev.data.length;
+    const authenticated = sock._paired === true;
+    const maxFrames = authenticated ? MAX_PAIRED_PENDING_FRAMES : MAX_UNPAIRED_PENDING_FRAMES;
+    const maxChars = authenticated ? MAX_PAIRED_PENDING_CHARS : MAX_UNPAIRED_PENDING_CHARS;
+    if (pendingFrames > maxFrames || pendingChars > maxChars) {
+      // Never let an unauthenticated (or compromised local) endpoint build an
+      // unbounded Promise/object backlog while async HMAC/storage work runs.
+      try { sock.close(); } catch (_) {}
+      return;
+    }
+    sock._pendingFrames = pendingFrames;
+    sock._pendingChars = pendingChars;
+    const frameChars = ev.data.length;
+    // Preserve WebSocket frame order across async handshake work. Without this queue a
+    // broker_state frame immediately following paired can overtake the HMAC/storage awaits and be
+    // discarded as unauthenticated, leaving the panel with a stale readiness state.
+    // Pass THIS socket so the handler can still bail if it is superseded across an await.
+    sock._messageChain = (sock._messageChain || Promise.resolve())
+      .then(() => onHostMessage(m, sock))
+      .catch((e) => console.error("agent-bridge:", e))
+      .finally(() => {
+        sock._pendingFrames = Math.max(0, (sock._pendingFrames || 1) - 1);
+        sock._pendingChars = Math.max(0, (sock._pendingChars || frameChars) - frameChars);
+      });
   };
   sock.onclose = () => {
     if (ws !== sock) return;   // a newer connection owns the state now
@@ -396,6 +442,7 @@ async function onHostMessage(msg, sock) {
   // ON the socket (sock._extNonce), not a global, so two connections never cross wires.
   const alive = () => ws === sock;
   const authenticated = () => alive() && paired && sock._paired === true;
+  if (!alive()) return;
   switch (msg.type) {
     case IN.CHALLENGE: {
       // One challenge per connection: a rogue server can't flood challenges to burn HMAC/storage work.
@@ -543,17 +590,137 @@ async function onHostMessage(msg, sock) {
 
 // ---- action execution -------------------------------------------------------
 
-function isControllableTab(t) {
-  if (!t || !Number.isInteger(t.id)) return false;
-  const url = t.pendingUrl || t.url || "";
-  if (url === "about:blank") return true;
-  return !/^(chrome|edge|about|devtools|view-source):/.test(url) &&
-    !/^chrome-extension:\/\//.test(url);
+function effectiveTabUrl(tab) {
+  return String((tab && (tab.pendingUrl || tab.url)) || "").trim();
+}
+
+function urlControlReason(rawUrl) {
+  let url;
+  try { url = new URL(rawUrl); } catch (_) {
+    return "This tab does not have a valid controllable URL.";
+  }
+  // Hermes deliberately supports opening a new empty tab before navigating it.
+  // Permit exactly about:blank; every other browser-internal about: page remains blocked.
+  if (url.href.toLowerCase() === "about:blank") return null;
+  const protocol = url.protocol.toLowerCase();
+  const blockedProtocols = {
+    "chrome:": "Chrome internal pages cannot be controlled by extensions.",
+    "chrome-search:": "Chrome internal pages cannot be controlled by extensions.",
+    "chrome-untrusted:": "Chrome internal pages cannot be controlled by extensions.",
+    "edge:": "Edge internal pages cannot be controlled by extensions.",
+    "about:": "Browser internal pages cannot be controlled by extensions.",
+    "devtools:": "Developer Tools pages cannot be controlled by extensions.",
+    "view-source:": "View-source pages cannot be controlled by extensions.",
+    "chrome-extension:": "Extension pages cannot be controlled by other extensions.",
+    "edge-extension:": "Extension pages cannot be controlled by other extensions.",
+    "file:": "Local file pages are not supported because Chrome file access requires a separate browser setting.",
+  };
+  if (blockedProtocols[protocol]) return blockedProtocols[protocol];
+  if (!["http:", "https:"].includes(protocol)) {
+    return `Pages using the ${protocol.replace(/:$/, "")} scheme cannot be controlled.`;
+  }
+  const hostname = url.hostname.toLowerCase();
+  const pathname = url.pathname.toLowerCase();
+  if (hostname === "chromewebstore.google.com" ||
+      (hostname === "chrome.google.com" && (pathname === "/webstore" || pathname.startsWith("/webstore/")))) {
+    return "Chrome Web Store pages cannot be controlled by extensions.";
+  }
+  return null;
+}
+
+function tabControlStatus(tab) {
+  if (!tab || !Number.isInteger(tab.id)) {
+    return { controllable: false, reason: "No active Chrome tab is available." };
+  }
+  const currentUrl = String(tab.url || "").trim();
+  const pendingUrl = String(tab.pendingUrl || "").trim();
+  if (!currentUrl && !pendingUrl) {
+    return { controllable: false, reason: tab.status === "loading"
+      ? "Wait for the active page to finish loading before attaching it."
+      : "This tab has no controllable URL yet." };
+  }
+  const pendingReason = pendingUrl ? urlControlReason(pendingUrl) : null;
+  if (pendingReason) return { controllable: false, reason: pendingReason };
+  if (pendingUrl) {
+    return { controllable: false,
+      reason: "Wait for the active page to finish loading before attaching it." };
+  }
+  const currentReason = currentUrl ? urlControlReason(currentUrl) : null;
+  if (currentReason) return { controllable: false, reason: currentReason };
+  return { controllable: true, reason: null };
+}
+
+function isControllableTab(tab) {
+  return tabControlStatus(tab).controllable;
+}
+
+function isRetainableTab(tab) {
+  if (!tab || !Number.isInteger(tab.id)) return false;
+  const pendingUrl = String(tab.pendingUrl || "").trim();
+  // Preserve the exact tab-id authorization while a safe navigation is pending, but keep actions
+  // blocked through tabControlStatus until a controllable document is actually committed.
+  if (pendingUrl) return !urlControlReason(pendingUrl);
+  // Chrome can expose a freshly-created about:blank tab with an empty URL even
+  // after status briefly says complete. Keeping that exact existing tab ID is
+  // safe (all page actions remain blocked) and prevents a concurrent UI render
+  // from revoking the NEW_TAB action before about:blank becomes observable.
+  if (!String(tab.url || "").trim()) return true;
+  return isControllableTab(tab);
+}
+
+function describeTab(tab, owner = null) {
+  const control = tabControlStatus(tab);
+  if (!tab) {
+    return { tabId: null, windowId: null, index: null, title: "No active tab", url: "",
+      active: false, owner: null, ...control };
+  }
+  return { tabId: tab.id, windowId: tab.windowId, index: tab.index,
+    title: tab.title || "Untitled", url: sanitizeUrl(effectiveTabUrl(tab)),
+    active: !!tab.active, owner, ...control };
+}
+
+function scheduleActiveTabBroadcast(tabId, knownTab = null) {
+  const eventGeneration = ++activeTabEventGeneration;
+  Promise.resolve().then(async () => {
+    let tab = knownTab;
+    if (!tab && Number.isInteger(tabId)) {
+      try { tab = await chrome.tabs.get(tabId); } catch (_) { tab = null; }
+    }
+    if (!tab) {
+      try { [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); } catch (_) {}
+    }
+    if (eventGeneration !== activeTabEventGeneration) return;
+    // An onUpdated lookup can finish after focus moved elsewhere. Never publish it as the active tab.
+    if (tab && !tab.active) return;
+    broadcast({ cmd: "activeTabChanged", activeTab: describeTab(tab || null) });
+  }).catch(() => {});
+}
+
+function scheduleAttachedTabRefresh(tabId) {
+  if (!Number.isInteger(tabId)) return;
+  const eventGeneration = (attachedTabEventGeneration.get(tabId) || 0) + 1;
+  attachedTabEventGeneration.set(tabId, eventGeneration);
+  mutateBindings(async (registry) => {
+    const attached = Object.values(registry).some((binding) => binding.tabIds.includes(tabId));
+    if (!attached || attachedTabEventGeneration.get(tabId) !== eventGeneration) return registry;
+    let tab;
+    try { tab = await chrome.tabs.get(tabId); } catch (_) {
+      return removeTabEverywhere(registry, tabId);
+    }
+    if (attachedTabEventGeneration.get(tabId) !== eventGeneration) return registry;
+    return isRetainableTab(tab) ? registry : removeTabEverywhere(registry, tabId);
+  }, true, () => attachedTabEventGeneration.get(tabId) === eventGeneration)
+    .then((registry) => {
+      if (attachedTabEventGeneration.get(tabId) !== eventGeneration) return;
+      const retained = Object.values(registry).some((binding) => binding.tabIds.includes(tabId));
+      if (retained) broadcast({ cmd: "attachedTabChanged", tabId });
+    })
+    .catch(() => {});
 }
 
 // Exact target only. An unbound or stale scope fails instead of falling back to whichever page the
 // user most recently focused — the central wrong-tab guarantee of protocol v4.
-async function getTargetTab(msg) {
+async function getRetainableTargetTab(msg) {
   const scope = msg && msg.scope;
   if (!scope || !scope.profileId || !scope.sessionId) throw new Error("action has no Hermes session scope");
   if (!Number.isInteger(msg.targetTabId)) throw new Error("action has no explicit target tab");
@@ -567,7 +734,16 @@ async function getTargetTab(msg) {
     await mutateBindings((current) => removeTabEverywhere(current, msg.targetTabId));
     throw new Error("attached target tab no longer exists");
   }
-  if (!isControllableTab(tab)) throw new Error("attached target tab cannot be controlled");
+  if (!isRetainableTab(tab)) {
+    throw new Error(`attached target tab cannot be retained: ${tabControlStatus(tab).reason}`);
+  }
+  return tab;
+}
+
+async function getTargetTab(msg) {
+  const tab = await getRetainableTargetTab(msg);
+  const control = tabControlStatus(tab);
+  if (!control.controllable) throw new Error(`attached target tab cannot be controlled: ${control.reason}`);
   return tab;
 }
 
@@ -596,7 +772,11 @@ async function getScopeTabs(scope) {
   for (const tabId of binding.tabIds) {
     try {
       const tab = await chrome.tabs.get(tabId);
-      if (isControllableTab(tab)) tabs.push(tab);
+      // Keep an explicitly authorized tab addressable while a safe HTTP(S)
+      // navigation is pending. Page actions still fail closed in getTargetTab()
+      // until the document is controllable, but list/switch/close and the
+      // new-tab return index must not lose the exact tab during that interval.
+      if (isRetainableTab(tab)) tabs.push(tab);
     } catch (_) {}
   }
   tabs.sort((a, b) => (a.windowId - b.windowId) || (a.index - b.index));
@@ -617,15 +797,30 @@ function waitComplete(tabId, ms) {
 
 async function handleAction(msg, sock, epoch) {
   const a = msg.action || {};
+  const pageIndependentAction = new Set([
+    ACTION.NEW_TAB,
+    ACTION.LIST_TABS,
+    ACTION.SWITCH_TAB,
+    ACTION.CLOSE_TAB,
+    ACTION.CURRENT_URL,
+    ACTION.WAIT,
+  ]).has(a.kind);
+  // Navigation is also safe from a freshly-created URL-less/about:blank tab:
+  // it mutates only the exact authorized tab ID and validates the destination
+  // before Chrome receives it. All DOM/input actions still require a fully
+  // controllable committed document.
+  const allowPendingTarget = pageIndependentAction || a.kind === ACTION.NAVIGATE;
   let tab;
   try {
-    tab = await getTargetTab(msg);
+    tab = await (allowPendingTarget ? getRetainableTargetTab(msg) : getTargetTab(msg));
   } catch (error) {
     sessionSocketSend(sock, epoch.session,
       { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(error.message || error) });
     return;
   }
-  const settings = await getSettings();
+  const settings = pageIndependentAction
+    ? { trustedInput: false, showOverlay: false }
+    : await getSettings();
   requireActionAuthorized(sock, epoch);
   // "Trusted input" mode: real browser input events via CDP only if the user enabled it. The required
   // manifest permission is present, but the debugger transport stays detached otherwise (no debugger banner).
@@ -640,6 +835,8 @@ async function handleAction(msg, sock, epoch) {
     case ACTION.NAVIGATE: {
       const u = String(a.url || "");
       if (!/^https?:\/\//i.test(u)) { data = { ok: false, error: "only http/https URLs are allowed" }; break; }
+      const policyError = urlControlReason(u);
+      if (policyError) { data = { ok: false, error: policyError }; break; }
       // Trusted-input mode: attach BEFORE navigating so a dialog fired during load (beforeunload,
       // onload alert) is auto-handled instead of freezing the page with nobody attached yet.
       if (useCdp) {
@@ -730,7 +927,7 @@ async function handleAction(msg, sock, epoch) {
       break;
     case ACTION.CURRENT_URL:
       requireActionAuthorized(sock, epoch);
-      data = { url: sanitizeUrl(tab.url), title: tab.title };
+      data = { url: sanitizeUrl(effectiveTabUrl(tab)), title: tab.title };
       break;
     case ACTION.WAIT:
       await new Promise((r) => setTimeout(r, Math.min(a.ms || 0, 15000)));
@@ -814,6 +1011,8 @@ async function handleAction(msg, sock, epoch) {
         data = { ok: false, error: "only http/https URLs are allowed" };
         break;
       }
+      const policyError = urlControlReason(nu);
+      if (policyError) { data = { ok: false, error: policyError }; break; }
       requireActionAuthorized(sock, epoch);
       const t = await chrome.tabs.create({ url: nu, windowId: tab.windowId, active: true });
       let attached = false;
@@ -837,13 +1036,18 @@ async function handleAction(msg, sock, epoch) {
     case ACTION.LIST_TABS: {
       requireActionAuthorized(sock, epoch);
       const scoped = await getScopeTabs(msg.scope);
-      data = { tabs: scoped.tabs.map((t, index) => ({
-        index,
-        tabId: t.id,
-        title: t.title,
-        url: sanitizeUrl(t.url),
-        active: t.id === scoped.binding.activeTabId,
-      })) };
+      data = { tabs: scoped.tabs.map((t, index) => {
+        const control = tabControlStatus(t);
+        return {
+          index,
+          tabId: t.id,
+          title: t.title,
+          url: sanitizeUrl(effectiveTabUrl(t)),
+          active: t.id === scoped.binding.activeTabId,
+          controllable: control.controllable,
+          ...(control.reason ? { reason: control.reason } : {}),
+        };
+      }) };
       break;
     }
     case ACTION.SWITCH_TAB: {
@@ -1032,20 +1236,34 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           );
           rawTabs = settled.filter((item) => item.status === "fulfilled").map((item) => item.value);
         }
-        const tabs = rawTabs.filter(isControllableTab)
+        let activeChromeTab = null;
+        try { [activeChromeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); } catch (_) {}
+        // The explicit picker may explain why any local tab is unavailable. Normal rendering must
+        // also retain an already-authorized tab while a safe navigation is pending so the user can
+        // still see and revoke that authorization; actions remain blocked by `controllable:false`.
+        const tabs = rawTabs.filter((tab) => msg.includeAvailable || isRetainableTab(tab))
           .sort((a, b) => (a.windowId - b.windowId) || (a.index - b.index))
-          .map((tab) => ({ tabId: tab.id, windowId: tab.windowId, index: tab.index,
-            title: tab.title || "Untitled", url: sanitizeUrl(tab.url || tab.pendingUrl),
-            active: tab.active, owner: owners.get(tab.id) || null }));
-        sendResponse({ ok: true, tabs, bindings: registry });
+          .map((tab) => describeTab(tab, owners.get(tab.id) || null));
+        sendResponse({ ok: true, tabs, bindings: registry,
+          activeTab: describeTab(activeChromeTab || null,
+            activeChromeTab ? (owners.get(activeChromeTab.id) || null) : null) });
         break;
       }
       case "attachActiveTab": {
         if (!paired) { sendResponse({ ok: false, error: "pair this Chrome profile before attaching tabs" }); break; }
         const scope = { profileId: String(msg.profileId || ""), sessionId: String(msg.sessionId || "") };
         scopeKey(scope.profileId, scope.sessionId);
+        if (!Number.isInteger(msg.expectedTabId)) {
+          sendResponse({ ok: false, error: "refresh the panel before attaching the current tab" });
+          break;
+        }
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        if (!isControllableTab(tab)) { sendResponse({ ok: false, error: "the active tab cannot be controlled" }); break; }
+        if (!tab || tab.id !== msg.expectedTabId) {
+          sendResponse({ ok: false, error: "the active Chrome tab changed; review it and press Attach current again" });
+          break;
+        }
+        const control = tabControlStatus(tab);
+        if (!control.controllable) { sendResponse({ ok: false, error: control.reason }); break; }
         const bindings = await attachScopeTab(scope, tab.id);
         sendResponse({ ok: true, tabId: tab.id, bindings });
         break;
@@ -1055,7 +1273,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const scope = { profileId: String(msg.profileId || ""), sessionId: String(msg.sessionId || "") };
         scopeKey(scope.profileId, scope.sessionId);
         const tab = await chrome.tabs.get(msg.tabId);
-        if (!isControllableTab(tab)) { sendResponse({ ok: false, error: "the tab cannot be controlled" }); break; }
+        const control = tabControlStatus(tab);
+        if (!control.controllable) { sendResponse({ ok: false, error: control.reason }); break; }
         const bindings = await attachScopeTab(scope, tab.id);
         sendResponse({ ok: true, tabId: tab.id, bindings });
         break;

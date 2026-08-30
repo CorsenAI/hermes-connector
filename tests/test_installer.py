@@ -140,6 +140,119 @@ class CompanionInstallerTests(unittest.TestCase):
                 self.assertTrue((target / "plugin.yaml").is_file())
             self.assertFalse((ignored / "plugins" / installer.PLUGIN_NAME).exists())
 
+    def test_multi_profile_install_replaces_stale_021_payload_byte_for_byte(self):
+        """A 0.2.1 label must not hide a protocol-v3 broker in any profile."""
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "hermes"
+            profiles = [
+                root / "profiles" / "personal",
+                root / "profiles" / "work",
+            ]
+            for profile in profiles:
+                profile.mkdir(parents=True)
+                (profile / "config.yaml").write_text(
+                    "plugins:\n  enabled: []\n", encoding="utf-8"
+                )
+
+            source = ROOT / "hermes-plugin"
+            expected_homes = [root.resolve(), *(profile.resolve() for profile in profiles)]
+            for home in expected_homes:
+                target = home / "plugins" / installer.PLUGIN_NAME
+                target.mkdir(parents=True)
+                for name in installer.PLUGIN_FILES:
+                    (target / name).write_bytes(f"stale payload: {name}\n".encode("utf-8"))
+                (target / "plugin.yaml").write_text(
+                    "name: hermes-connector\nversion: 0.2.1\n", encoding="utf-8"
+                )
+                (target / "broker.py").write_text(
+                    "PROTOCOL_VERSION = 3\nDEFAULT_PORT = 8765\n", encoding="utf-8"
+                )
+                (target / "stale-only.txt").write_text("remove me", encoding="utf-8")
+
+            result = installer.main([
+                "--hermes-home", str(root),
+                "--source", str(source),
+                "--no-enable",
+                "--no-show-code",
+            ])
+
+            self.assertEqual(result, 0)
+            self.assertEqual(installer.installation_homes(root), expected_homes)
+            source_bytes = {
+                name: (source / name).read_bytes() for name in installer.PLUGIN_FILES
+            }
+            for home in expected_homes:
+                target = home / "plugins" / installer.PLUGIN_NAME
+                self.assertEqual(
+                    {path.name for path in target.iterdir() if path.is_file()},
+                    set(installer.PLUGIN_FILES),
+                )
+                for name, expected in source_bytes.items():
+                    with self.subTest(home=home, payload=name):
+                        self.assertEqual((target / name).read_bytes(), expected)
+
+                installed_manifest = (target / "plugin.yaml").read_text(encoding="utf-8")
+                installed_broker = (target / "broker.py").read_text(encoding="utf-8")
+                self.assertRegex(installed_manifest, r"(?m)^version:\s*0\.2\.2\s*$")
+                self.assertRegex(installed_broker, r"(?m)^PROTOCOL_VERSION\s*=\s*4\s*$")
+                self.assertRegex(installed_broker, r"(?m)^DEFAULT_PORT\s*=\s*8766\s*$")
+
+    def test_release_version_protocol_and_port_contract_is_consistent(self):
+        plugin_source = (ROOT / "hermes-plugin" / "plugin.yaml").read_text(
+            encoding="utf-8"
+        )
+        broker_source = (ROOT / "hermes-plugin" / "broker.py").read_text(
+            encoding="utf-8"
+        )
+        bridge_client_source = (ROOT / "hermes-plugin" / "bridge_client.py").read_text(
+            encoding="utf-8"
+        )
+        extension_manifest = json.loads(
+            (ROOT / "extension" / "manifest.json").read_text(encoding="utf-8")
+        )
+        extension_protocol = (ROOT / "extension" / "src" / "protocol.js").read_text(
+            encoding="utf-8"
+        )
+
+        plugin_version = re.search(r"(?m)^version:\s*([^\s]+)\s*$", plugin_source)
+        broker_protocol = re.search(
+            r"(?m)^PROTOCOL_VERSION\s*=\s*(\d+)\s*$", broker_source
+        )
+        broker_port = re.search(r"(?m)^DEFAULT_PORT\s*=\s*(\d+)\s*$", broker_source)
+        extension_protocol_version = re.search(
+            r"PROTOCOL_VERSION\s*=\s*(\d+)", extension_protocol
+        )
+        extension_port = re.search(
+            r'DEFAULT_BRIDGE_URL\s*=\s*"ws://127\.0\.0\.1:(\d+)/?"',
+            extension_protocol,
+        )
+
+        for label, match in (
+            ("plugin version", plugin_version),
+            ("broker protocol", broker_protocol),
+            ("broker port", broker_port),
+            ("extension protocol", extension_protocol_version),
+            ("extension port", extension_port),
+        ):
+            with self.subTest(contract=label):
+                self.assertIsNotNone(match, f"missing {label} declaration")
+
+        self.assertEqual(extension_manifest["version"], "0.2.2")
+        self.assertEqual(plugin_version.group(1), extension_manifest["version"])
+        self.assertEqual(int(broker_protocol.group(1)), 4)
+        self.assertEqual(int(extension_protocol_version.group(1)), 4)
+        self.assertEqual(broker_protocol.group(1), extension_protocol_version.group(1))
+        self.assertEqual(int(broker_port.group(1)), 8766)
+        self.assertEqual(broker_port.group(1), extension_port.group(1))
+        self.assertIn("broker.PROTOCOL_VERSION", bridge_client_source)
+        self.assertIn("broker.DEFAULT_PORT", bridge_client_source)
+
+        payload_files = {
+            path.name for path in (ROOT / "hermes-plugin").iterdir() if path.is_file()
+        }
+        self.assertEqual(set(installer.PLUGIN_FILES), payload_files)
+
     def test_profiles_directory_symlink_is_rejected_without_touching_destination(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp) / "hermes"
@@ -168,9 +281,9 @@ class CompanionInstallerTests(unittest.TestCase):
             work.mkdir(parents=True)
             marker = work / "config.yaml"
             marker.write_text("plugins:\n  enabled: [keep]\n", encoding="utf-8")
-            junction = root / "profiles"
+            profiles = root / "profiles"
             created = subprocess.run(
-                ["cmd.exe", "/d", "/c", "mklink", "/J", str(junction), str(destination)],
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(profiles), str(destination)],
                 capture_output=True,
                 text=True,
             )
@@ -180,7 +293,7 @@ class CompanionInstallerTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "unsafe Hermes profiles directory"):
                     installer.installation_homes(root)
             finally:
-                os.rmdir(junction)
+                os.rmdir(profiles)
             self.assertEqual(marker.read_text(encoding="utf-8"), "plugins:\n  enabled: [keep]\n")
 
     def test_enable_uses_the_exact_profile_home(self):
@@ -310,6 +423,55 @@ class CompanionInstallerTests(unittest.TestCase):
             self.assertIsNotNone(previous2)
             self.assertEqual((previous2 / "local-note.txt").read_text(encoding="utf-8"), "preserve me")
             self.assertFalse((target2 / "local-note.txt").exists())
+
+    def test_verification_failure_after_publish_restores_exact_previous_payload(self):
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp) / "hermes"
+            plugins = home / "plugins"
+            target = plugins / installer.PLUGIN_NAME
+            nested = target / "legacy-data"
+            nested.mkdir(parents=True)
+            (target / "plugin.yaml").write_bytes(b"old manifest\r\nversion: 0.1.0\r\n")
+            (target / "legacy-only.bin").write_bytes(b"\x00old companion\xff")
+            (nested / "keep.dat").write_bytes(b"exact nested bytes\x00")
+
+            def snapshot_tree(root):
+                return {
+                    path.relative_to(root).as_posix(): (
+                        None if path.is_dir() else path.read_bytes()
+                    )
+                    for path in root.rglob("*")
+                }
+
+            previous_snapshot = snapshot_tree(target)
+
+            def reject_published_payload(source, published_target):
+                self.assertTrue(published_target.samefile(target))
+                self.assertEqual(
+                    {path.name for path in published_target.iterdir() if path.is_file()},
+                    set(installer.PLUGIN_FILES),
+                )
+                for name in installer.PLUGIN_FILES:
+                    self.assertEqual(
+                        (published_target / name).read_bytes(),
+                        (source / name).read_bytes(),
+                    )
+                raise RuntimeError("simulated post-publication verification failure")
+
+            with mock.patch.object(
+                installer,
+                "verify_installed_payload",
+                side_effect=reject_published_payload,
+            ) as verify:
+                with self.assertRaisesRegex(RuntimeError, "post-publication"):
+                    installer.install(ROOT / "hermes-plugin", home)
+
+            verify.assert_called_once()
+            self.assertEqual(snapshot_tree(target), previous_snapshot)
+            self.assertEqual(
+                {path.name for path in plugins.iterdir()},
+                {installer.PLUGIN_NAME},
+            )
 
     def test_keyboard_interrupt_between_payload_swaps_restores_previous_copy(self):
         with tempfile.TemporaryDirectory() as temp:

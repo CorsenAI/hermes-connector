@@ -1,6 +1,17 @@
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
+$SourceManifest = Join-Path $Root "hermes-plugin\plugin.yaml"
+$VersionMatch = [regex]::Match(
+  [System.IO.File]::ReadAllText($SourceManifest),
+  '(?m)^version:\s*([^\s]+)\s*$'
+)
+if (-not $VersionMatch.Success) {
+  throw "Source companion manifest does not declare a version"
+}
+$ExpectedVersion = $VersionMatch.Groups[1].Value
+$ExpectedVersionPattern = '^version:\s*' + [regex]::Escape($ExpectedVersion) + '\s*$'
+
 $TempRoot = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $TestRoot = [System.IO.Path]::GetFullPath((Join-Path $TempRoot (
   "hermes-connector-install-" + [guid]::NewGuid().ToString("N")
@@ -61,8 +72,8 @@ try {
   if (-not (Test-Path -LiteralPath $Payload)) {
     throw "PowerShell companion install did not create the payload"
   }
-  if (-not (Select-String -LiteralPath $Payload -Pattern '^version: 0\.2\.1$' -Quiet)) {
-    throw "PowerShell companion install produced the wrong version"
+  if (-not (Select-String -LiteralPath $Payload -Pattern $ExpectedVersionPattern -Quiet)) {
+    throw "PowerShell companion install did not preserve source version $ExpectedVersion"
   }
 
   $CmdHome = Join-Path $TestRoot "double-click-home"
@@ -75,7 +86,10 @@ try {
   if (-not (Test-Path -LiteralPath $CmdPayload)) {
     throw "Double-click Windows installer did not create the payload"
   }
-  Write-Host "PowerShell companion install passed: $Payload"
+  if (-not (Select-String -LiteralPath $CmdPayload -Pattern $ExpectedVersionPattern -Quiet)) {
+    throw "Double-click Windows installer did not preserve source version $ExpectedVersion"
+  }
+  Write-Host "Windows companion installers passed for version $ExpectedVersion"
 }
 finally {
   $env:PATH = $OriginalPath
