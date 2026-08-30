@@ -26,12 +26,15 @@ first, perfectly secure, or universally compatible.
 ## Canonical links
 
 - Chrome Web Store: https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm
+- Complete video demo: https://youtu.be/4akSq9cMmFw
 - Product and setup: https://corsenai.github.io/hermes-connector/
 - Source: https://github.com/CorsenAI/hermes-connector
 - Support: https://corsenai.github.io/hermes-connector/support/
 - Privacy: https://corsenai.github.io/hermes-connector/privacy/
 
 ## YouTube
+
+Published video: https://youtu.be/4akSq9cMmFw
 
 Title:
 

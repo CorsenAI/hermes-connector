@@ -1,43 +1,126 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Install, pair, upgrade, and troubleshoot Hermes Connector, the Chrome browser extension and local companion for Hermes Agent.">
-<meta name="robots" content="index,follow,max-image-preview:large">
-<link rel="canonical" href="https://corsenai.github.io/hermes-connector/support/">
-<meta property="og:type" content="website">
-<meta property="og:title" content="Setup & Support — Hermes Connector">
-<meta property="og:description" content="Install, pair, upgrade, and troubleshoot the Hermes Connector Chrome extension and local companion.">
-<meta property="og:url" content="https://corsenai.github.io/hermes-connector/support/">
-<meta property="og:image" content="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/promo-marquee-1400x560.png">
-<meta property="og:image:alt" content="Hermes Connector — Local AI. Your tabs. By Corsen AI.">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Setup &amp; Support — Hermes Connector">
-<meta name="twitter:description" content="Install, pair, upgrade, and troubleshoot the Hermes Connector Chrome extension and local companion.">
-<meta name="twitter:image" content="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/promo-marquee-1400x560.png">
-<title>Setup &amp; Support — Hermes Connector for Hermes Agent</title>
-<style>
-  :root{--bg:#090d19;--card:#11182b;--bd:#29375f;--tx:#edf2ff;--mut:#aeb9d2;--acc:#79cfff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#281442 0%,var(--bg) 62%);color:var(--tx);font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:52px 20px}main{max-width:800px;margin:auto}h1{font-size:38px;margin:0 0 8px}.sub{color:var(--mut);margin:0 0 28px}.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:25px 29px;margin:0 0 17px}h2{font-size:20px;margin:0 0 10px}li,p{color:#d9e1f2}code{background:#192341;border:1px solid var(--bd);border-radius:6px;padding:2px 6px}a{color:var(--acc)}nav{margin-top:24px;color:var(--mut)}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Install, pair, upgrade, and troubleshoot Hermes Connector, including exact extension and companion version compatibility.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="theme-color" content="#090d19">
+  <link rel="canonical" href="https://corsenai.github.io/hermes-connector/support/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Setup & Support — Hermes Connector">
+  <meta property="og:description" content="Install, pair, upgrade, and troubleshoot the Hermes Connector Chrome extension and local companion.">
+  <meta property="og:url" content="https://corsenai.github.io/hermes-connector/support/">
+  <meta property="og:image" content="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/promo-marquee-1400x560.png">
+  <meta property="og:image:alt" content="Hermes Connector — Local AI. Your tabs. By Corsen AI.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Setup & Support — Hermes Connector">
+  <meta name="twitter:description" content="Install, pair, upgrade, and troubleshoot the Hermes Connector Chrome extension and local companion.">
+  <meta name="twitter:image" content="https://raw.githubusercontent.com/CorsenAI/hermes-connector/main/store/promo-marquee-1400x560.png">
+  <title>Setup &amp; Support — Hermes Connector for Hermes Agent</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090d19;--card:#11182b;--card2:#151e35;--bd:#2a395f;--tx:#edf2ff;--mut:#aeb9d2;--acc:#79cfff;--good:#71e5ac;--warn:#ffd782;--danger:#ff9ca9}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(900px 500px at 80% -10%,#281442 0%,var(--bg) 62%);color:var(--tx);font:16px/1.65 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:52px 20px}
+    main{max-width:960px;margin:auto}h1{font-size:clamp(34px,6vw,46px);line-height:1.08;margin:0 0 8px;letter-spacing:-.035em}h2{font-size:22px;line-height:1.25;margin:0 0 12px}h3{font-size:18px;margin:24px 0 8px}p,li{color:#d9e1f2}.sub{color:var(--mut);margin:0 0 28px}.card{background:linear-gradient(145deg,var(--card2),var(--card));border:1px solid var(--bd);border-radius:17px;padding:26px 29px;margin:0 0 18px}.current{border-color:#31745d;background:linear-gradient(145deg,#102c29,var(--card) 68%)}.warning-card{border-color:#8e6a2b;background:linear-gradient(145deg,#251d15,var(--card) 68%)}.danger-card{border-color:#7a3e49;background:linear-gradient(145deg,#2a161e,var(--card) 68%)}
+    a{color:var(--acc)}code{background:#192341;border:1px solid var(--bd);border-radius:6px;padding:2px 6px}.badge{display:inline-block;margin:0 0 12px;padding:4px 9px;border:1px solid #3a846a;border-radius:999px;color:var(--good);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.warning{color:var(--warn)}.danger{color:var(--danger)}.table-wrap{overflow-x:auto;margin:18px 0}table{width:100%;min-width:800px;border-collapse:collapse}th,td{padding:13px 14px;border:1px solid var(--bd);text-align:left;vertical-align:top}th{background:#18223b;color:#fff}td{color:#d9e1f2}td strong{color:#fff}.pair{white-space:nowrap}.actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 4px}.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 14px;border:1px solid #3a527f;border-radius:10px;background:#182542;color:#fff;text-decoration:none;font-weight:750}.button.primary{border-color:transparent;background:linear-gradient(100deg,#287eff,#a94cea 72%,#e647bd)}ol,ul{padding-left:23px}.steps li{margin:9px 0}.note{font-size:14px;color:var(--mut)}nav{margin-top:26px;color:var(--mut)}@media(max-width:600px){body{padding:34px 14px}.card{padding:22px 19px}}
+  </style>
 </head>
 <body><main>
   <h1>Hermes Connector support</h1>
-  <p class="sub">Release documentation: 0.2.2 · protocol 4</p>
-  <div class="card"><h2>Install</h2><ol>
-    <li><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Download the 0.2.2 companion</a> and extract it.</li>
-    <li>On Windows, double-click <code>Install Hermes Connector.cmd</code> (or run <code>.\install.ps1</code> in PowerShell). On macOS/Linux, run <code>./install.sh</code>.</li>
-    <li>Restart any running Hermes dashboard, gateway, or chat process. Re-run the installer after creating a new named Hermes profile.</li>
-    <li>Open the Chrome side panel, paste the private pairing code printed locally, select a Hermes session, and attach only the tabs it may control.</li>
-  </ol></div>
-  <div class="card"><h2>Upgrading from an older version</h2><p>Chrome updates the extension automatically, but it cannot update the local companion. Download and run the 0.2.2 companion installer again, then restart every running Hermes dashboard, gateway, and chat process. Your pairing code stays the same. For normal/default installations, the extension safely migrates the old local port 8765 to protocol 4 on port 8766 once; no manual port change is needed.</p><p><strong>Custom bridge ports only:</strong> custom values are preserved, but a detached 0.2.0 broker may continue owning that same custom port after Hermes closes. After installing 0.2.2, reboot the computer once (or safely stop only the known legacy broker process), then start Hermes again. A normal/default installation does not need this extra reboot.</p><p>Version 0.2.1 and later stop the repeated local-storage writes found in 0.2.0, but Chrome may not reclaim an already enlarged LevelDB journal immediately. First close every Chrome window completely and reopen Chrome. If disk usage remains abnormally high, removing and reinstalling Hermes Connector safely clears only this extension’s local settings; you will need to paste the pairing code and attach your sessions/tabs again. Do not manually delete arbitrary Chrome profile files.</p></div>
-  <div class="card"><h2>Troubleshooting</h2><ul>
-    <li><strong>Companion offline:</strong> confirm Hermes restarted after installation and port <code>127.0.0.1:8766</code> is available.</li>
-    <li><strong>Pairing rejected:</strong> run the companion installer again; it safely displays the existing local code. Paste that code in the extension settings and save.</li>
-    <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted web tab. Restricted Chrome pages cannot be controlled.</li>
-    <li><strong>Debugging banner:</strong> disable Trusted input unless native input or dialog handling is needed.</li>
-  </ul></div>
-  <div class="card"><h2>Contact</h2><p>Report reproducible defects in the <a href="https://github.com/CorsenAI/hermes-connector/issues">public issue tracker</a>. For privacy or security questions, email <a href="mailto:hello@corsen.ai">hello@corsen.ai</a>.</p></div>
+  <p class="sub">Current Chrome Web Store release: 0.2.2 · protocol 4 · default broker port 8766</p>
+
+  <section class="card current" id="current-release">
+    <span class="badge">Current public release</span>
+    <h2>Install extension 0.2.2 with companion 0.2.2</h2>
+    <p>The Chrome Web Store currently distributes Hermes Connector <strong>0.2.2</strong>. The separately installed local companion must use the same version.</p>
+    <div class="actions">
+      <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install from Chrome Web Store</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Download companion 0.2.2</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.2">Release details</a>
+      <a class="button" href="https://youtu.be/4akSq9cMmFw" target="_blank" rel="noopener noreferrer">Watch installation and demo</a>
+    </div>
+  </section>
+
+  <section class="card" id="compatible-versions">
+    <h2>Extension and companion compatibility</h2>
+    <p>Open <code>chrome://extensions</code>, find Hermes Connector, and read the installed version before downloading a companion. Use only the companion from the same row.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Chrome extension</th><th>Matching companion</th><th>Protocol / default port</th><th>When to use</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="pair"><strong>0.2.2</strong> · current Store release</span></td>
+          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Companion 0.2.2</a></td>
+          <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
+          <td>Normal installation and all users whose extension page shows 0.2.2.</td>
+        </tr>
+        <tr>
+          <td><span class="pair"><strong>0.2.1</strong> · legacy released/sideloaded build</span></td>
+          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Companion 0.2.1</a></td>
+          <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
+          <td>Only when Chrome explicitly shows extension 0.2.1. Upgrade to 0.2.2 when possible.</td>
+        </tr>
+        <tr>
+          <td><span class="pair"><strong>0.2.0</strong> · legacy build</span></td>
+          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Companion 0.2.0</a></td>
+          <td>Protocol 3<br><code>127.0.0.1:8765</code></td>
+          <td>Only while Chrome still shows extension 0.2.0. Follow the disk-recovery notice below.</td>
+        </tr>
+      </tbody>
+    </table></div>
+    <p class="warning"><strong>Do not mix versions.</strong> A newer companion is not a compatible upgrade by itself. Update the extension first, then install the companion with exactly the same version.</p>
+  </section>
+
+  <section class="card" id="install">
+    <h2>Install and pair version 0.2.2</h2>
+    <ol class="steps">
+      <li>Install Hermes Connector from the Chrome Web Store and confirm that <code>chrome://extensions</code> shows version <strong>0.2.2</strong>.</li>
+      <li>Download and extract <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">the 0.2.2 companion</a>.</li>
+      <li>On Windows, double-click <code>Install Hermes Connector.cmd</code>, or run <code>.\install.ps1</code> in PowerShell. On macOS/Linux, run <code>./install.sh</code>.</li>
+      <li>Restart every running Hermes dashboard, gateway, and chat process. Re-run the installer after creating a new named Hermes profile.</li>
+      <li>Open the Chrome side panel, paste the private pairing code printed locally, choose the exact Hermes profile/session, and attach only the tabs it may control.</li>
+    </ol>
+  </section>
+
+  <section class="card warning-card" id="upgrade">
+    <h2>Upgrade from 0.2.0 or 0.2.1</h2>
+    <ol class="steps">
+      <li>Let Chrome update the Web Store extension, then verify that the extension page shows <strong>0.2.2</strong>.</li>
+      <li>Only after Chrome shows 0.2.2, install companion 0.2.2.</li>
+      <li>Restart every running Hermes process. Default installations migrate from legacy port <code>8765</code> to protocol 4 on port <code>8766</code>.</li>
+      <li>If you deliberately configured a custom bridge port, reboot the computer once after installation, or safely stop only the known legacy broker process before restarting Hermes.</li>
+    </ol>
+    <p>Your pairing code is normally preserved by the companion upgrade. If pairing is rejected, rerun the matching installer and save the locally displayed code again.</p>
+  </section>
+
+  <section class="card danger-card" id="leveldb-recovery">
+    <h2>Version 0.2.0 disk-growth recovery</h2>
+    <p>Version 0.2.0 could repeatedly write extension state and enlarge Chrome's LevelDB journal. Version 0.2.1 and later stop the known repeated writes, but Chrome may not immediately reclaim disk space that was already consumed.</p>
+    <ol class="steps">
+      <li>Upgrade the extension and companion to matching version 0.2.2.</li>
+      <li>Close <strong>every</strong> Chrome window completely, wait for Chrome processes to exit, and reopen Chrome.</li>
+      <li>If the extension's storage remains abnormally large, remove and reinstall Hermes Connector from the Chrome Web Store. This clears this extension's local settings.</li>
+      <li>Paste the pairing code again, name the Chrome profile if required, reselect the Hermes session, and reattach the permitted tabs.</li>
+    </ol>
+    <p class="danger"><strong>Do not manually delete arbitrary files from the Chrome profile.</strong> Removing the extension clears its settings, including pairing and tab/session bindings, but does not remove the separately installed Hermes companion.</p>
+  </section>
+
+  <section class="card" id="troubleshooting">
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8766</code> for 0.2.1/0.2.2 or <code>8765</code> for 0.2.0.</li>
+      <li><strong>Pairing rejected:</strong> rerun the matching companion installer to display the current local pairing code, then save it again in the extension.</li>
+      <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted normal web tab. Chrome internal pages and other restricted pages cannot be controlled.</li>
+      <li><strong>Wrong tab or stale session:</strong> detach the tab, select the intended session, and attach it again. The connector fails closed instead of silently using another active tab.</li>
+      <li><strong>Chrome debugging banner:</strong> disable Trusted input unless native input events or dialog handling are required.</li>
+    </ul>
+  </section>
+
+  <section class="card" id="contact">
+    <h2>Contact</h2>
+    <p>Report reproducible defects in the <a href="https://github.com/CorsenAI/hermes-connector/issues">public issue tracker</a>. For privacy or security questions, email <a href="mailto:hello@corsen.ai">hello@corsen.ai</a>.</p>
+    <p class="note">Hermes Connector is an unofficial community project by Corsen AI. It is not affiliated with or endorsed by Nous Research or Google.</p>
+  </section>
+
   <nav><a href="../">Home</a> · <a href="../privacy/">Privacy policy</a> · <a href="https://github.com/CorsenAI/hermes-connector">Source code</a></nav>
 </main></body>
 </html>

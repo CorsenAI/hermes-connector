@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import os
 from pathlib import Path
@@ -12,7 +13,7 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, BinaryIO, Optional
 
 try:
     import websockets
@@ -20,6 +21,74 @@ except ImportError:  # pragma: no cover - reported in status
     websockets = None
 
 from . import broker
+
+
+def _open_append_fd(path: Path) -> int:
+    """Open *path* with process-safe append semantics.
+
+    POSIX ``O_APPEND`` makes the seek-to-end and write one atomic operation.
+    Windows' CRT append mode does not, so use a kernel handle that grants
+    ``FILE_APPEND_DATA`` without ``FILE_WRITE_DATA``. Windows then ignores
+    caller-supplied offsets and places every write at the current end of file.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if sys.platform != "win32":
+        return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    file_append_data = 0x00000004
+    file_read_attributes = 0x00000080
+    file_share_read = 0x00000001
+    file_share_write = 0x00000002
+    file_share_delete = 0x00000004
+    open_always = 4
+    file_attribute_normal = 0x00000080
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    )
+    create_file.restype = wintypes.HANDLE
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = (wintypes.HANDLE,)
+    close_handle.restype = wintypes.BOOL
+
+    handle = create_file(
+        str(path),
+        file_append_data | file_read_attributes,
+        file_share_read | file_share_write | file_share_delete,
+        None,
+        open_always,
+        file_attribute_normal,
+        None,
+    )
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return msvcrt.open_osfhandle(
+            int(handle),
+            os.O_WRONLY | os.O_APPEND | getattr(os, "O_BINARY", 0),
+        )
+    except BaseException:
+        close_handle(handle)
+        raise
+
+
+def _open_broker_log(path: Path) -> BinaryIO:
+    """Return an unbuffered stream backed by an atomic append handle."""
+
+    return os.fdopen(_open_append_fd(Path(path)), "ab", buffering=0)
 
 
 class BridgeClient:
@@ -139,18 +208,39 @@ class BridgeClient:
             return True
 
     def _port_accepting(self) -> bool:
-        """Return whether a process is accepting TCP connections on the port.
+        """Return whether the port completes a valid WebSocket upgrade.
 
-        Unlike the exclusive bind probe used immediately before spawning, this
-        check never owns the broker port and therefore cannot race the child
-        process while its WebSocket server is binding.
+        A bare TCP connect makes the broker log an invalid-handshake traceback.
+        Performing the protocol upgrade instead lets the server classify this
+        as a normal short-lived WebSocket connection.
         """
 
         family = socket.AF_INET6 if ":" in self.host else socket.AF_INET
+        host_header = f"[{self.host}]" if family == socket.AF_INET6 else self.host
+        websocket_key = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
+        request = (
+            "GET / HTTP/1.1\r\n"
+            f"Host: {host_header}:{self.port}\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            f"Sec-WebSocket-Key: {websocket_key}\r\n"
+            "Sec-WebSocket-Version: 13\r\n"
+            "\r\n"
+        ).encode("ascii")
         try:
             with socket.socket(family, socket.SOCK_STREAM) as probe:
-                probe.settimeout(0.2)
-                return probe.connect_ex((self.host, self.port)) == 0
+                probe.settimeout(0.4)
+                if probe.connect_ex((self.host, self.port)) != 0:
+                    return False
+                probe.sendall(request)
+                response = bytearray()
+                while b"\r\n\r\n" not in response and len(response) < 4096:
+                    chunk = probe.recv(1024)
+                    if not chunk:
+                        break
+                    response.extend(chunk)
+                status_line = bytes(response).split(b"\r\n", 1)[0]
+                return status_line.startswith(b"HTTP/1.1 101 ")
         except OSError:
             return False
 
@@ -195,7 +285,7 @@ class BridgeClient:
             try:
                 if self._stop.is_set() or self._port_claimed():
                     return
-                log_file = open(broker.log_path(self.root), "a", encoding="utf-8")
+                log_file = _open_broker_log(broker.log_path(self.root))
                 command = [
                     sys.executable,
                     str(Path(broker.__file__).resolve()),
@@ -215,7 +305,6 @@ class BridgeClient:
                     kwargs["creationflags"] = (
                         getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
                         | getattr(subprocess, "CREATE_NO_WINDOW", 0)
-                        | getattr(subprocess, "DETACHED_PROCESS", 0)
                     )
                 else:
                     kwargs["start_new_session"] = True
@@ -235,10 +324,16 @@ class BridgeClient:
                     accepting = self._port_accepting()
                 finished_at = time.monotonic()
                 self._next_broker_start = finished_at + (2.0 if accepting else 5.0)
+                exited = process.poll()
+                if not accepting and exited is not None:
+                    self.last_error = (
+                        f"broker exited with status {exited}; "
+                        f"see {broker.log_path(self.root)}"
+                    )
                 # A healthy but unusually slow Python/AV launch keeps the file
                 # marker until its 15-second stale timeout. Other profiles then
                 # wait instead of spawning another broker after our local wait.
-                keep_lock = not accepting and process.poll() is None
+                keep_lock = not accepting and exited is None
             except Exception as exc:
                 self.last_error = f"could not start broker: {type(exc).__name__}"
                 self._next_broker_start = time.monotonic() + 2.0
@@ -385,9 +480,9 @@ class BridgeClient:
         }
         response = self._call(payload, float(timeout))
         # Hermes' generic tool-result detector treats the literal JSON key
-        # ``"error"`` as a failure even when its value is null.  Keep success
+        # ``"error"`` as a failure even when its value is null. Keep success
         # payloads unambiguous: return data on success and an error only on
-        # failure.  This prevents a working Connector call from being shown to
+        # failure. This prevents a working Connector call from being shown to
         # the model (and the user) as a failed browser action.
         if response.get("ok"):
             return {"ok": True, "data": response.get("data")}

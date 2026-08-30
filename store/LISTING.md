@@ -1,23 +1,23 @@
-# Chrome Web Store listing — Hermes Connector 0.2.2
+# Chrome Web Store listing — Hermes Connector 0.2.1
 
-Upload: `dist/hermes-connector-0.2.2-chrome.zip`
+Upload: `dist/hermes-connector-0.2.1-chrome.zip`
 
 Privacy policy: `https://corsenai.github.io/hermes-connector/privacy/`
 
 Support: `https://corsenai.github.io/hermes-connector/support/`
 
-Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip`
+Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip`
 
 Source: `https://github.com/CorsenAI/hermes-connector`
+
+Localized promo video (English): `https://www.youtube.com/watch?v=4akSq9cMmFw`
 
 ## Upload assets
 
 - Icon: `store/store-icon-128.png` (128×128)
 - Small promo: `store/promo-small-440x280.png` (440×280)
 - Marquee promo: `store/promo-marquee-1400x560.png` (1400×560)
-- Verified live E2E capture: `store/screenshot-product-1280x800.png` (1280×800).
-  It shows the real 0.2.2 candidate, matching companion, real Hermes model
-  calls, and the exact attached public `example.com` tab in an isolated profile.
+- Product screenshot: `store/screenshot-product-1280x800.png` (1280×800)
 
 ## Item name
 
@@ -47,6 +47,11 @@ Hermes Connector is a local AI browser automation bridge for Hermes Agent. It em
 
 Use your normal signed-in Chrome profile and existing website sessions—without a hidden automation profile and without guessing which tab an agent should control.
 
+WATCH THE DEMO
+
+See Hermes Connector installation and live browser control in action (3:14):
+https://youtu.be/4akSq9cMmFw
+
 WHAT YOU CAN DO
 
 • Choose a real local Hermes profile and session
@@ -60,7 +65,7 @@ BUILT FOR PRECISE, LOCAL CONTROL
 
 Hermes Connector links Chrome to the separately installed Hermes Connector companion on 127.0.0.1. Session-to-tab bindings are explicit, isolated, and revocable. If ownership of a tab moves to another Hermes session or Chrome profile, the previous owner is revoked.
 
-LOCAL CONNECTOR, EXPLICIT CONTROL
+PRIVATE BY ARCHITECTURE
 
 • No Corsen AI relay, cloud account, analytics, advertising, tracking, or telemetry
 • The pairing secret uses mutual authentication and is never sent over the connection
@@ -69,7 +74,7 @@ LOCAL CONNECTOR, EXPLICIT CONTROL
 
 DATA HANDLING
 
-To provide browser automation, the extension handles visible website content, requested screenshots, and the URLs and titles of tabs you attach. Opening “Tabs” displays current tab titles and URLs locally so you can select them. This data goes to your local Hermes installation—not to Corsen AI.
+To provide browser automation, the extension handles visible website content, requested screenshots, and the URLs and titles of tabs you attach. Opening “Choose tabs” displays current tab titles and URLs locally so you can select them. This data goes to your local Hermes installation—not to Corsen AI.
 
 The extension handles two kinds of Authentication information: (1) one persistent local Connector pairing credential stored in Chrome local storage, for which only HMAC proofs—not the credential itself—travel to the companion; and (2) an ephemeral Hermes dashboard session token read into memory and returned only to that same loopback dashboard API. The dashboard token is never stored. Neither item is received by Corsen AI, and the extension does not read website cookies or login storage.
 
@@ -94,7 +99,7 @@ installed by double-clicking “Install Hermes Connector.cmd”.
 
 UPGRADING FROM AN OLDER VERSION
 
-Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.2. Default installations migrate automatically from the legacy local port to protocol 4 on port 8766. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
+Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.1. Default installations migrate automatically from the legacy local port to the isolated 0.2.1 port. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
 
 Hermes Connector is an unofficial community extension by Corsen AI. It is not affiliated with or endorsed by Nous Research or Google.
 
