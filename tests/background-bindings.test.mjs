@@ -45,7 +45,7 @@ test("read-only tab rendering does not write or rebroadcast unchanged bindings",
     },
     permissions: { async contains() { return false; } },
     runtime: {
-      getManifest() { return { version: "0.2.2" }; },
+      getManifest() { return { version: "0.2.3" }; },
       onInstalled: installedEvent,
       onMessage: runtimeEvent,
       async sendMessage(message) { runtimeMessages.push(message); },
@@ -89,13 +89,13 @@ test("read-only tab rendering does not write or rebroadcast unchanged bindings",
   assert.equal(installedEvent.listeners.length, 1);
   const onInstalled = installedEvent.listeners[0];
   onInstalled({ reason: "install" });
-  onInstalled({ reason: "update", previousVersion: "0.2.2" });
+  onInstalled({ reason: "update", previousVersion: "0.2.3" });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(storage.upgradeNotice, undefined);
-  onInstalled({ reason: "update", previousVersion: "0.2.1" });
+  onInstalled({ reason: "update", previousVersion: "0.2.2" });
   await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(storage.upgradeNotice.id, "companion-reinstall-0.2.2");
-  assert.equal(storage.upgradeNotice.previousVersion, "0.2.1");
+  assert.equal(storage.upgradeNotice.id, "companion-reinstall-0.2.3");
+  assert.equal(storage.upgradeNotice.previousVersion, "0.2.2");
   assert.equal(storage.upgradeNotice.customBridge, false);
   assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8766");
   assert.deepEqual(storage.bridgeMigration021, { completed: true, customBridge: false });
@@ -134,8 +134,8 @@ test("read-only tab rendering does not write or rebroadcast unchanged bindings",
   });
 
   let noticeResult = await send({ cmd: "dismissUpgradeNotice", id: "future-notice" });
-  assert.equal(noticeResult.upgradeNotice.id, "companion-reinstall-0.2.2");
-  noticeResult = await send({ cmd: "dismissUpgradeNotice", id: "companion-reinstall-0.2.2" });
+  assert.equal(noticeResult.upgradeNotice.id, "companion-reinstall-0.2.3");
+  noticeResult = await send({ cmd: "dismissUpgradeNotice", id: "companion-reinstall-0.2.3" });
   assert.equal(noticeResult.upgradeNotice, null);
   assert.equal(storage.upgradeNotice, undefined);
 

@@ -2,6 +2,8 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+EXPECTED_VERSION=$(sed -n 's/^version:[[:space:]]*//p' "$ROOT/hermes-plugin/plugin.yaml")
+test -n "$EXPECTED_VERSION"
 TMP_BASE=${TMPDIR:-/tmp}
 TMP_BASE=${TMP_BASE%/}
 TEST_ROOT=$(mktemp -d "$TMP_BASE/hermes-connector-install-XXXXXX")
@@ -40,6 +42,6 @@ PLUGIN="$TEST_ROOT/plugins/hermes-connector"
 PROFILE_PLUGIN="$TEST_ROOT/profiles/work/plugins/hermes-connector"
 test -f "$PLUGIN/plugin.yaml"
 test -f "$PROFILE_PLUGIN/plugin.yaml"
-grep -q "version: 0.2.2" "$PLUGIN/plugin.yaml"
-grep -q "version: 0.2.2" "$PROFILE_PLUGIN/plugin.yaml"
+grep -Fqx "version: $EXPECTED_VERSION" "$PLUGIN/plugin.yaml"
+grep -Fqx "version: $EXPECTED_VERSION" "$PROFILE_PLUGIN/plugin.yaml"
 printf '%s\n' "POSIX companion install passed: $PLUGIN and $PROFILE_PLUGIN"

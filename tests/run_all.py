@@ -65,6 +65,32 @@ def metadata_gate() -> None:
     privacy = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
     if manifest["version"] not in listing:
         raise SystemExit("store gate failed: listing version differs from the manifest")
+    version = manifest["version"]
+    companion_name = f"hermes-connector-{version}-companion.zip"
+    companion_url = (
+        f"https://github.com/CorsenAI/hermes-connector/releases/download/"
+        f"v{version}/{companion_name}"
+    )
+    release_contract = {
+        "extension/src/sidepanel.html": (companion_url, f"Download companion {version}"),
+        "extension/src/sidepanel.js": (f"Download companion {version}",),
+        "PUBLISHING.md": (companion_url,),
+        "store/LISTING.md": (
+            f"dist/hermes-connector-{version}-chrome.zip",
+            companion_url,
+        ),
+        "docs/ACCEPTANCE.md": (f"Store ID serves {version}",),
+        "README.md": (companion_url,),
+        "docs/index.html": (companion_url,),
+        "docs/support/index.html": (companion_url,),
+    }
+    for relative, snippets in release_contract.items():
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        for snippet in snippets:
+            if snippet not in source:
+                raise SystemExit(
+                    f"version gate failed: {relative} is missing current release value {snippet!r}"
+                )
     for disclosure in ("Website content", "Web history", "Authentication information", "Limited Use"):
         if disclosure not in listing and disclosure not in privacy:
             raise SystemExit(f"store gate failed: missing {disclosure} disclosure")
@@ -140,7 +166,7 @@ def leakage_gate() -> None:
 
 def line_ending_gate() -> None:
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode("utf-8").split("\0")
-    lf_suffixes = {".css", ".html", ".js", ".json", ".md", ".mjs", ".py", ".sh", ".yaml", ".yml"}
+    lf_suffixes = {".css", ".html", ".js", ".json", ".md", ".mjs", ".py", ".sh", ".xml", ".yaml", ".yml"}
     for relative in tracked:
         if not relative:
             continue

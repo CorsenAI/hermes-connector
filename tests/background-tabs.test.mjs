@@ -113,7 +113,7 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
     },
     permissions: { async contains() { return false; } },
     runtime: {
-      getManifest() { return { version: "0.2.2" }; },
+      getManifest() { return { version: "0.2.3" }; },
       onInstalled: simpleEvent(),
       onMessage: runtimeEvent,
       async sendMessage(message) { runtimeMessages.push(message); },

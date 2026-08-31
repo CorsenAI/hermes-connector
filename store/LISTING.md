@@ -1,12 +1,12 @@
-# Chrome Web Store listing — Hermes Connector 0.2.2
+# Chrome Web Store listing — Hermes Connector 0.2.3
 
-Upload: `dist/hermes-connector-0.2.2-chrome.zip`
+Upload: `dist/hermes-connector-0.2.3-chrome.zip`
 
 Privacy policy: `https://corsenai.github.io/hermes-connector/privacy/`
 
 Support: `https://corsenai.github.io/hermes-connector/support/`
 
-Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip`
+Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip`
 
 Source: `https://github.com/CorsenAI/hermes-connector`
 
@@ -16,7 +16,9 @@ Source: `https://github.com/CorsenAI/hermes-connector`
 - Small promo: `store/promo-small-440x280.png` (440×280)
 - Marquee promo: `store/promo-marquee-1400x560.png` (1400×560)
 - Verified live E2E capture: `store/screenshot-product-1280x800.png` (1280×800).
-  It shows the real 0.2.2 candidate, matching companion, real Hermes model
+  It shows the unchanged product UI exercised by the verified 0.2.2 live
+  acceptance capture; the 0.2.3 patch changes only companion reliability,
+  versioned download guidance, and regression coverage. The capture shows real Hermes model
   calls, and the exact attached public `example.com` tab in an isolated profile.
 
 ## Item name
@@ -94,7 +96,7 @@ installed by double-clicking “Install Hermes Connector.cmd”.
 
 UPGRADING FROM AN OLDER VERSION
 
-Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.2. Default installations migrate automatically from the legacy local port to protocol 4 on port 8766. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
+Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.3. Default installations migrate automatically from the legacy local port to protocol 4 on port 8766. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
 
 Hermes Connector is an unofficial community extension by Corsen AI. It is not affiliated with or endorsed by Nous Research or Google.
 

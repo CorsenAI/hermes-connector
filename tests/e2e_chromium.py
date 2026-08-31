@@ -419,9 +419,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "bindings": {},
                     "selectedScope": {"profileId": profile_a, "sessionId": session_a},
                     "upgradeNotice": {
-                        "id": "companion-reinstall-0.2.2",
-                        "previousVersion": "0.2.1",
-                        "extensionVersion": "0.2.2",
+                        "id": "companion-reinstall-0.2.3",
+                        "previousVersion": "0.2.2",
+                        "extensionVersion": "0.2.3",
                     },
                 }
                 cdp.evaluate(
@@ -468,7 +468,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             frame_url = panel_state.get("frame", "")
             if "resume=session-a" not in frame_url or "profile=profile-a" not in frame_url:
                 raise AssertionError(f"real side panel did not resume the selected session: {frame_url}")
-            if panel_state.get("noticeHidden") or "0.2.2" not in panel_state.get("noticeText", ""):
+            if panel_state.get("noticeHidden") or "0.2.3" not in panel_state.get("noticeText", ""):
                 raise AssertionError(f"companion update notice was not visible: {panel_state}")
             if not panel_state.get("setupHidden"):
                 raise AssertionError(f"first-run setup stayed visible after pairing configuration: {panel_state}")
@@ -882,7 +882,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if (not first_run or "What is the companion?" not in first_run.get("text", "") or
                     "Do not reinstall" not in first_run.get("text", "") or
-                    not first_run.get("href", "").endswith("hermes-connector-0.2.2-companion.zip") or
+                    not first_run.get("href", "").endswith("hermes-connector-0.2.3-companion.zip") or
                     first_run.get("status") != "companion detected — enter pairing code" or
                     first_run.get("visibleModals") != 1):
                 raise AssertionError(f"first-run companion setup was incomplete: {first_run}")

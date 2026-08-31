@@ -28,13 +28,15 @@ separately under the same release version.
 
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
-- Companion 0.2.2: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip`
+- Companion 0.2.3: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
 The public pages are deployed from `docs/` in the source repository. Publish
-the companion archive and release manifest under the matching GitHub release
-before submitting the Store item.
+the companion archive and release manifest under a public matching GitHub
+**prerelease** before submitting the Store item. Keep that release marked as a
+prerelease—not Latest—while Google still distributes the previous Store
+version. Promote it to a normal Latest release only at the Store cutover.
 - Ensure the Corsen AI developer account has 2-Step Verification enabled.
 - Do not submit until the privacy page, companion download, and review
   instructions are public.
@@ -148,12 +150,27 @@ so use deferred publishing and answer reviewer questions promptly.
 - [ ] Submit for review with deferred publishing; publish only after approval
       and final artifact/hash verification.
 
-## 8. Post-publication verification
+## 8. Approval, public cutover, and verification
 
-- [ ] Confirm the public Store endpoint serves version 0.2.2 for the existing
-      extension ID.
+- [ ] Wait until Google reports the submission as approved and staged under
+      deferred publishing. Prepare, but do not yet merge, a documentation
+      cutover commit that replaces the temporary 0.2.2-public /
+      0.2.3-candidate wording in
+      `README.md`, `docs/index.html`, and `docs/support/index.html`: make 0.2.3
+      the public/current pair, move 0.2.2 to legacy, keep the primary companion
+      CTAs version-neutral, and update the compatibility tables plus homepage
+      JSON-LD version/download URL to 0.2.3.
+- [ ] Run the complete release gate on the prepared cutover commit.
+- [ ] Publish the approved 0.2.3 package from the existing Chrome Web Store
+      item. Do not create a new item or change the extension ID.
+- [ ] Merge the prepared documentation cutover immediately, then wait for the
+      matching GitHub Pages deployment.
+- [ ] Promote GitHub v0.2.3 from prerelease to a normal release and mark it
+      Latest.
+- [ ] Confirm both that the public Store endpoint serves version 0.2.3 for the
+      existing extension ID and that Pages serves the cutover documentation.
 - [ ] Smoke-test the Store-installed build in the intended signed-in Chrome
-      profile and confirm an upgraded 0.2.0 profile receives the companion
+      profile and confirm an upgraded 0.2.2 profile receives the companion
       reinstall notice.
 
 Official references: Chrome Web Store documentation for

@@ -247,7 +247,7 @@ function renderCompanionDetection(detected, checking = false) {
   renderPlatformInstallStep();
   setupStepRestart.textContent = "Restart Hermes, then copy the private pairing code the installer displays.";
   setupStepPair.textContent = "Paste that code below, choose a Hermes session, and attach only the tabs it may use.";
-  downloadCompanion.textContent = "Download companion 0.2.2";
+  downloadCompanion.textContent = "Download companion 0.2.3";
   if (!setupNotice.hidden) statusEl.textContent = "setup required — companion not reachable";
 }
 

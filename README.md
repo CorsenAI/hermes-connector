@@ -7,10 +7,10 @@ automation browser or guessing which tab belongs to which task.
 
 ![Hermes Connector — local AI, your tabs](store/promo-marquee-1400x560.png)
 
-[**Install version 0.2.2 from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
+[**Install from the Chrome Web Store**](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm)
 · [Watch the complete installation and live browser-control demo](https://youtu.be/4akSq9cMmFw)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
-· [Download companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip)
+· [Choose the matching companion](https://corsenai.github.io/hermes-connector/support/#compatible-versions)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
 
 > Unofficial community project by Corsen AI. Not affiliated with or endorsed
@@ -18,12 +18,15 @@ automation browser or guessing which tab belongs to which task.
 
 ## Current release and compatibility
 
-The public Chrome Web Store release is **0.2.2**. The Chrome extension and local
-companion must use exactly the same version.
+The public Chrome Web Store build is **0.2.2** while **0.2.3** is the candidate
+prepared for review. Install the companion only after checking the extension
+version in `chrome://extensions`; the Chrome extension and local companion must
+use exactly the same version.
 
 | Chrome extension | Matching companion | Protocol / default broker | Status |
 | --- | --- | --- | --- |
-| 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public release |
+| 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public Store pair |
+| 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Store candidate/reviewer pair; use only when Chrome shows 0.2.3 |
 | 0.2.1 | [Companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released or sideloaded pair |
 | 0.2.0 | [Companion 0.2.0](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip) | Protocol 3 / `127.0.0.1:8765` | Legacy pair; see the disk-recovery procedure |
 
@@ -89,7 +92,7 @@ the appropriate Windows, macOS, or Linux instructions.
 ### 1. Install the Chrome extension
 
 [Install Hermes Connector from the Chrome Web Store](https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm),
-verify that `chrome://extensions` shows version **0.2.2**, then click its toolbar
+check the version shown in `chrome://extensions`, then click its toolbar
 icon or press `Ctrl+Shift+H` (`Command+Shift+H` on macOS) to open the side panel.
 
 ### 2. Let the extension check the companion
@@ -100,8 +103,8 @@ It does not send this check to the internet.
 - If the panel says the matching companion is already reachable, do not reinstall it.
 - Otherwise, use the panel's **Download companion** button and extract the ZIP.
 
-The current matching download is
-[`hermes-connector-0.2.2-companion.zip`](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip).
+Use the compatibility table above to download the companion whose version
+exactly matches the extension version shown by Chrome.
 
 ### 3. Install the companion once
 

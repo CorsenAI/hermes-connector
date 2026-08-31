@@ -27,16 +27,16 @@
 </head>
 <body><main>
   <h1>Hermes Connector support</h1>
-  <p class="sub">Current Chrome Web Store release: 0.2.2 · protocol 4 · default broker port 8766</p>
+  <p class="sub">Chrome Web Store transition: public 0.2.2 · candidate/reviewer 0.2.3</p>
 
   <section class="card current" id="current-release">
-    <span class="badge">Current public release</span>
-    <h2>Install extension 0.2.2 with companion 0.2.2</h2>
-    <p>The Chrome Web Store currently distributes Hermes Connector <strong>0.2.2</strong>. The separately installed local companion must use the same version.</p>
+    <span class="badge">Store update pending</span>
+    <h2>Match the companion to the extension version shown by Chrome</h2>
+    <p>The Store currently serves 0.2.2. Install companion 0.2.3 only for the reviewer build or after <code>chrome://extensions</code> shows Hermes Connector <strong>0.2.3</strong>.</p>
     <div class="actions">
       <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install from Chrome Web Store</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Download companion 0.2.2</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.2">Release details</a>
+      <a class="button" href="#compatible-versions">Choose matching companion</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.3">Open 0.2.3 candidate details</a>
       <a class="button" href="https://youtu.be/4akSq9cMmFw" target="_blank" rel="noopener noreferrer">Watch installation and demo</a>
     </div>
   </section>
@@ -48,16 +48,22 @@
       <thead><tr><th>Chrome extension</th><th>Matching companion</th><th>Protocol / default port</th><th>When to use</th></tr></thead>
       <tbody>
         <tr>
-          <td><span class="pair"><strong>0.2.2</strong> · current Store release</span></td>
+          <td><span class="pair"><strong>0.2.2</strong> · current public Store build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Companion 0.2.2</a></td>
           <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
-          <td>Normal installation and all users whose extension page shows 0.2.2.</td>
+          <td>Everyone whose Chrome extension page currently shows 0.2.2.</td>
+        </tr>
+        <tr>
+          <td><span class="pair"><strong>0.2.3</strong> · Store candidate/reviewer build</span></td>
+          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip">Companion 0.2.3</a></td>
+          <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
+          <td>Google reviewers and users whose Chrome extension page already shows 0.2.3.</td>
         </tr>
         <tr>
           <td><span class="pair"><strong>0.2.1</strong> · legacy released/sideloaded build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Companion 0.2.1</a></td>
           <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
-          <td>Only when Chrome explicitly shows extension 0.2.1. Upgrade to 0.2.2 when possible.</td>
+          <td>Only when Chrome explicitly shows extension 0.2.1. Upgrade to 0.2.3 when possible.</td>
         </tr>
         <tr>
           <td><span class="pair"><strong>0.2.0</strong> · legacy build</span></td>
@@ -71,10 +77,10 @@
   </section>
 
   <section class="card" id="install">
-    <h2>Install and pair version 0.2.2</h2>
+    <h2>Install and pair the matching version</h2>
     <ol class="steps">
-      <li>Install Hermes Connector from the Chrome Web Store and confirm that <code>chrome://extensions</code> shows version <strong>0.2.2</strong>.</li>
-      <li>Download and extract <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">the 0.2.2 companion</a>.</li>
+      <li>Install Hermes Connector from the Chrome Web Store and read its version in <code>chrome://extensions</code>.</li>
+      <li>Download and extract the companion from the matching row above.</li>
       <li>On Windows, double-click <code>Install Hermes Connector.cmd</code>, or run <code>.\install.ps1</code> in PowerShell. On macOS/Linux, run <code>./install.sh</code>.</li>
       <li>Restart every running Hermes dashboard, gateway, and chat process. Re-run the installer after creating a new named Hermes profile.</li>
       <li>Open the Chrome side panel, paste the private pairing code printed locally, choose the exact Hermes profile/session, and attach only the tabs it may control.</li>
@@ -82,10 +88,10 @@
   </section>
 
   <section class="card warning-card" id="upgrade">
-    <h2>Upgrade from 0.2.0 or 0.2.1</h2>
+    <h2>Before and during the 0.2.3 Store review</h2>
     <ol class="steps">
-      <li>Let Chrome update the Web Store extension, then verify that the extension page shows <strong>0.2.2</strong>.</li>
-      <li>Only after Chrome shows 0.2.2, install companion 0.2.2.</li>
+      <li>If Chrome still shows 0.2.2, keep or reinstall companion 0.2.2. Do not install companion 0.2.3 early.</li>
+      <li>When Chrome shows 0.2.3, install companion 0.2.3.</li>
       <li>Restart every running Hermes process. Default installations migrate from legacy port <code>8765</code> to protocol 4 on port <code>8766</code>.</li>
       <li>If you deliberately configured a custom bridge port, reboot the computer once after installation, or safely stop only the known legacy broker process before restarting Hermes.</li>
     </ol>
@@ -96,7 +102,7 @@
     <h2>Version 0.2.0 disk-growth recovery</h2>
     <p>Version 0.2.0 could repeatedly write extension state and enlarge Chrome's LevelDB journal. Version 0.2.1 and later stop the known repeated writes, but Chrome may not immediately reclaim disk space that was already consumed.</p>
     <ol class="steps">
-      <li>Upgrade the extension and companion to matching version 0.2.2.</li>
+      <li>Upgrade the extension and companion to the latest matching version shown by Chrome.</li>
       <li>Close <strong>every</strong> Chrome window completely, wait for Chrome processes to exit, and reopen Chrome.</li>
       <li>If the extension's storage remains abnormally large, remove and reinstall Hermes Connector from the Chrome Web Store. This clears this extension's local settings.</li>
       <li>Paste the pairing code again, name the Chrome profile if required, reselect the Hermes session, and reattach the permitted tabs.</li>
@@ -107,7 +113,7 @@
   <section class="card" id="troubleshooting">
     <h2>Troubleshooting</h2>
     <ul>
-      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8766</code> for 0.2.1/0.2.2 or <code>8765</code> for 0.2.0.</li>
+      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8766</code> for 0.2.1/0.2.2/0.2.3 or <code>8765</code> for 0.2.0.</li>
       <li><strong>Pairing rejected:</strong> rerun the matching companion installer to display the current local pairing code, then save it again in the extension.</li>
       <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted normal web tab. Chrome internal pages and other restricted pages cannot be controlled.</li>
       <li><strong>Wrong tab or stale session:</strong> detach the tab, select the intended session, and attach it again. The connector fails closed instead of silently using another active tab.</li>

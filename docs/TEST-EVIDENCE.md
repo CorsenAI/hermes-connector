@@ -1,6 +1,53 @@
-# Test evidence — 2026-08-03 — 0.2.2 release candidate
+# Test evidence
 
-## Why 0.2.2 was required
+## 0.2.3 release candidate — 2026-08-31
+
+### Why 0.2.3 is required
+
+The 0.2.2 companion launched its Windows broker with
+`CREATE_NO_WINDOW | DETACHED_PROCESS`, even though Windows ignores
+`CREATE_NO_WINDOW` in that combination. It also inherited independently opened
+`broker.log` handles whose MSVCRT append positions could race between processes,
+and used a raw TCP readiness probe that could leave invalid WebSocket handshake
+noise in the log.
+
+The reconciled fix on `main` removes `DETACHED_PROCESS`, keeps
+`CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`, opens the Windows log with
+kernel-enforced `FILE_APPEND_DATA` semantics, and performs a protocol-valid
+WebSocket upgrade for readiness. The 0.2.3 release bump also makes Chrome show a
+new companion-reinstallation notice to users upgrading from 0.2.2.
+
+### Local release-candidate validation
+
+The fast gate passes on Windows with Python 3.11 and Node.js 24:
+
+- the 64-test Python suite is green (58 passed and six platform/privilege skips),
+  including the native two-process Windows append test, the explicit
+  no-`DETACHED_PROCESS` launch assertion, and the valid WebSocket readiness probe;
+- 19 JavaScript tests pass, including the 0.2.2-to-0.2.3 upgrade notice;
+- both the PowerShell installer and normal-user double-click `.cmd` path install
+  companion 0.2.3 and verify the installed payload version;
+- the real single-browser Chrome acceptance passes every advertised action,
+  upgrade notice, exact routing, and fail-closed check;
+- the real two-browser acceptance passes concurrent isolated profiles,
+  ownership transfer, and stale-owner revocation.
+
+The public product screenshot and video remain identified as 0.2.2 captures.
+The 0.2.3 patch does not change the depicted product UI, so their provenance is
+preserved rather than relabelled.
+
+### Remaining 0.2.3 external release evidence
+
+- build the exact clean 0.2.3 archives and record their SHA-256 values;
+- pass the release gate on Windows, macOS, and Ubuntu for the final tagged commit;
+- publish the matching GitHub 0.2.3 companion before changing the Store item;
+- upload the 0.2.3 Chrome ZIP to the existing Store item with deferred publishing;
+- after approval, publish and confirm that the existing Store ID serves 0.2.3,
+  then smoke-test the Store-installed build.
+
+## Historical evidence — 2026-08-03 — 0.2.2 release candidate
+
+### Why 0.2.2 was required
 
 The public Store endpoint still served 0.2.0 while the 0.2.1 submission was
 being evaluated. A deeper audit found that 0.2.1 was not ready to be treated as
@@ -31,7 +78,7 @@ moves secondary controls into compact accessible overlays. The installer now
 verifies every installed companion file byte-for-byte and rolls back on any
 post-publication verification failure.
 
-## Why 0.2.1 was required (historical)
+### Why 0.2.1 was required (historical)
 
 The public 0.2.0 package was installable, but final use exposed production
 paths that the isolated release tests had not covered:
@@ -50,7 +97,7 @@ paths that the isolated release tests had not covered:
 The data growth was local Chrome storage churn, not network transmission or a
 publisher data leak.
 
-## Fast release gate
+### Fast release gate
 
 Command:
 
@@ -88,7 +135,7 @@ New regression evidence includes:
   symlink/reparse redirection, and an interruption between payload swaps restores
   the previous installation.
 
-## Real Chrome extension acceptance
+### Real Chrome extension acceptance
 
 Commands:
 
@@ -114,7 +161,7 @@ The two-browser run verifies two concurrent isolated Chrome profiles, stable
 browser identities, exact routing, explicit ownership transfer, stale-owner
 revocation, and fail-closed behavior after displacement.
 
-## Broker recovery
+### Broker recovery
 
 An isolated live recovery probe started a real detached broker, killed the
 exact broker process owning its random test port, kept the same `BridgeClient`
@@ -131,7 +178,7 @@ legacy owner only once, ignores a late write from a still-running protocol-3
 broker, refuses fallback from a present invalid v4 snapshot, and uses distinct
 complete temporary files for concurrent atomic saves.
 
-## Multi-profile installation
+### Multi-profile installation
 
 The 0.2.2 source installer is tested without printing the pairing secret.
 The shared home and every discovered named profile report
@@ -146,7 +193,7 @@ named `hermes` cannot break Python discovery. The same Windows gate executes
 the normal-user `Install Hermes Connector.cmd` double-click path. Users must re-run the companion
 installer after creating a new named profile.
 
-## Store artwork and verified live capture
+### Store artwork and verified live capture
 
 `store/screenshot-product-1280x800.png` is an exact 1280×800 OS-window capture
 from the real 0.2.2 candidate. In an isolated profile, a real Hermes model called
@@ -170,12 +217,9 @@ checked for valid contrast, the real Tabs open/close transition, and agreement
 with the unobstructed final OS-window capture. SHA-256:
 `DE91F39FC9E5CE225097F255CB620D324B47A436BD9BA034D1C608A4F01F239D`.
 
-## Remaining external release evidence
+### Completed 0.2.2 distribution evidence
 
-- build the exact clean 0.2.2 archives and record their SHA-256 values;
-- publish the matching GitHub 0.2.2 companion before changing the Store item;
-- upload the 0.2.2 Chrome ZIP and verified replacement screenshot to the Store;
-- complete a pre-submit pass from the exact extracted ZIP in the intended
-  signed-in Chrome profile;
-- after publication, confirm the existing Store ID serves 0.2.2 and smoke-test
-  that Store-installed build.
+GitHub release v0.2.2 and its three version-matched artifacts were published,
+the existing Chrome Web Store item was updated to 0.2.2, and the public Pages
+documentation was aligned with that Store pair. The later Windows reliability
+fix is intentionally distributed as 0.2.3 rather than replacing 0.2.2 assets.
