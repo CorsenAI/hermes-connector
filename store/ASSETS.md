@@ -14,8 +14,8 @@ match the Chrome Web Store requirements.
 
 ## Promotional tile
 
-The promotional tile was generated with OpenAI's built-in image generation
-tool. `store-icon-128.png` was supplied only as the existing brand reference.
+The promotional tile was generated from `store-icon-128.png`, supplied only as
+the existing brand reference, using the reproducible prompt below.
 The selected landscape result was center-cropped by five source pixels and
 downscaled to the exact 440×280 Store size.
 
@@ -66,8 +66,8 @@ verified product screenshot.
 
 ## Marquee promotional banner
 
-The marquee banner was generated with OpenAI's built-in image generation tool,
-using `promo-small-440x280.png` only as the existing style and brand reference.
+The marquee banner was generated using `promo-small-440x280.png` only as the
+existing style and brand reference and the reproducible prompt below.
 The selected result was downscaled to the exact 1400×560 Store size and saved
 as a 24-bit RGB PNG.
 

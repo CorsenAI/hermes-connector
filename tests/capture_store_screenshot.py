@@ -202,8 +202,8 @@ def capture_window(hwnd: int, output: Path) -> tuple[int, int]:
     user32.GetWindowTextW(hwnd, title_buffer, len(title_buffer))
     if "Chrome" not in title_buffer.value and "Chromium" not in title_buffer.value:
         raise RuntimeError(f"refusing to capture a non-Chrome window: {title_buffer.value!r}")
-    # Codex or a terminal can take focus while the acceptance script performs
-    # its final CDP checks. Keep only the verified Chrome HWND topmost for the
+    # Another window or terminal can take focus while the acceptance script
+    # performs its final CDP checks. Keep only the verified Chrome HWND topmost for the
     # grab, then immediately restore its normal z-order.
     set_window_topmost(hwnd, True)
     try:
