@@ -36,9 +36,22 @@ The public product screenshot and video remain identified as 0.2.2 captures.
 The 0.2.3 patch does not change the depicted product UI, so their provenance is
 preserved rather than relabelled.
 
+### Clean packaged artifacts
+
+The deterministic clean build reports `sourceDirty: false`. Its publishable
+archives are:
+
+- `hermes-connector-0.2.3-chrome.zip` — 57,590 bytes — SHA-256
+  `039d0b569f623a70e8c1f180a3372595d7f733d3160bc195dc1c52864edfc3e7`;
+- `hermes-connector-0.2.3-companion.zip` — 28,220 bytes — SHA-256
+  `32fbae02a31874af223cdd06bcce7e02443fa366a0327cc06419aec6db9f55f6`.
+
+The exact extracted Chrome and companion ZIP pair passes both the single-browser
+and two-browser real Chrome acceptance suites. The final release manifest must
+record the tagged source commit and the same deterministic archive hashes.
+
 ### Remaining 0.2.3 external release evidence
 
-- build the exact clean 0.2.3 archives and record their SHA-256 values;
 - pass the release gate on Windows, macOS, and Ubuntu for the final tagged commit;
 - publish the matching GitHub 0.2.3 companion before changing the Store item;
 - upload the 0.2.3 Chrome ZIP to the existing Store item with deferred publishing;
