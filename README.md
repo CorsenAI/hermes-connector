@@ -12,6 +12,7 @@ automation browser or guessing which tab belongs to which task.
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
 · [Choose the matching companion](https://corsenai.github.io/hermes-connector/support/#compatible-versions)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
+· [Corsen AI](https://corsen.ai/)
 
 > Unofficial community project by Corsen AI. Not affiliated with or endorsed
 > by Nous Research or Google.
@@ -236,5 +237,6 @@ builds are isolated under `dist/dev/` and must not be uploaded to the Store.
 - [Version compatibility, upgrade, and troubleshooting](https://corsenai.github.io/hermes-connector/support/)
 - [Privacy policy](https://corsenai.github.io/hermes-connector/privacy/)
 - [Source code and releases](https://github.com/CorsenAI/hermes-connector)
+- [Corsen AI official website](https://corsen.ai/)
 
 Hermes Connector is released under the [MIT License](LICENSE).

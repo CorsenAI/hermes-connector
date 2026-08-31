@@ -50,7 +50,8 @@ Google currently requires:
 - one 440×280 small promotional image;
 - at least one actual-product screenshot, preferably 1280×800 (640×400 is also
   accepted), full bleed and square-cornered;
-- up to five screenshots; an optional 1400×560 marquee image.
+- up to five screenshots; an optional 1400×560 marquee image;
+- an optional public YouTube promotional video shown directly on the listing.
 
 Use real extension UI and real but non-sensitive test content. Do not include
 personal accounts, emails, tokens, local paths, or private conversations.
@@ -142,8 +143,8 @@ so use deferred publishing and answer reviewer questions promptly.
       copy is limited to verified platforms.
 - [ ] Pre-submit end-to-end pass in the intended signed-in Google Chrome
       profile using the exact extracted release ZIP.
-- [ ] Privacy URL, support URL, companion URL, listing, and dashboard
-      declarations are mutually consistent.
+- [ ] Official website, product, GitHub, video, privacy, support, companion,
+      listing, and dashboard declarations are mutually consistent.
 - [x] 128×128 icon, 440×280 promo, and one real 1280×800 screenshot are ready
       and contain no personal data.
 - [ ] Final artwork uploaded in the Chrome Web Store dashboard.

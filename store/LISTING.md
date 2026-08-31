@@ -6,6 +6,12 @@ Privacy policy: `https://corsenai.github.io/hermes-connector/privacy/`
 
 Support: `https://corsenai.github.io/hermes-connector/support/`
 
+Official website: `https://corsen.ai/`
+
+Product, setup, and compatibility: `https://corsenai.github.io/hermes-connector/`
+
+Promotional video: `https://www.youtube.com/watch?v=4akSq9cMmFw`
+
 Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip`
 
 Source: `https://github.com/CorsenAI/hermes-connector`
@@ -98,10 +104,20 @@ UPGRADING FROM AN OLDER VERSION
 
 Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.3. Default installations migrate automatically from the legacy local port to protocol 4 on port 8766. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
 
+WATCH THE COMPLETE DEMO
+
+See the full installation and live browser-control walkthrough:
+https://www.youtube.com/watch?v=4akSq9cMmFw
+
 Hermes Connector is an unofficial community extension by Corsen AI. It is not affiliated with or endorsed by Nous Research or Google.
 
-Open-source project: https://github.com/CorsenAI/hermes-connector
-Support and setup: https://corsenai.github.io/hermes-connector/support/
+OFFICIAL LINKS
+
+Corsen AI official website: https://corsen.ai/
+Product, setup, and compatible downloads: https://corsenai.github.io/hermes-connector/
+Source code and releases: https://github.com/CorsenAI/hermes-connector
+Support: https://corsenai.github.io/hermes-connector/support/
+Privacy policy: https://corsenai.github.io/hermes-connector/privacy/
 ```
 
 ## Single purpose
@@ -177,5 +193,10 @@ Yes. A cross-origin iframe loads the user's own local Hermes dashboard from 127.
 ## Reviewer note
 
 ```text
-The extension requires the matching public companion and a local Hermes dashboard. Install the companion, paste its locally printed pairing code into extension settings, select a Hermes session, and attach a test tab. The extension will fail closed for any session without an exact binding. The submitted source includes no minified or remotely fetched control code.
+No account or remote credentials are required. Install Hermes Agent, then download
+companion 0.2.3 from the public v0.2.3 GitHub release and run the platform
+installer. Restart Hermes, paste the locally printed pairing code into extension
+settings, select a Hermes session, and attach a test tab. Unbound sessions fail
+closed; Trusted input is off by default. The submitted source includes no
+minified or remotely fetched control code.
 ```
