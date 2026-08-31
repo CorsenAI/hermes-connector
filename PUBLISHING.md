@@ -137,21 +137,27 @@ so use deferred publishing and answer reviewer questions promptly.
 
 ## 7. Final release gates
 
-- [ ] Clean committed/tagged source; Store and companion versions match.
-- [ ] Fast gate and isolated live Chromium test pass from the packaged source.
-- [ ] Clean companion install tested on Windows, macOS, and Linux, or the Store
+- [x] Clean committed/tagged source; Store and companion versions match.
+- [x] Fast gate and isolated live Chromium test pass from the packaged source.
+- [x] Clean companion install tested on Windows, macOS, and Linux, or the Store
       copy is limited to verified platforms.
-- [ ] Pre-submit end-to-end pass in the intended signed-in Google Chrome
+- [x] Pre-submit end-to-end pass in the intended signed-in Google Chrome
       profile using the exact extracted release ZIP.
-- [ ] Official website, product, GitHub, video, privacy, support, companion,
+- [x] Official website, product, GitHub, video, privacy, support, companion,
       listing, and dashboard declarations are mutually consistent.
 - [x] 128×128 icon, 440×280 promo, and one real 1280×800 screenshot are ready
       and contain no personal data.
-- [ ] Final artwork uploaded in the Chrome Web Store dashboard.
-- [ ] Submit for review with deferred publishing; publish only after approval
+- [x] Final artwork uploaded in the Chrome Web Store dashboard.
+- [x] Submit for review with deferred publishing; publish only after approval
       and final artifact/hash verification.
 
 ## 8. Approval, public cutover, and verification
+
+The public GitHub `v0.2.3` prerelease, companion, and release manifest are
+published, and the final tagged release gate is green on Windows, macOS, and
+Ubuntu. Chrome Web Store 0.2.3 is submitted with deferred publishing and is
+currently awaiting review. Final Store publication and the public cutover below
+have not been performed.
 
 - [ ] Wait until Google reports the submission as approved and staged under
       deferred publishing. Prepare, but do not yet merge, a documentation

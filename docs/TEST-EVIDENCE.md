@@ -47,16 +47,23 @@ archives are:
   `32fbae02a31874af223cdd06bcce7e02443fa366a0327cc06419aec6db9f55f6`.
 
 The exact extracted Chrome and companion ZIP pair passes both the single-browser
-and two-browser real Chrome acceptance suites. The final release manifest must
-record the tagged source commit and the same deterministic archive hashes.
+and two-browser real Chrome acceptance suites. The published
+`release-0.2.3.json` records the tagged source commit, a clean source tree, and
+the same deterministic archive hashes.
 
-### Remaining 0.2.3 external release evidence
+### Current 0.2.3 external release status
 
-- pass the release gate on Windows, macOS, and Ubuntu for the final tagged commit;
-- publish the matching GitHub 0.2.3 companion before changing the Store item;
-- upload the 0.2.3 Chrome ZIP to the existing Store item with deferred publishing;
-- after approval, publish and confirm that the existing Store ID serves 0.2.3,
-  then smoke-test the Store-installed build.
+- [x] The final tagged commit passed the release gate on Windows, macOS, and
+  Ubuntu.
+- [x] The public GitHub `v0.2.3` prerelease, matching companion, and release
+  manifest are published.
+- [x] The 0.2.3 Chrome ZIP is submitted to the existing Store item with deferred
+  publishing.
+- [ ] Google review is still pending; final Store publication has not been
+  performed.
+- [ ] After approval, publish and confirm that the existing Store ID serves
+  0.2.3, complete the documentation and GitHub release cutover, and smoke-test
+  the Store-installed build.
 
 ## Historical evidence — 2026-08-03 — 0.2.2 release candidate
 
