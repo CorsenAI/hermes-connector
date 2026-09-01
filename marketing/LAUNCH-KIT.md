@@ -27,7 +27,9 @@ first, perfectly secure, or universally compatible.
 
 - Chrome Web Store: https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm
 - Complete video demo: https://youtu.be/4akSq9cMmFw
+- Corsen AI official website: https://corsen.ai/
 - Product and setup: https://corsenai.github.io/hermes-connector/
+- 0.2.4 prerelease details: https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4
 - Source: https://github.com/CorsenAI/hermes-connector
 - Support: https://corsenai.github.io/hermes-connector/support/
 - Privacy: https://corsenai.github.io/hermes-connector/privacy/
@@ -53,8 +55,14 @@ clicks, types, and captures screenshots in your real signed-in profile.
 Install from the Chrome Web Store:
 https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm
 
+Corsen AI official website:
+https://corsen.ai/
+
 Setup and companion download:
 https://corsenai.github.io/hermes-connector/
+
+Version 0.2.4 prerelease details (install its companion only when Chrome shows 0.2.4):
+https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4
 
 Open source:
 https://github.com/CorsenAI/hermes-connector

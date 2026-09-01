@@ -26,8 +26,13 @@ separately under the same release version.
 
 ## 2. Required public surfaces
 
+- Chrome Web Store: `https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm`
+- Corsen AI official website: `https://corsen.ai/`
+- Product and setup: `https://corsenai.github.io/hermes-connector/`
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
+- Complete video demo: `https://youtu.be/4akSq9cMmFw`
+- 0.2.4 prerelease details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4`
 - Companion 0.2.4 candidate: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`

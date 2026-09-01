@@ -14,6 +14,8 @@ Promotional video: `https://www.youtube.com/watch?v=4akSq9cMmFw`
 
 Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
 
+Release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4`
+
 Source: `https://github.com/CorsenAI/hermes-connector`
 
 ## Upload assets
@@ -117,6 +119,7 @@ OFFICIAL LINKS
 
 Corsen AI official website: https://corsen.ai/
 Product, setup, and compatible downloads: https://corsenai.github.io/hermes-connector/
+Version 0.2.4 release details: https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4
 Source code and releases: https://github.com/CorsenAI/hermes-connector
 Support: https://corsenai.github.io/hermes-connector/support/
 Privacy policy: https://corsenai.github.io/hermes-connector/privacy/

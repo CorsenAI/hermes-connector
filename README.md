@@ -11,6 +11,7 @@ automation browser or guessing which tab belongs to which task.
 · [Watch the complete installation and live browser-control demo](https://youtu.be/4akSq9cMmFw)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
 · [Choose the matching companion](https://corsenai.github.io/hermes-connector/support/#compatible-versions)
+· [0.2.4 prerelease details](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
 · [Corsen AI](https://corsen.ai/)
 
@@ -23,7 +24,7 @@ The public Chrome Web Store build is **0.2.3**. Install the companion only after
 checking the extension version in `chrome://extensions`; the Chrome extension
 and local companion must use exactly the same version.
 
-Version **0.2.4** is a GitHub prerelease candidate for Chrome Web Store review.
+Version **0.2.4** is a [GitHub prerelease candidate](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4) for Chrome Web Store review.
 It adds automatic Hermes Desktop discovery: the side panel can list Desktop
 sessions and attach tabs without requiring a separately opened web dashboard.
 Its Windows companion also keeps the detached broker outside Hermes' managed
