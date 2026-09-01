@@ -38,22 +38,22 @@ the final packaged bits.
 
 ## Distribution and Store
 
-- [ ] Clean companion installation succeeds on Windows, macOS, and Linux, or
+- [x] Clean companion installation succeeds on Windows, macOS, and Linux, or
       unsupported platforms are removed from the listing.
 - [x] Isolated companion installation and the full fast gate pass on Windows
       and Ubuntu Linux; the release ZIP preserves POSIX executable mode.
-- [ ] The final extension ZIP contains only allowlisted runtime files and
+- [x] The final extension ZIP contains only allowlisted runtime files and
       matches committed/tagged source through a recorded SHA-256 hash.
 - [x] Automated leakage checks find no personal data, secrets, local paths, test
       identities, or authorship markers in distributed files.
 - [x] Store icon, 440×280 promotional tile, and actual-product 1280×800
       screenshot pass exact PNG-dimension gates and use isolated test data.
-- [ ] Store permissions, data-use declarations, privacy policy, screenshots,
+- [x] Store permissions, data-use declarations, privacy policy, screenshots,
       hosted URLs, and installation instructions match the tested product.
 - [x] End-to-end runs are completed in one and two isolated Chrome profiles.
 - [ ] A pre-submit end-to-end run loads the exact packaged ZIP in the intended
       signed-in Google Chrome profile.
-- [ ] After publication, the existing Store ID serves 0.2.3 and its installed
-      build passes a signed-in-profile smoke test.
+- [x] After publication, the existing Store ID serves 0.2.3.
+- [ ] The Store-installed build passes a signed-in-profile smoke test.
 
 Evidence for checked gates is recorded in `TEST-EVIDENCE.md`.

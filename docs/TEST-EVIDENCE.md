@@ -51,19 +51,20 @@ and two-browser real Chrome acceptance suites. The published
 `release-0.2.3.json` records the tagged source commit, a clean source tree, and
 the same deterministic archive hashes.
 
-### Current 0.2.3 external release status
+### Completed 0.2.3 distribution status — 2026-09-01
 
 - [x] The final tagged commit passed the release gate on Windows, macOS, and
   Ubuntu.
-- [x] The public GitHub `v0.2.3` prerelease, matching companion, and release
-  manifest are published.
-- [x] The 0.2.3 Chrome ZIP is submitted to the existing Store item with deferred
-  publishing.
-- [ ] Google review is still pending; final Store publication has not been
-  performed.
-- [ ] After approval, publish and confirm that the existing Store ID serves
-  0.2.3, complete the documentation and GitHub release cutover, and smoke-test
-  the Store-installed build.
+- [x] The public GitHub `v0.2.3` release is normal and marked Latest; its
+  matching companion and release manifest are published.
+- [x] The existing Chrome Web Store item publicly serves 0.2.3. The official
+  update endpoint reports 0.2.3, and the distributed CRX matches the release
+  code; Google adds only `update_url` and verified-content metadata.
+- [x] Public Pages serves the 0.2.3 setup, companion, upgrade, and compatibility
+  cutover documentation.
+- [ ] A final Store-installed smoke test in the intended signed-in Chrome
+  profile, including the 0.2.2-to-0.2.3 companion reinstall notice, remains to
+  be performed.
 
 ## Historical evidence — 2026-08-03 — 0.2.2 release candidate
 

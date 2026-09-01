@@ -153,28 +153,24 @@ so use deferred publishing and answer reviewer questions promptly.
 
 ## 8. Approval, public cutover, and verification
 
-The public GitHub `v0.2.3` prerelease, companion, and release manifest are
-published, and the final tagged release gate is green on Windows, macOS, and
-Ubuntu. Chrome Web Store 0.2.3 is submitted with deferred publishing and is
-currently awaiting review. Final Store publication and the public cutover below
-have not been performed.
+The existing Chrome Web Store item now publicly serves 0.2.3. The public
+GitHub `v0.2.3` release is normal and marked Latest, its original tag and three
+verified assets are unchanged, and Pages publishes the matching 0.2.3 setup
+and compatibility documentation. Release gates are green on Windows, macOS,
+and Ubuntu for both public branches.
 
-- [ ] Wait until Google reports the submission as approved and staged under
-      deferred publishing. Prepare, but do not yet merge, a documentation
-      cutover commit that replaces the temporary 0.2.2-public /
-      0.2.3-candidate wording in
-      `README.md`, `docs/index.html`, and `docs/support/index.html`: make 0.2.3
-      the public/current pair, move 0.2.2 to legacy, keep the primary companion
-      CTAs version-neutral, and update the compatibility tables plus homepage
+- [x] Google approved the submission prepared under deferred publishing.
+- [x] The documentation cutover makes 0.2.3 the public/current pair, moves
+      0.2.2 to legacy, and updates the compatibility tables plus homepage
       JSON-LD version/download URL to 0.2.3.
-- [ ] Run the complete release gate on the prepared cutover commit.
-- [ ] Publish the approved 0.2.3 package from the existing Chrome Web Store
-      item. Do not create a new item or change the extension ID.
-- [ ] Merge the prepared documentation cutover immediately, then wait for the
-      matching GitHub Pages deployment.
-- [ ] Promote GitHub v0.2.3 from prerelease to a normal release and mark it
+- [x] Run the complete release gate on the prepared cutover commit.
+- [x] Publish the approved 0.2.3 package from the existing Chrome Web Store
+      item without creating a new item or changing the extension ID.
+- [x] Publish the documentation cutover and wait for the matching GitHub Pages
+      deployment.
+- [x] Promote GitHub v0.2.3 from prerelease to a normal release and mark it
       Latest.
-- [ ] Confirm both that the public Store endpoint serves version 0.2.3 for the
+- [x] Confirm both that the public Store endpoint serves version 0.2.3 for the
       existing extension ID and that Pages serves the cutover documentation.
 - [ ] Smoke-test the Store-installed build in the intended signed-in Chrome
       profile and confirm an upgraded 0.2.2 profile receives the companion
