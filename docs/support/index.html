@@ -27,16 +27,16 @@
 </head>
 <body><main>
   <h1>Hermes Connector support</h1>
-  <p class="sub">Chrome Web Store transition: public 0.2.2 · candidate/reviewer 0.2.3</p>
+  <p class="sub">Current public Chrome Web Store release: 0.2.3</p>
 
   <section class="card current" id="current-release">
-    <span class="badge">Store update pending</span>
+    <span class="badge">Current Store release · 0.2.3</span>
     <h2>Match the companion to the extension version shown by Chrome</h2>
-    <p>The Store currently serves 0.2.2. Install companion 0.2.3 only for the reviewer build or after <code>chrome://extensions</code> shows Hermes Connector <strong>0.2.3</strong>.</p>
+    <p>The Store now serves 0.2.3. Check <code>chrome://extensions</code>, then install companion 0.2.3 when Chrome shows Hermes Connector <strong>0.2.3</strong>. Never mix extension and companion versions.</p>
     <div class="actions">
       <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install from Chrome Web Store</a>
       <a class="button" href="#compatible-versions">Choose matching companion</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.3">Open 0.2.3 candidate details</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.3">Open 0.2.3 release details</a>
       <a class="button" href="https://youtu.be/4akSq9cMmFw" target="_blank" rel="noopener noreferrer">Watch installation and demo</a>
     </div>
   </section>
@@ -48,16 +48,16 @@
       <thead><tr><th>Chrome extension</th><th>Matching companion</th><th>Protocol / default port</th><th>When to use</th></tr></thead>
       <tbody>
         <tr>
-          <td><span class="pair"><strong>0.2.2</strong> · current public Store build</span></td>
-          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Companion 0.2.2</a></td>
-          <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
-          <td>Everyone whose Chrome extension page currently shows 0.2.2.</td>
-        </tr>
-        <tr>
-          <td><span class="pair"><strong>0.2.3</strong> · Store candidate/reviewer build</span></td>
+          <td><span class="pair"><strong>0.2.3</strong> · current public Store build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip">Companion 0.2.3</a></td>
           <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
-          <td>Google reviewers and users whose Chrome extension page already shows 0.2.3.</td>
+          <td>Everyone whose Chrome extension page shows 0.2.3.</td>
+        </tr>
+        <tr>
+          <td><span class="pair"><strong>0.2.2</strong> · legacy released build</span></td>
+          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Companion 0.2.2</a></td>
+          <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
+          <td>Only while Chrome explicitly still shows extension 0.2.2.</td>
         </tr>
         <tr>
           <td><span class="pair"><strong>0.2.1</strong> · legacy released/sideloaded build</span></td>
@@ -88,10 +88,10 @@
   </section>
 
   <section class="card warning-card" id="upgrade">
-    <h2>Before and during the 0.2.3 Store review</h2>
+    <h2>Upgrading to 0.2.3</h2>
     <ol class="steps">
-      <li>If Chrome still shows 0.2.2, keep or reinstall companion 0.2.2. Do not install companion 0.2.3 early.</li>
-      <li>When Chrome shows 0.2.3, install companion 0.2.3.</li>
+      <li>Chrome normally updates the Store extension automatically. Confirm the installed version in <code>chrome://extensions</code>.</li>
+      <li>When Chrome shows 0.2.3, install companion 0.2.3. If Chrome temporarily still shows 0.2.2, keep companion 0.2.2 until the extension updates.</li>
       <li>Restart every running Hermes process. Default installations migrate from legacy port <code>8765</code> to protocol 4 on port <code>8766</code>.</li>
       <li>If you deliberately configured a custom bridge port, reboot the computer once after installation, or safely stop only the known legacy broker process before restarting Hermes.</li>
     </ol>

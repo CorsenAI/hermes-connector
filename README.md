@@ -19,15 +19,14 @@ automation browser or guessing which tab belongs to which task.
 
 ## Current release and compatibility
 
-The public Chrome Web Store build is **0.2.2** while **0.2.3** is the candidate
-prepared for review. Install the companion only after checking the extension
-version in `chrome://extensions`; the Chrome extension and local companion must
-use exactly the same version.
+The public Chrome Web Store build is **0.2.3**. Install the companion only after
+checking the extension version in `chrome://extensions`; the Chrome extension
+and local companion must use exactly the same version.
 
 | Chrome extension | Matching companion | Protocol / default broker | Status |
 | --- | --- | --- | --- |
-| 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public Store pair |
-| 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Store candidate/reviewer pair; use only when Chrome shows 0.2.3 |
+| 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public Store pair |
+| 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.2 |
 | 0.2.1 | [Companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released or sideloaded pair |
 | 0.2.0 | [Companion 0.2.0](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip) | Protocol 3 / `127.0.0.1:8765` | Legacy pair; see the disk-recovery procedure |
 
