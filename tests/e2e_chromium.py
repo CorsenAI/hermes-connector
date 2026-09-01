@@ -474,32 +474,52 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "noticeText:document.querySelector('#upgradeNotice').textContent};}"
                     "await new Promise(r=>setTimeout(r,50));}return null;})()"
                 )
-            finally:
-                panel_cdp.close()
-            expected_scope = "profile-a\x1fsession-a"
-            if not panel_state or panel_state.get("selected") != expected_scope:
-                raise AssertionError(f"real side panel did not load authenticated Hermes sessions: {panel_state}")
-            frame_url = panel_state.get("frame", "")
-            if "resume=session-a" not in frame_url or "profile=profile-a" not in frame_url:
-                raise AssertionError(f"real side panel did not resume the selected session: {frame_url}")
-            if panel_state.get("noticeHidden") or "0.2.4" not in panel_state.get("noticeText", ""):
-                raise AssertionError(f"companion update notice was not visible: {panel_state}")
-            if not panel_state.get("setupHidden"):
-                raise AssertionError(f"first-run setup stayed visible after pairing configuration: {panel_state}")
-            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
-            try:
-                notice_dismissed = panel_cdp.evaluate(
-                    "(async()=>{document.querySelector('#dismissUpgradeNotice').click();"
-                    "for(let i=0;i<100;i++){const saved=await chrome.storage.local.get('upgradeNotice');"
-                    "if(!saved.upgradeNotice&&document.querySelector('#upgradeNotice').hidden)return true;"
-                    "await new Promise(r=>setTimeout(r,20));}return false;})()"
+                expected_scope = "profile-a\x1fsession-a"
+                if not panel_state or panel_state.get("selected") != expected_scope:
+                    raise AssertionError(
+                        f"real side panel did not load authenticated Hermes sessions: {panel_state}"
+                    )
+                frame_url = panel_state.get("frame", "")
+                if "resume=session-a" not in frame_url or "profile=profile-a" not in frame_url:
+                    raise AssertionError(
+                        f"real side panel did not resume the selected session: {frame_url}"
+                    )
+                if panel_state.get("noticeHidden") or "0.2.4" not in panel_state.get("noticeText", ""):
+                    raise AssertionError(f"companion update notice was not visible: {panel_state}")
+                if not panel_state.get("setupHidden"):
+                    raise AssertionError(
+                        f"first-run setup stayed visible after pairing configuration: {panel_state}"
+                    )
+
+                # Keep the known-good panel target attached while dismissing the
+                # notice. Reattaching immediately to an inactive extension page
+                # can leave Chromium's first Runtime.evaluate unanswered on a
+                # loaded CI runner. The click is non-idempotent, so issue it once
+                # with a synchronous evaluation, then observe its effects.
+                notice_clicked = panel_cdp.evaluate(
+                    "(()=>{const button=document.querySelector('#dismissUpgradeNotice');"
+                    "if(!button)return false;button.click();return true;})()"
                 )
-            finally:
-                panel_cdp.close()
-            if not notice_dismissed:
-                raise AssertionError("companion update notice did not dismiss persistently")
-            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
-            try:
+                if not notice_clicked:
+                    raise AssertionError("companion update notice button was unavailable")
+                notice_deadline = time.monotonic() + 5
+                notice_dismissed = False
+                while time.monotonic() < notice_deadline:
+                    notice_dismissed = bool(panel_cdp.evaluate(
+                        "(()=>document.querySelector('#upgradeNotice').hidden)()"
+                    ))
+                    if notice_dismissed:
+                        break
+                    time.sleep(0.05)
+                if not notice_dismissed:
+                    raise AssertionError("companion update notice did not close")
+                notice_removed = panel_cdp.evaluate(
+                    "(async()=>{const saved=await chrome.storage.local.get('upgradeNotice');"
+                    "return !saved.upgradeNotice;})()"
+                )
+                if not notice_removed:
+                    raise AssertionError("companion update notice did not dismiss persistently")
+
                 compact_layout = panel_cdp.evaluate(
                     "(()=>{const body=document.body.getBoundingClientRect();"
                     "const scope=document.querySelector('#scope').getBoundingClientRect();"
