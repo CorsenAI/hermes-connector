@@ -3,9 +3,9 @@
 // personality, and the agent turn itself.
 
 import { listDashboardSessions, makeDashboardUrl, normalizeLoopbackUrl } from "./dashboard-api.js";
+import { DEFAULT_BRIDGE_URL } from "./protocol.js";
 
 const DEFAULT_URL = "http://127.0.0.1:9119/";
-const DEFAULT_BRIDGE = "ws://127.0.0.1:8766";
 
 const dot = document.getElementById("dot");
 const statusEl = document.getElementById("status");
@@ -675,7 +675,7 @@ async function setSettingsOpen(open) {
   const settings = state.settings || {};
   document.getElementById("browserName").value = (state.identity && state.identity.browserName) || "Chrome";
   document.getElementById("hermesUrl").value = await getUrl();
-  document.getElementById("bridgeUrl").value = settings.bridgeUrl || DEFAULT_BRIDGE;
+  document.getElementById("bridgeUrl").value = settings.bridgeUrl || DEFAULT_BRIDGE_URL;
   document.getElementById("pairingCode").value = settings.pairingCode || "";
   document.getElementById("trustedInput").checked = !!settings.trustedInput;
   focusFirst(cfg);
@@ -690,7 +690,7 @@ checkCompanionButton.onclick = () => probeCompanion();
 document.getElementById("save").onclick = async () => {
   const url = normalizeLoopbackUrl(document.getElementById("hermesUrl").value, DEFAULT_URL);
   if (!url) { statusEl.textContent = "use a 127.0.0.1 / localhost address"; return; }
-  const bridgeUrl = (document.getElementById("bridgeUrl").value || "").trim() || DEFAULT_BRIDGE;
+  const bridgeUrl = (document.getElementById("bridgeUrl").value || "").trim() || DEFAULT_BRIDGE_URL;
   if (!/^wss?:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(bridgeUrl)) {
     statusEl.textContent = "bridge must be ws://127.0.0.1:<port>";
     return;

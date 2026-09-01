@@ -23,7 +23,7 @@ the final packaged bits.
 - [x] The tool handler routes the real `PluginContext.profile_name` and the real
       tool-call `session_id`; no hard-coded test profile participates.
 - [x] Multiple Hermes profile clients can use the companion concurrently while
-      only one local broker owns port 8766.
+      only one local broker owns port 8767.
 - [ ] Restarting the dashboard, gateway, broker, extension worker, and Chrome
       has documented and verified recovery behaviour in the final profile.
 

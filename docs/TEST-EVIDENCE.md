@@ -21,14 +21,28 @@ backend. In Desktop mode it hides the unavailable dashboard frame, lists the
 real sessions, and keeps session/tab controls in Chrome while the conversation
 continues in Hermes Desktop.
 
+The previous Windows launch path also kept
+`hermes-agent\\venv\\Scripts\\python.exe` mapped after Desktop stopped its own
+backend. Hermes' fail-closed updater therefore identified the Connector broker
+as a foreign process and aborted. Companion 0.2.4 launches the detached broker
+from the immutable managed base runtime with the companion dependencies exposed
+explicitly, leaving the replaceable Hermes virtual environment free for update.
+Because protocol 4 was shared by 0.2.1–0.2.3, a detached 0.2.3 broker could
+also survive an upgrade, accept a 0.2.4 client, and silently omit the new
+Desktop-backend messages. Release 0.2.4 therefore uses version-checked protocol
+5 on port 8767, imports the validated v4 binding state exactly once, and stops
+only a process whose executable arguments prove it is the prior Connector
+broker for the same Hermes root and legacy port.
+
 ### Candidate validation completed so far
 
-- the complete fast source gate passes on Windows: 71 Python tests pass with 6
+- the complete fast source gate passes on Windows: 76 Python tests pass with 6
   platform/privilege-specific cases skipped, and all 21 JavaScript tests pass;
   this includes delayed Desktop port discovery, strict loopback validation,
   authenticated advertisement, disconnect cleanup, session loading, the
   persistent 0.2.4 notice, request timeouts, loopback-only CSP, and Chrome Site
-  access preflight;
+  access preflight, plus standard-port migration, exact broker-version checks,
+  fail-closed v4-to-v5 state migration, and strict old-process matching;
 - both Windows companion installers pass from isolated temporary Hermes homes
   and preserve the 0.2.4 payload version;
 - the real isolated-Chrome acceptance passes a forced web-dashboard outage,
@@ -46,6 +60,8 @@ continues in Hermes Desktop.
   tagged commit.
 - [ ] Test an actual Hermes Desktop process after installing the exact packaged
   companion 0.2.4 and fully restarting Desktop.
+- [ ] Run Hermes' installed virtual-environment blocker scanner with the final
+  broker active and confirm the Connector process is not reported.
 - [ ] Produce the deterministic clean Chrome/companion archives and release
   manifest; record their generated sizes and SHA-256 hashes here only after the
   build exists.

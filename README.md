@@ -26,11 +26,13 @@ and local companion must use exactly the same version.
 Version **0.2.4** is a GitHub prerelease candidate for Chrome Web Store review.
 It adds automatic Hermes Desktop discovery: the side panel can list Desktop
 sessions and attach tabs without requiring a separately opened web dashboard.
+Its Windows companion also keeps the detached broker outside Hermes' managed
+virtual-environment launcher so the broker cannot block future Hermes updates.
 Do not install companion 0.2.4 until Chrome explicitly shows extension 0.2.4.
 
 | Chrome extension | Matching companion | Protocol / default broker | Status |
 | --- | --- | --- | --- |
-| 0.2.4 | [Companion 0.2.4](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip) | Protocol 4 / `127.0.0.1:8766` + automatic Hermes Desktop backend discovery | GitHub prerelease candidate; use only when Chrome explicitly shows 0.2.4 |
+| 0.2.4 | [Companion 0.2.4](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip) | Protocol 5 / `127.0.0.1:8767` + automatic Hermes Desktop backend discovery | GitHub prerelease candidate; use only when Chrome explicitly shows 0.2.4 |
 | 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public Store pair |
 | 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.2 |
 | 0.2.1 | [Companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released or sideloaded pair |
@@ -175,7 +177,7 @@ public release archive and does not create a Corsen AI cloud relay.
 ```text
 Hermes profile and session
   -> Hermes Connector companion
-  -> authenticated broker on 127.0.0.1:8766
+  -> authenticated broker on 127.0.0.1:8767
   -> exact local Chrome profile identity
   -> explicitly attached tabs
   -> requested browser action

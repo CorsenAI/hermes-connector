@@ -91,6 +91,45 @@ def _open_broker_log(path: Path) -> BinaryIO:
     return os.fdopen(_open_append_fd(Path(path)), "ab", buffering=0)
 
 
+def _broker_python() -> tuple[str, Optional[dict[str, str]]]:
+    """Return an update-safe interpreter and environment for the broker.
+
+    Hermes' managed Windows venv uses a small ``venv\\Scripts\\python.exe``
+    launcher in front of an immutable base interpreter. A detached broker
+    launched through that venv shim keeps the shim mapped after Desktop stops
+    its own backend, so Hermes' fail-closed updater correctly reports the
+    broker as a foreign venv holder and aborts.
+
+    Run the broker with the managed base interpreter instead and explicitly
+    expose the venv's site-packages (the broker needs ``websockets``). Managed
+    runtime generations are immutable, so this process doesn't pin files the
+    updater replaces. Other platforms and non-managed Python installs retain
+    ``sys.executable`` unchanged.
+    """
+
+    executable = str(sys.executable)
+    if sys.platform != "win32":
+        return executable, None
+
+    try:
+        base = Path(str(getattr(sys, "_base_executable", "") or "")).resolve()
+        current = Path(executable).resolve()
+        site_packages = (Path(sys.prefix) / "Lib" / "site-packages").resolve()
+    except (OSError, RuntimeError, ValueError):
+        return executable, None
+    if base == current or not base.is_file() or not site_packages.is_dir():
+        return executable, None
+
+    environment = dict(os.environ)
+    inherited = environment.get("PYTHONPATH", "")
+    environment["PYTHONPATH"] = str(site_packages) + (
+        os.pathsep + inherited if inherited else ""
+    )
+    environment.setdefault("PYTHONUTF8", "1")
+    environment.setdefault("PYTHONIOENCODING", "utf-8")
+    return str(base), environment
+
+
 class BridgeClient:
     """Thread-safe synchronous facade used by Hermes tool handlers.
 
@@ -117,13 +156,19 @@ class BridgeClient:
         self.conn = None
         self.connected = False
         self.last_error: Optional[str] = None
-        self.broker_state = {"protocol": broker.PROTOCOL_VERSION, "browsers": [], "agentProfiles": []}
+        self.broker_state = {
+            "protocol": broker.PROTOCOL_VERSION,
+            "brokerVersion": broker.BROKER_VERSION,
+            "browsers": [],
+            "agentProfiles": [],
+        }
         self._pending: dict[str, asyncio.Future] = {}
         self._counter = 0
         self._ready = threading.Event()
         self._stop = threading.Event()
         self._broker_start_guard = threading.Lock()
         self._next_broker_start = 0.0
+        self._legacy_cleanup_done = False
 
     # -- properties ------------------------------------------------------
 
@@ -145,6 +190,7 @@ class BridgeClient:
             return self
         if self.auto_start_broker:
             try:
+                self._cleanup_legacy_brokers()
                 self._ensure_broker_process()
             except Exception as exc:
                 self.last_error = f"could not start broker: {type(exc).__name__}"
@@ -183,6 +229,19 @@ class BridgeClient:
             except Exception:
                 pass
             self.loop.close()
+
+    def _cleanup_legacy_brokers(self) -> None:
+        """Retire an exact older Connector endpoint once per Hermes process."""
+
+        if self._legacy_cleanup_done:
+            return
+        self._legacy_cleanup_done = True
+        if self.host not in {"127.0.0.1", "localhost", "::1"}:
+            return
+        for legacy_port in broker.LEGACY_PORTS:
+            if legacy_port == self.port:
+                continue
+            broker.stop_broker_processes(self.root, legacy_port)
 
     def _port_claimed(self) -> bool:
         """Return whether another process currently owns the broker address.
@@ -287,8 +346,9 @@ class BridgeClient:
                 if self._stop.is_set() or self._port_claimed():
                     return
                 log_file = _open_broker_log(broker.log_path(self.root))
+                python_executable, launch_environment = _broker_python()
                 command = [
-                    sys.executable,
+                    python_executable,
                     str(Path(broker.__file__).resolve()),
                     "--serve",
                     "--root", str(self.root),
@@ -302,6 +362,8 @@ class BridgeClient:
                     "cwd": str(directory),
                     "close_fds": True,
                 }
+                if launch_environment is not None:
+                    kwargs["env"] = launch_environment
                 if sys.platform == "win32":
                     kwargs["creationflags"] = (
                         getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
@@ -363,6 +425,12 @@ class BridgeClient:
                 raise
             except Exception as exc:
                 self.last_error = str(exc)[:300] or type(exc).__name__
+                if "incompatible Connector broker release" in str(exc):
+                    try:
+                        broker.stop_broker_processes(self.root, self.port)
+                        self._next_broker_start = 0.0
+                    except Exception:
+                        pass
             finally:
                 self.connected = False
                 self.conn = None
@@ -389,8 +457,10 @@ class BridgeClient:
             ping_timeout=20,
         ) as websocket:
             challenge = self._parse(await asyncio.wait_for(websocket.recv(), timeout=5))
-            if challenge.get("type") != "challenge" or challenge.get("protocol") != broker.PROTOCOL_VERSION:
-                raise RuntimeError("another or incompatible service owns the Connector port")
+            if (challenge.get("type") != "challenge" or
+                    challenge.get("protocol") != broker.PROTOCOL_VERSION or
+                    challenge.get("brokerVersion") != broker.BROKER_VERSION):
+                raise RuntimeError("another or incompatible Connector broker release owns the port")
             server_nonce = broker.clean_id(challenge.get("nonce"), "nonce")
             client_id = f"{self.profile_id}:{self.process_id}"
             client_nonce = secrets.token_hex(16)
@@ -402,12 +472,15 @@ class BridgeClient:
                 "nonce": client_nonce,
                 "proof": broker.role_proof(self.secret, "agent", client_id, server_nonce),
                 "protocol": broker.PROTOCOL_VERSION,
+                "companionVersion": broker.BROKER_VERSION,
             }))
             paired = self._parse(await asyncio.wait_for(websocket.recv(), timeout=5))
             expected = broker.broker_proof(
                 self.secret, "agent", client_id, client_nonce
             )
-            if paired.get("type") != "agent_paired" or not paired.get("ok"):
+            if (paired.get("type") != "agent_paired" or not paired.get("ok") or
+                    paired.get("protocol") != broker.PROTOCOL_VERSION or
+                    paired.get("brokerVersion") != broker.BROKER_VERSION):
                 raise RuntimeError("broker rejected the Hermes companion")
             if not secrets.compare_digest(str(paired.get("proof") or ""), expected):
                 raise RuntimeError("broker identity check failed")

@@ -172,10 +172,11 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
   await import(`../extension/src/background.js?active-tab=${Date.now()}`);
   const socket = await waitFor(() => FakeWebSocket.instances[0], "initial socket");
   await waitFor(() => socket.readyState === FakeWebSocket.OPEN, "socket open");
-  socket.emit({ type: "challenge", nonce: "server-nonce", protocol: 4 });
+  socket.emit({ type: "challenge", nonce: "server-nonce", protocol: 5, brokerVersion: "0.2.4" });
   const hello = await waitFor(() => socket.sent.find((message) => message.type === "hello"), "browser hello");
   const proof = await hmacHex(pairingCode, `broker:browser:${hello.browserId}:${hello.nonce}`);
-  socket.emit({ type: "paired", ok: true, proof, protocol: 4, brokerState: {} });
+  socket.emit({ type: "paired", ok: true, proof, protocol: 5,
+    brokerVersion: "0.2.4", brokerState: {} });
   await waitFor(() => socket.sent.find((message) => message.type === "binding_sync"), "binding sync");
 
   assert.equal(runtimeEvent.listeners.length, 1);

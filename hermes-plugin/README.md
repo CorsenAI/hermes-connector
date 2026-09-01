@@ -19,11 +19,17 @@ Hermes profile.
 
 Fully quit and reopen Hermes Desktop, or restart any already-running Hermes
 dashboard, gateway, or chat process, after installation so it discovers the
-newly enabled tools and announces its local backend.
+newly enabled tools and announces its local backend. Release 0.2.4 moves the
+standard broker from protocol 4 / port 8766 to its version-checked protocol 5 /
+port 8767 and retires only a verified older Connector broker for the same
+Hermes home.
 
 The companion supervises the shared local broker. If that detached process is
 terminated by a launcher restart or crashes, a running profile client starts it
-again with a bounded cross-process launch lock.
+again with a bounded cross-process launch lock. On managed Windows installs,
+the broker runs from Hermes' immutable base runtime instead of the replaceable
+virtual-environment launcher so it cannot hold that launcher open during a
+future Hermes update.
 
 The pairing code is stored under the local Hermes home in
 `connector/credentials.json`. Treat it like a password. It is never included in

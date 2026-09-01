@@ -104,7 +104,7 @@ installed by double-clicking “Install Hermes Connector.cmd”.
 
 UPGRADING FROM AN OLDER VERSION
 
-Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Fully quit and restart Hermes Desktop, dashboards, gateways, and chats after installing companion 0.2.4. Hermes Desktop backends are then discovered automatically even though their local ports change at every launch; running `hermes dashboard` is no longer required for Desktop users. Default installations use protocol 4 on port 8766. The update notice and toolbar badge remain visible until you confirm the matching companion is installed.
+Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Fully quit and restart Hermes Desktop, dashboards, gateways, and chats after installing companion 0.2.4. Hermes Desktop backends are then discovered automatically even though their local ports change at every launch; running `hermes dashboard` is no longer required for Desktop users. Companion 0.2.4 uses a version-checked protocol 5 broker on port 8767 and safely retires the verified older 8766 broker during upgrade. On Windows, it also keeps its detached broker outside Hermes' managed virtual-environment launcher so it does not block later Hermes Desktop or CLI updates. The update notice and toolbar badge remain visible until you confirm the matching companion is installed.
 
 WATCH THE COMPLETE DEMO
 

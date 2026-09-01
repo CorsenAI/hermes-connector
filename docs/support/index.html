@@ -57,7 +57,7 @@
         <tr>
           <td><span class="pair"><strong>0.2.4</strong> · GitHub prerelease candidate</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip">Companion 0.2.4</a></td>
-          <td>Protocol 4<br><code>127.0.0.1:8766</code><br>Automatic Hermes Desktop backend discovery</td>
+          <td>Protocol 5<br><code>127.0.0.1:8767</code><br>Automatic Hermes Desktop backend discovery</td>
           <td>Only when Chrome explicitly shows extension 0.2.4. The public Store remains on 0.2.3 until review and publication finish.</td>
         </tr>
         <tr>
@@ -105,7 +105,7 @@
     <ol class="steps">
       <li>Confirm that <code>chrome://extensions</code> shows Hermes Connector 0.2.4. If it still shows 0.2.3, keep companion 0.2.3.</li>
       <li>Install companion 0.2.4 from the matching row above.</li>
-      <li>Fully quit Hermes Desktop so its background process exits, then reopen it. The updated plugin announces Desktop's dynamic loopback backend to the authenticated local broker.</li>
+      <li>The installer safely retires the verified older broker on port <code>8766</code>. Fully quit Hermes Desktop and any Hermes CLI process, then reopen Desktop or restart the CLI. The updated plugin announces Desktop's dynamic loopback backend to the version-checked protocol 5 broker on port <code>8767</code>.</li>
       <li>Open the connector panel, choose the Desktop profile/session, and attach the intended tabs. Continue chatting in Hermes Desktop; there is no dashboard address to configure for the normal Desktop setup.</li>
     </ol>
     <p>Your pairing code is normally preserved. If pairing is rejected, rerun the 0.2.4 installer and save the locally displayed code again.</p>
@@ -137,7 +137,7 @@
   <section class="card" id="troubleshooting">
     <h2>Troubleshooting</h2>
     <ul>
-      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8766</code> for 0.2.1/0.2.2/0.2.3/0.2.4 or <code>8765</code> for 0.2.0.</li>
+      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8767</code> for 0.2.4, <code>8766</code> for 0.2.1/0.2.2/0.2.3, or <code>8765</code> for 0.2.0.</li>
       <li><strong>Hermes Desktop unavailable in 0.2.4:</strong> fully quit and reopen Hermes Desktop after installing companion 0.2.4. The Desktop backend uses a dynamic loopback port and should be discovered automatically; do not enter that temporary port manually.</li>
       <li><strong>Pairing rejected:</strong> rerun the matching companion installer to display the current local pairing code, then save it again in the extension.</li>
       <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted normal web tab. Chrome internal pages and other restricted pages cannot be controlled.</li>

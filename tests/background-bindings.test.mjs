@@ -99,29 +99,41 @@ test("read-only tab rendering does not write or rebroadcast unchanged bindings",
   assert.equal(storage.upgradeNotice.id, "companion-reinstall-0.2.4");
   assert.equal(storage.upgradeNotice.previousVersion, "0.2.3");
   assert.equal(storage.upgradeNotice.customBridge, false);
-  assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8766");
-  assert.deepEqual(storage.bridgeMigration021, { completed: true, customBridge: false });
+  assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8767");
+  assert.deepEqual(storage.bridgeMigration024, { completed: true, customBridge: false });
   assert.equal(runtimeMessages.filter((item) => item.cmd === "upgradeNoticeChanged").length, 1);
 
+  delete storage.bridgeMigration024;
   delete storage.bridgeMigration021;
   storage.settings.bridgeUrl = "ws://localhost:8765/";
   onInstalled({ reason: "install" });
   await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8766");
-  assert.deepEqual(storage.bridgeMigration021, { completed: true, customBridge: false });
+  assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8767");
+  assert.deepEqual(storage.bridgeMigration024, { completed: true, customBridge: false });
 
-  delete storage.bridgeMigration021;
+  delete storage.bridgeMigration024;
+  storage.bridgeMigration021 = { completed: true, customBridge: false };
   storage.settings.bridgeUrl = "ws://127.0.0.1:8766";
   onInstalled({ reason: "install" });
   await new Promise((resolve) => setTimeout(resolve, 10));
-  assert.deepEqual(storage.bridgeMigration021, { completed: true, customBridge: true });
+  assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8767");
+  assert.deepEqual(storage.bridgeMigration024, { completed: true, customBridge: false });
 
+  delete storage.bridgeMigration024;
+  storage.bridgeMigration021 = { completed: true, customBridge: true };
+  storage.settings.bridgeUrl = "ws://127.0.0.1:8766";
+  onInstalled({ reason: "install" });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:8766");
+  assert.deepEqual(storage.bridgeMigration024, { completed: true, customBridge: true });
+
+  delete storage.bridgeMigration024;
   delete storage.bridgeMigration021;
   storage.settings.bridgeUrl = "ws://127.0.0.1:9900";
   onInstalled({ reason: "install" });
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(storage.settings.bridgeUrl, "ws://127.0.0.1:9900");
-  assert.deepEqual(storage.bridgeMigration021, { completed: true, customBridge: true });
+  assert.deepEqual(storage.bridgeMigration024, { completed: true, customBridge: true });
 
   await chrome.storage.local.remove("upgradeNotice");
   onInstalled({ reason: "update", previousVersion: "0.1.9" });

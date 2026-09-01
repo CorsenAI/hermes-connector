@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
+import re
 import secrets
 import shutil
 import stat
@@ -22,6 +23,8 @@ LEGACY_PLUGIN_NAME = "agent-bridge"
 LEGACY_PLUGIN_VERSION = "0.1.0"
 LEGACY_DESCRIPTION_PREFIX = "Drive a paired Chrome extension from the agent:"
 INSTALL_LOCK_NAME = ".hermes-connector-install.lock"
+CURRENT_BROKER_PORT = 8767
+LEGACY_BROKER_PORTS = (8766,)
 PLUGIN_FILES = (
     "__init__.py",
     "after-install.md",
@@ -375,6 +378,29 @@ def pairing_code(target: Path, hermes_home: Path) -> str:
     return result.stdout.strip()
 
 
+def stop_installed_brokers(source: Path, hermes_home: Path) -> list[int]:
+    """Retire only verified Connector brokers from this Hermes installation."""
+
+    stopped: list[int] = []
+    for port in (*LEGACY_BROKER_PORTS, CURRENT_BROKER_PORT):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(source / "broker.py"),
+                "--stop-existing",
+                "--root", str(hermes_home),
+                "--port", str(port),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        match = re.search(r"Stopped\s+(\d+)\s+previous", result.stdout or "")
+        if match:
+            stopped.extend([port] * int(match.group(1)))
+    return stopped
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Install the Hermes Connector companion")
     parser.add_argument("--hermes-home", type=Path, default=None, help="override the Hermes home")
@@ -400,6 +426,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.no_show_code:
                 root_target = next(target for home, target, _ in installed if home == root)
                 code = pairing_code(root_target, root)
+            stopped_brokers = stop_installed_brokers(source, root)
         except BaseException:
             # Installation is one transaction across the shared home and every
             # discovered profile. Do not leave users with a silent half-migration.
@@ -421,6 +448,8 @@ def main(argv: list[str] | None = None) -> int:
         if previous is not None:
             print(f"Previous companion preserved at {previous}")
     print(f"Migrated enabled {LEGACY_PLUGIN_NAME} profiles to {PLUGIN_NAME} where necessary.")
+    if stopped_brokers:
+        print(f"Stopped {len(stopped_brokers)} previous Connector broker process(es).")
     if code is not None:
         print("\nPairing code (keep private; paste once into the Chrome extension):")
         print(code)

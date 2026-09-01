@@ -13,7 +13,7 @@ still exists.
 
 ### Local broker
 
-One broker per Hermes installation owns `127.0.0.1:8766`. It accepts two
+One broker per Hermes installation owns `127.0.0.1:8767`. It accepts two
 authenticated client roles:
 
 - `browser`: Chrome extension instances;
@@ -95,14 +95,19 @@ last-used, or first controllable tab.
 - A headless Hermes Desktop process advertises its bound loopback port only
   after the server has started. The broker validates the exact loopback URL,
   ties it to the authenticated agent socket, and removes it on disconnect.
-- When Chrome updates an older build to a protocol-4 release (0.2.1+), it migrates only the legacy
-  default 8765 address to 8766 and keeps a local notice visible until the user
-  confirms the separately downloaded companion was reinstalled. The new port
-  prevents a detached 0.2.0 broker from silently serving the hardened build.
-- Protocol 4 stores ownership in `broker-state-v4.json`. It validates and
-  snapshots legacy preferences once when that file is absent, then never reads
-  mutable protocol-3 state again. Unique atomic staging files prevent two
-  overlapping broker launches from corrupting the protocol-4 snapshot.
+- Version 0.2.4 migrates only the standard protocol-3/4 addresses (8765/8766)
+  to protocol 5 on 8767; an explicitly configured custom port is preserved.
+  The exact broker version is checked during both handshake phases, so an older
+  detached broker cannot silently serve the new extension or companion.
+- The 0.2.4 installer and each newly loaded Desktop or CLI companion can stop
+  only a process whose command line proves it is an installed broker for the
+  same Hermes root and legacy port. The Windows broker then launches from the
+  immutable base runtime rather than the replaceable venv shim, keeping future
+  Hermes updates unblocked.
+- Protocol 5 stores ownership in `broker-state-v5.json`. It validates and
+  snapshots protocol-4 preferences once when that file is absent, then never
+  reads mutable v4 state again. Unique atomic staging files prevent two
+  overlapping broker launches from corrupting the protocol-5 snapshot.
 
 ## Cross-browser ownership
 

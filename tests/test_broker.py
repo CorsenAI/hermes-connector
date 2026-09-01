@@ -79,6 +79,88 @@ class CredentialLifecycleTests(unittest.TestCase):
                 )
 
 
+class BrokerProcessCleanupTests(unittest.TestCase):
+    class FakeProcess:
+        def __init__(self, pid: int, name: str, command: list[str]):
+            self.pid = pid
+            self.info = {"pid": pid, "name": name, "cmdline": command}
+            self.terminated = False
+            self.killed = False
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+    class FakePsutil:
+        class NoSuchProcess(Exception):
+            pass
+
+        class AccessDenied(Exception):
+            pass
+
+        def __init__(self, processes):
+            self.processes = processes
+
+        def process_iter(self, _fields):
+            return list(self.processes)
+
+        @staticmethod
+        def wait_procs(processes, timeout):
+            del timeout
+            return list(processes), []
+
+    def test_cleanup_stops_only_exact_installed_broker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "hermes"
+            script = root / "plugins" / "hermes-connector" / "broker.py"
+            exact = self.FakeProcess(1201, "python.exe", [
+                "python.exe", str(script), "--serve", "--root", str(root),
+                "--host", "127.0.0.1", "--port", "8766",
+            ])
+            other_root = self.FakeProcess(1202, "python.exe", [
+                "python.exe", str(script), "--serve", "--root", str(root / "other"),
+                "--host", "127.0.0.1", "--port", "8766",
+            ])
+            unrelated_script = self.FakeProcess(1203, "python.exe", [
+                "python.exe", str(root / "plugins" / "other" / "broker.py"),
+                "--serve", "--root", str(root), "--host", "127.0.0.1",
+                "--port", "8766",
+            ])
+            fake_psutil = self.FakePsutil([exact, other_root, unrelated_script])
+
+            stopped = broker.stop_broker_processes(
+                root, 8766, psutil_module=fake_psutil
+            )
+
+            self.assertEqual(stopped, [1201])
+            self.assertTrue(exact.terminated)
+            self.assertFalse(other_root.terminated)
+            self.assertFalse(unrelated_script.terminated)
+
+    def test_cleanup_accepts_profile_and_preserved_payload_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "hermes"
+            commands = [
+                [
+                    "python3", str(root / "profiles" / "work" / "plugins" /
+                                   "hermes-connector" / "broker.py"),
+                    "--serve", "--root", str(root), "--host", "localhost",
+                    "--port", "8766",
+                ],
+                [
+                    "python.exe", str(root / "plugins" /
+                                      ".hermes-connector-previous-1-aabbcc" / "broker.py"),
+                    "--serve", "--root", str(root), "--host", "127.0.0.1",
+                    "--port", "8766",
+                ],
+            ]
+            for command in commands:
+                with self.subTest(script=command[1]):
+                    self.assertTrue(broker._is_managed_broker_command(command, root, 8766))
+
+
 class AgentBackendValidationTests(unittest.TestCase):
     def test_accepts_only_canonical_loopback_headless_urls(self):
         self.assertEqual(
@@ -118,34 +200,59 @@ class BrokerStateMigrationTests(unittest.TestCase):
         path.write_text(json.dumps(payload), encoding="utf-8")
         return key
 
-    def test_v4_imports_legacy_once_and_ignores_late_v3_writes(self):
+    def test_v5_imports_v4_once_and_ignores_late_v4_writes(self):
         with tempfile.TemporaryDirectory() as temp:
-            key = self.write_state(broker.legacy_state_path(temp), "browser-v3")
+            key = self.write_state(
+                broker.previous_state_path(temp), "browser-v4", protocol=4
+            )
             first = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
             )
-            self.assertEqual(first.scope_browsers[key], "browser-v3")
+            self.assertEqual(first.scope_browsers[key], "browser-v4")
             persisted = json.loads(broker.state_path(temp).read_text(encoding="utf-8"))
-            self.assertEqual(persisted["protocol"], 4)
-            self.assertEqual(persisted["scopeBrowsers"][key], "browser-v3")
+            self.assertEqual(persisted["protocol"], 5)
+            self.assertEqual(persisted["scopeBrowsers"][key], "browser-v4")
 
-            # The detached legacy process is still alive and writes later.
-            self.write_state(broker.legacy_state_path(temp), "browser-zombie")
+            # The detached v4 process is still alive and writes later.
+            self.write_state(
+                broker.previous_state_path(temp), "browser-zombie", protocol=4
+            )
             restarted = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
             )
-            self.assertEqual(restarted.scope_browsers[key], "browser-v3")
+            self.assertEqual(restarted.scope_browsers[key], "browser-v4")
 
-    def test_present_invalid_v4_state_never_falls_back_to_legacy(self):
+    def test_v5_imports_preversioned_state_when_v4_is_absent(self):
         with tempfile.TemporaryDirectory() as temp:
-            key = self.write_state(broker.legacy_state_path(temp), "legacy-owner")
-            self.write_state(broker.state_path(temp), "wrong-protocol-owner", protocol=3)
+            key = self.write_state(broker.legacy_state_path(temp), "browser-v3")
+            server = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertEqual(server.scope_browsers[key], "browser-v3")
+
+    def test_present_invalid_v5_state_never_falls_back_to_v4(self):
+        with tempfile.TemporaryDirectory() as temp:
+            key = self.write_state(
+                broker.previous_state_path(temp), "v4-owner", protocol=4
+            )
+            self.write_state(broker.state_path(temp), "wrong-protocol-owner", protocol=4)
             server = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
             )
             self.assertNotIn(key, server.scope_browsers)
 
-    def test_concurrent_v4_saves_use_distinct_complete_temp_files(self):
+    def test_present_invalid_v4_state_never_falls_back_to_preversioned(self):
+        with tempfile.TemporaryDirectory() as temp:
+            key = self.write_state(broker.legacy_state_path(temp), "legacy-owner")
+            self.write_state(
+                broker.previous_state_path(temp), "wrong-protocol-owner", protocol=3
+            )
+            server = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertNotIn(key, server.scope_browsers)
+
+    def test_concurrent_v5_saves_use_distinct_complete_temp_files(self):
         with tempfile.TemporaryDirectory() as temp:
             server = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
@@ -182,9 +289,9 @@ class BrokerStateMigrationTests(unittest.TestCase):
                         future.result(timeout=3)
             self.assertEqual(len(set(sources)), 2)
             persisted = json.loads(broker.state_path(temp).read_text(encoding="utf-8"))
-            self.assertEqual(persisted["protocol"], 4)
+            self.assertEqual(persisted["protocol"], 5)
             self.assertFalse(list(
-                broker.connector_dir(temp).glob(".broker-state-v4-*.tmp")
+                broker.connector_dir(temp).glob(".broker-state-v5-*.tmp")
             ))
 
 
@@ -663,14 +770,15 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(websockets.exceptions.ConnectionClosed):
             await websocket.recv()
 
-    async def test_protocol_three_client_is_rejected_by_release_four_broker(self):
+    async def test_protocol_four_client_is_rejected_by_release_five_broker(self):
         websocket = await websockets.connect(
             self.url,
             origin="chrome-extension://legacy-release/",
         )
         self.clients.append(websocket)
         challenge = json.loads(await websocket.recv())
-        self.assertEqual(challenge["protocol"], 4)
+        self.assertEqual(challenge["protocol"], 5)
+        self.assertEqual(challenge["brokerVersion"], "0.2.4")
         browser_id = "legacy-browser"
         await websocket.send(json.dumps({
             "type": "hello",
@@ -681,7 +789,7 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
             "proof": broker.role_proof(
                 self.secret, "browser", browser_id, challenge["nonce"]
             ),
-            "protocol": 3,
+            "protocol": 4,
         }))
         with self.assertRaises(websockets.exceptions.ConnectionClosed):
             await websocket.recv()

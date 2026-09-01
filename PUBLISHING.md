@@ -1,7 +1,7 @@
 # Chrome Web Store release runbook
 
 This runbook reflects the multiplexed loopback-broker architecture in protocol
-v4. There is no native-messaging host.
+v5. There is no native-messaging host.
 
 ## 1. Produce release artifacts
 
@@ -151,6 +151,10 @@ questions promptly.
 - [ ] Fast gate, isolated Chromium, and packaged-pair acceptance pass.
 - [ ] Real Hermes Desktop `serve --port 0` discovery is verified without a
       separately launched Web dashboard.
+- [ ] Desktop and CLI both launch the broker from the update-safe managed base
+      runtime; Hermes' installed blocker scanner does not report that broker.
+- [ ] Installing 0.2.4 retires only the verified legacy v4/8766 broker and the
+      v5 state imports the prior v4 bindings exactly once.
 - [ ] Exact companion 0.2.4 ZIP is installed on Windows and Desktop is fully
       restarted before the signed-in Chrome smoke test.
 - [ ] Public GitHub `v0.2.4` prerelease serves the companion, Chrome ZIP, and

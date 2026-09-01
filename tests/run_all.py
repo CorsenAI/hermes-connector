@@ -40,8 +40,8 @@ def metadata_gate() -> None:
 
     protocol = re.search(r"PROTOCOL_VERSION\s*=\s*(\d+)", protocol_source)
     plugin_version = re.search(r"^version:\s*([^\s]+)", plugin_source, re.MULTILINE)
-    if not protocol or int(protocol.group(1)) != 4:
-        raise SystemExit("protocol gate failed: protocol v4 is required")
+    if not protocol or int(protocol.group(1)) != 5:
+        raise SystemExit("protocol gate failed: protocol v5 is required")
     if not plugin_version or plugin_version.group(1) != manifest["version"]:
         raise SystemExit("version gate failed: extension and companion versions differ")
     if os.environ.get("GITHUB_REF_TYPE") == "tag":

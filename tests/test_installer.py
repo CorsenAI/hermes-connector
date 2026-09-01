@@ -195,8 +195,9 @@ class CompanionInstallerTests(unittest.TestCase):
                 installed_manifest = (target / "plugin.yaml").read_text(encoding="utf-8")
                 installed_broker = (target / "broker.py").read_text(encoding="utf-8")
                 self.assertRegex(installed_manifest, r"(?m)^version:\s*0\.2\.4\s*$")
-                self.assertRegex(installed_broker, r"(?m)^PROTOCOL_VERSION\s*=\s*4\s*$")
-                self.assertRegex(installed_broker, r"(?m)^DEFAULT_PORT\s*=\s*8766\s*$")
+                self.assertRegex(installed_broker, r'(?m)^BROKER_VERSION\s*=\s*"0\.2\.4"\s*$')
+                self.assertRegex(installed_broker, r"(?m)^PROTOCOL_VERSION\s*=\s*5\s*$")
+                self.assertRegex(installed_broker, r"(?m)^DEFAULT_PORT\s*=\s*8767\s*$")
 
     def test_release_version_protocol_and_port_contract_is_consistent(self):
         plugin_source = (ROOT / "hermes-plugin" / "plugin.yaml").read_text(
@@ -219,6 +220,9 @@ class CompanionInstallerTests(unittest.TestCase):
         broker_protocol = re.search(
             r"(?m)^PROTOCOL_VERSION\s*=\s*(\d+)\s*$", broker_source
         )
+        broker_version = re.search(
+            r'(?m)^BROKER_VERSION\s*=\s*"([^"\s]+)"\s*$', broker_source
+        )
         broker_port = re.search(r"(?m)^DEFAULT_PORT\s*=\s*(\d+)\s*$", broker_source)
         extension_protocol_version = re.search(
             r"PROTOCOL_VERSION\s*=\s*(\d+)", extension_protocol
@@ -230,6 +234,7 @@ class CompanionInstallerTests(unittest.TestCase):
 
         for label, match in (
             ("plugin version", plugin_version),
+            ("broker version", broker_version),
             ("broker protocol", broker_protocol),
             ("broker port", broker_port),
             ("extension protocol", extension_protocol_version),
@@ -240,10 +245,11 @@ class CompanionInstallerTests(unittest.TestCase):
 
         self.assertEqual(extension_manifest["version"], "0.2.4")
         self.assertEqual(plugin_version.group(1), extension_manifest["version"])
-        self.assertEqual(int(broker_protocol.group(1)), 4)
-        self.assertEqual(int(extension_protocol_version.group(1)), 4)
+        self.assertEqual(broker_version.group(1), extension_manifest["version"])
+        self.assertEqual(int(broker_protocol.group(1)), 5)
+        self.assertEqual(int(extension_protocol_version.group(1)), 5)
         self.assertEqual(broker_protocol.group(1), extension_protocol_version.group(1))
-        self.assertEqual(int(broker_port.group(1)), 8766)
+        self.assertEqual(int(broker_port.group(1)), 8767)
         self.assertEqual(broker_port.group(1), extension_port.group(1))
         self.assertIn("broker.PROTOCOL_VERSION", bridge_client_source)
         self.assertIn("broker.DEFAULT_PORT", bridge_client_source)

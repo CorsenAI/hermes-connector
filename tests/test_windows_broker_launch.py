@@ -53,6 +53,16 @@ class FakeProcess:
 class WindowsBrokerLaunchTests(unittest.TestCase):
     def test_windows_launch_uses_hidden_console_without_detached_process(self):
         with tempfile.TemporaryDirectory() as temp:
+            temp_path = Path(temp)
+            venv = temp_path / "venv"
+            site_packages = venv / "Lib" / "site-packages"
+            site_packages.mkdir(parents=True)
+            venv_python = venv / "Scripts" / "python.exe"
+            venv_python.parent.mkdir(parents=True)
+            venv_python.touch()
+            base_python = temp_path / "runtime" / "python.exe"
+            base_python.parent.mkdir(parents=True)
+            base_python.touch()
             client = bridge_client.BridgeClient("default", root=temp)
             captured = {}
 
@@ -64,6 +74,9 @@ class WindowsBrokerLaunchTests(unittest.TestCase):
             log_stream = mock.MagicMock()
             with (
                 mock.patch.object(bridge_client.sys, "platform", "win32"),
+                mock.patch.object(bridge_client.sys, "executable", str(venv_python)),
+                mock.patch.object(bridge_client.sys, "_base_executable", str(base_python)),
+                mock.patch.object(bridge_client.sys, "prefix", str(venv)),
                 mock.patch.object(
                     bridge_client.subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200,
                     create=True,
@@ -89,8 +102,29 @@ class WindowsBrokerLaunchTests(unittest.TestCase):
             self.assertIs(captured["kwargs"]["stdout"], log_stream)
             self.assertIs(captured["kwargs"]["stderr"], log_stream)
             log_stream.close.assert_called_once_with()
+            self.assertEqual(Path(captured["command"][0]), base_python.resolve())
             self.assertEqual(Path(captured["command"][1]).name, "broker.py")
             self.assertIn("--serve", captured["command"])
+            self.assertEqual(
+                captured["kwargs"]["env"]["PYTHONPATH"].split(os.pathsep)[0],
+                str(site_packages.resolve()),
+            )
+
+    def test_windows_launch_falls_back_when_managed_base_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            current = Path(temp) / "venv" / "Scripts" / "python.exe"
+            with (
+                mock.patch.object(bridge_client.sys, "platform", "win32"),
+                mock.patch.object(bridge_client.sys, "executable", str(current)),
+                mock.patch.object(
+                    bridge_client.sys, "_base_executable", str(Path(temp) / "missing-python.exe")
+                ),
+                mock.patch.object(bridge_client.sys, "prefix", str(Path(temp) / "venv")),
+            ):
+                executable, environment = bridge_client._broker_python()
+
+            self.assertEqual(executable, str(current))
+            self.assertIsNone(environment)
 
     def test_readiness_probe_performs_valid_websocket_upgrade(self):
         with tempfile.TemporaryDirectory() as temp:

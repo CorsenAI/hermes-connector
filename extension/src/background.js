@@ -1,7 +1,8 @@
 // Service worker: owns a direct WebSocket link to the local agent's loopback bridge, the pairing
 // state, and the execution of agent-requested actions against the controlled tab. No native host.
 
-import { DEFAULT_BRIDGE_URL, PROTOCOL_VERSION, OUT, IN, ACTION, STORE, DEFAULT_SETTINGS } from "./protocol.js";
+import { DEFAULT_BRIDGE_URL, PROTOCOL_VERSION, EXPECTED_BROKER_VERSION,
+  OUT, IN, ACTION, STORE, DEFAULT_SETTINGS } from "./protocol.js";
 import { buildSnapshot, clickRef, typeRef, scrollPage, readText, setOverlay,
   hoverRef, pressKey, selectOption, dragRefs, findText, refRect, focusRef } from "./page-actions.js";
 import { attachTab, bindingList, detachTab, normalizeRegistry, removeTabEverywhere,
@@ -25,7 +26,14 @@ const COMPANION_REINSTALL_NOTICE = Object.freeze({
 const LEGACY_DEFAULT_BRIDGE_URLS = new Set([
   "ws://127.0.0.1:8765",
   "ws://localhost:8765",
+  "ws://127.0.0.1:8766",
+  "ws://localhost:8766",
 ]);
+const CURRENT_DEFAULT_BRIDGE_URLS = new Set([
+  DEFAULT_BRIDGE_URL.toLowerCase(),
+  DEFAULT_BRIDGE_URL.toLowerCase().replace("127.0.0.1", "localhost"),
+]);
+const LEGACY_BRIDGE_MIGRATION_KEY = "bridgeMigration021";
 let sessionGen = 0;         // bumped on disconnect/unpair -> already-queued actions are cancelled
 const MAX_QUEUED = 32;
 const MAX_UNPAIRED_PENDING_FRAMES = 8;
@@ -215,8 +223,16 @@ function isLegacyDefaultBridgeUrl(value) {
   return LEGACY_DEFAULT_BRIDGE_URLS.has(String(value || "").trim().replace(/\/$/, "").toLowerCase());
 }
 
+function isCurrentDefaultBridgeUrl(value) {
+  return CURRENT_DEFAULT_BRIDGE_URLS.has(
+    String(value || "").trim().replace(/\/$/, "").toLowerCase(),
+  );
+}
+
 async function ensureBridgeMigration() {
-  const saved = await chrome.storage.local.get([STORE.SETTINGS, STORE.BRIDGE_MIGRATION]);
+  const saved = await chrome.storage.local.get([
+    STORE.SETTINGS, STORE.BRIDGE_MIGRATION, LEGACY_BRIDGE_MIGRATION_KEY,
+  ]);
   const settings = saved[STORE.SETTINGS] || {};
   const current = String(settings.bridgeUrl || "").trim();
   const completed = saved[STORE.BRIDGE_MIGRATION];
@@ -226,18 +242,23 @@ async function ensureBridgeMigration() {
     return { url: current || DEFAULT_BRIDGE_URL, migrated: false,
       customBridge: !!(typeof completed === "object" && completed.customBridge) };
   }
-  const migrated = isLegacyDefaultBridgeUrl(current);
-  // Record whether the address was user-configured BEFORE changing anything.
-  // A legacy user may already have chosen port 8766 manually, so inspecting
-  // only the final port during onInstalled would miss the required reboot note.
-  const customBridge = !!current && !migrated;
+  const previousMigration = saved[LEGACY_BRIDGE_MIGRATION_KEY];
+  const previouslyCustom = !!previousMigration && typeof previousMigration === "object" &&
+    previousMigration.customBridge === true;
+  const legacyDefault = isLegacyDefaultBridgeUrl(current);
+  // Preserve an address that the previous migration already identified as user-configured,
+  // even if it happens to use the old default port. Otherwise move v3/v4 defaults to the
+  // protocol-v5 port so a surviving detached v4 broker cannot capture this extension.
+  const migrated = legacyDefault && !previouslyCustom;
+  const customBridge = !!current && (previouslyCustom ||
+    (!legacyDefault && !isCurrentDefaultBridgeUrl(current)));
   const updates = { [STORE.BRIDGE_MIGRATION]: { completed: true, customBridge } };
   if (migrated) updates[STORE.SETTINGS] = { ...settings, bridgeUrl: DEFAULT_BRIDGE_URL };
   try {
     await chrome.storage.local.set(updates);
   } catch (_) {
     // Even if local persistence is temporarily unavailable, never make the
-    // first protocol-4 connection to the detached 0.2.0 default broker.
+    // first protocol-v5 connection to a detached broker from an older release.
   }
   return { url: migrated ? DEFAULT_BRIDGE_URL : (current || DEFAULT_BRIDGE_URL),
     migrated, customBridge };
@@ -454,12 +475,17 @@ async function onHostMessage(msg, sock) {
         if (alive()) { try { sock.close(); } catch (_) {} }
         break;
       }
-      if (msg.protocol !== PROTOCOL_VERSION) {
+      const compatibilityError = msg.protocol !== PROTOCOL_VERSION
+        ? "Connector companion and extension protocol versions differ."
+        : (msg.brokerVersion !== EXPECTED_BROKER_VERSION
+          ? `Connector companion ${EXPECTED_BROKER_VERSION} is required. Reinstall it and fully restart Hermes.`
+          : null);
+      if (compatibilityError) {
         pairedIntent = false;
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
         if (!sock._probeOnly) {
-          broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
+          broadcast({ cmd: "pairDenied", reason: compatibilityError });
         }
         break;
       }
@@ -490,11 +516,16 @@ async function onHostMessage(msg, sock) {
       break;
     }
     case IN.PAIRED: {
-      if (msg.protocol !== PROTOCOL_VERSION) {
+      const compatibilityError = msg.protocol !== PROTOCOL_VERSION
+        ? "Connector companion and extension protocol versions differ."
+        : (msg.brokerVersion !== EXPECTED_BROKER_VERSION
+          ? `Connector companion ${EXPECTED_BROKER_VERSION} is required. Reinstall it and fully restart Hermes.`
+          : null);
+      if (compatibilityError) {
         pairedIntent = false;
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
-        broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
+        broadcast({ cmd: "pairDenied", reason: compatibilityError });
         break;
       }
       // Verify the agent proved it knows the SAME code — else this could be a rogue local server.
@@ -757,7 +788,7 @@ function scheduleAttachedTabRefresh(tabId) {
 }
 
 // Exact target only. An unbound or stale scope fails instead of falling back to whichever page the
-// user most recently focused — the central wrong-tab guarantee of protocol v4.
+// user most recently focused — the central wrong-tab guarantee of protocol v5.
 async function getRetainableTargetTab(msg) {
   const scope = msg && msg.scope;
   if (!scope || !scope.profileId || !scope.sessionId) throw new Error("action has no Hermes session scope");
