@@ -65,6 +65,8 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
   ]);
   let activeTabId = 8;
   let bindingWrites = 0;
+  let scriptingCalls = 0;
+  const withheldOrigins = new Set();
   const runtimeMessages = [];
   const runtimeEvent = eventTarget();
   const activatedEvent = eventTarget();
@@ -111,15 +113,22 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
       async attach() {}, async detach() {}, async sendCommand() {},
       onEvent: simpleEvent(), onDetach: simpleEvent(),
     },
-    permissions: { async contains() { return false; } },
+    permissions: {
+      async contains(query) {
+        if (!Array.isArray(query && query.origins)) return false;
+        return query.origins.every((origin) => !withheldOrigins.has(origin));
+      },
+    },
     runtime: {
-      getManifest() { return { version: "0.2.3" }; },
+      getManifest() { return { version: "0.2.4" }; },
       onInstalled: simpleEvent(),
       onMessage: runtimeEvent,
       async sendMessage(message) { runtimeMessages.push(message); },
       async getPlatformInfo() { return { os: "win" }; },
     },
-    scripting: { async executeScript() { return [{ result: null }]; } },
+    scripting: {
+      async executeScript() { scriptingCalls += 1; return [{ result: null }]; },
+    },
     sidePanel: { async open() {} },
     storage: {
       local: {
@@ -163,10 +172,11 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
   await import(`../extension/src/background.js?active-tab=${Date.now()}`);
   const socket = await waitFor(() => FakeWebSocket.instances[0], "initial socket");
   await waitFor(() => socket.readyState === FakeWebSocket.OPEN, "socket open");
-  socket.emit({ type: "challenge", nonce: "server-nonce", protocol: 4 });
+  socket.emit({ type: "challenge", nonce: "server-nonce", protocol: 5, brokerVersion: "0.2.4" });
   const hello = await waitFor(() => socket.sent.find((message) => message.type === "hello"), "browser hello");
   const proof = await hmacHex(pairingCode, `broker:browser:${hello.browserId}:${hello.nonce}`);
-  socket.emit({ type: "paired", ok: true, proof, protocol: 4, brokerState: {} });
+  socket.emit({ type: "paired", ok: true, proof, protocol: 5,
+    brokerVersion: "0.2.4", brokerState: {} });
   await waitFor(() => socket.sent.find((message) => message.type === "binding_sync"), "binding sync");
 
   assert.equal(runtimeEvent.listeners.length, 1);
@@ -174,6 +184,41 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
   const runtime = (message) => new Promise((resolve) => {
     assert.equal(runtimeListener(message, {}, resolve), true);
   });
+
+  withheldOrigins.add("https://attached.test/*");
+  socket.emit({
+    type: "action",
+    id: "site-access-revoked",
+    scope: { profileId: "profile", sessionId: "session" },
+    targetTabId: 7,
+    action: { kind: "snapshot" },
+  });
+  const deniedControl = await waitFor(
+    () => socket.sent.find((message) => message.type === "action_result" &&
+      message.id === "site-access-revoked"),
+    "withheld site-access action error",
+  );
+  assert.equal(deniedControl.ok, false);
+  assert.match(deniedControl.error, /Details.*Site access.*On all sites/);
+  assert.equal(scriptingCalls, 0, "withheld host access must fail before page injection");
+  withheldOrigins.delete("https://attached.test/*");
+
+  withheldOrigins.add("https://blocked-destination.test/*");
+  socket.emit({
+    type: "action",
+    id: "site-access-navigation",
+    scope: { profileId: "profile", sessionId: "session" },
+    targetTabId: 7,
+    action: { kind: "navigate", url: "https://blocked-destination.test/private" },
+  });
+  const deniedNavigation = await waitFor(
+    () => socket.sent.find((message) => message.type === "action_result" &&
+      message.id === "site-access-navigation"),
+    "withheld navigation destination error",
+  );
+  assert.equal(deniedNavigation.ok, false);
+  assert.match(deniedNavigation.error, /Details.*Site access.*On all sites/);
+  withheldOrigins.delete("https://blocked-destination.test/*");
 
   let result = await runtime({ cmd: "listTabs", profileId: "profile", sessionId: "session" });
   assert.equal(result.ok, true);
@@ -191,6 +236,19 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
   result = await runtime({ cmd: "listTabs", profileId: "profile", sessionId: "session" });
   assert.equal(result.activeTab.controllable, true,
     "the supported empty new-tab target must remain attachable");
+
+  Object.assign(tabs.get(8), { url: "https://withheld.test/private", pendingUrl: undefined,
+    status: "complete", active: true });
+  withheldOrigins.add("https://withheld.test/*");
+  result = await runtime({ cmd: "listTabs", profileId: "profile", sessionId: "session" });
+  assert.equal(result.activeTab.controllable, false);
+  assert.match(result.activeTab.reason, /Details.*Site access.*On all sites/);
+  const withheldAttach = await runtime({ cmd: "attachActiveTab", profileId: "profile",
+    sessionId: "session", expectedTabId: 8 });
+  assert.equal(withheldAttach.ok, false);
+  assert.match(withheldAttach.error, /Details.*Site access.*On all sites/);
+  assert.equal(storage.bindings[bindingKey].activeTabId, 7);
+  withheldOrigins.delete("https://withheld.test/*");
 
   const restricted = [
     [{ url: "", pendingUrl: "", status: "loading" }, /finish loading/],

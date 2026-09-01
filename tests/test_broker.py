@@ -79,6 +79,117 @@ class CredentialLifecycleTests(unittest.TestCase):
                 )
 
 
+class BrokerProcessCleanupTests(unittest.TestCase):
+    class FakeProcess:
+        def __init__(self, pid: int, name: str, command: list[str]):
+            self.pid = pid
+            self.info = {"pid": pid, "name": name, "cmdline": command}
+            self.terminated = False
+            self.killed = False
+
+        def terminate(self):
+            self.terminated = True
+
+        def kill(self):
+            self.killed = True
+
+    class FakePsutil:
+        class NoSuchProcess(Exception):
+            pass
+
+        class AccessDenied(Exception):
+            pass
+
+        def __init__(self, processes):
+            self.processes = processes
+
+        def process_iter(self, _fields):
+            return list(self.processes)
+
+        @staticmethod
+        def wait_procs(processes, timeout):
+            del timeout
+            return list(processes), []
+
+    def test_cleanup_stops_only_exact_installed_broker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "hermes"
+            script = root / "plugins" / "hermes-connector" / "broker.py"
+            exact = self.FakeProcess(1201, "python.exe", [
+                "python.exe", str(script), "--serve", "--root", str(root),
+                "--host", "127.0.0.1", "--port", "8766",
+            ])
+            other_root = self.FakeProcess(1202, "python.exe", [
+                "python.exe", str(script), "--serve", "--root", str(root / "other"),
+                "--host", "127.0.0.1", "--port", "8766",
+            ])
+            unrelated_script = self.FakeProcess(1203, "python.exe", [
+                "python.exe", str(root / "plugins" / "other" / "broker.py"),
+                "--serve", "--root", str(root), "--host", "127.0.0.1",
+                "--port", "8766",
+            ])
+            fake_psutil = self.FakePsutil([exact, other_root, unrelated_script])
+
+            stopped = broker.stop_broker_processes(
+                root, 8766, psutil_module=fake_psutil
+            )
+
+            self.assertEqual(stopped, [1201])
+            self.assertTrue(exact.terminated)
+            self.assertFalse(other_root.terminated)
+            self.assertFalse(unrelated_script.terminated)
+
+    def test_cleanup_accepts_profile_and_preserved_payload_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "hermes"
+            commands = [
+                [
+                    "python3", str(root / "profiles" / "work" / "plugins" /
+                                   "hermes-connector" / "broker.py"),
+                    "--serve", "--root", str(root), "--host", "localhost",
+                    "--port", "8766",
+                ],
+                [
+                    "python.exe", str(root / "plugins" /
+                                      ".hermes-connector-previous-1-aabbcc" / "broker.py"),
+                    "--serve", "--root", str(root), "--host", "127.0.0.1",
+                    "--port", "8766",
+                ],
+            ]
+            for command in commands:
+                with self.subTest(script=command[1]):
+                    self.assertTrue(broker._is_managed_broker_command(command, root, 8766))
+
+
+class AgentBackendValidationTests(unittest.TestCase):
+    def test_accepts_only_canonical_loopback_headless_urls(self):
+        self.assertEqual(
+            broker.clean_agent_backend("http://127.0.0.1:51329/", "headless"),
+            ("http://127.0.0.1:51329/", "headless"),
+        )
+        self.assertEqual(
+            broker.clean_agent_backend("http://localhost:80/", "headless"),
+            ("http://localhost:80/", "headless"),
+        )
+
+    def test_rejects_non_loopback_or_ambiguous_backend_metadata(self):
+        invalid = (
+            ("https://127.0.0.1:51329/", "headless"),
+            ("http://127.0.0.2:51329/", "headless"),
+            ("http://localhost:0/", "headless"),
+            ("http://localhost:65536/", "headless"),
+            ("http://localhost:51329", "headless"),
+            ("http://localhost:51329/api/sessions", "headless"),
+            ("http://localhost:51329/?token=secret", "headless"),
+            ("http://user@localhost:51329/", "headless"),
+            ("http://[::1]:51329/", "headless"),
+            ("http://localhost:51329/", "dashboard"),
+        )
+        for url, mode in invalid:
+            with self.subTest(url=url, mode=mode), self.assertRaises(ValueError):
+                broker.clean_agent_backend(url, mode)
+
+
 class BrokerStateMigrationTests(unittest.TestCase):
     def write_state(self, path: Path, owner: str, *, protocol=None) -> str:
         key = broker.scope_key("profile-a", "session-a")
@@ -89,34 +200,59 @@ class BrokerStateMigrationTests(unittest.TestCase):
         path.write_text(json.dumps(payload), encoding="utf-8")
         return key
 
-    def test_v4_imports_legacy_once_and_ignores_late_v3_writes(self):
+    def test_v5_imports_v4_once_and_ignores_late_v4_writes(self):
         with tempfile.TemporaryDirectory() as temp:
-            key = self.write_state(broker.legacy_state_path(temp), "browser-v3")
+            key = self.write_state(
+                broker.previous_state_path(temp), "browser-v4", protocol=4
+            )
             first = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
             )
-            self.assertEqual(first.scope_browsers[key], "browser-v3")
+            self.assertEqual(first.scope_browsers[key], "browser-v4")
             persisted = json.loads(broker.state_path(temp).read_text(encoding="utf-8"))
-            self.assertEqual(persisted["protocol"], 4)
-            self.assertEqual(persisted["scopeBrowsers"][key], "browser-v3")
+            self.assertEqual(persisted["protocol"], 5)
+            self.assertEqual(persisted["scopeBrowsers"][key], "browser-v4")
 
-            # The detached legacy process is still alive and writes later.
-            self.write_state(broker.legacy_state_path(temp), "browser-zombie")
+            # The detached v4 process is still alive and writes later.
+            self.write_state(
+                broker.previous_state_path(temp), "browser-zombie", protocol=4
+            )
             restarted = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
             )
-            self.assertEqual(restarted.scope_browsers[key], "browser-v3")
+            self.assertEqual(restarted.scope_browsers[key], "browser-v4")
 
-    def test_present_invalid_v4_state_never_falls_back_to_legacy(self):
+    def test_v5_imports_preversioned_state_when_v4_is_absent(self):
         with tempfile.TemporaryDirectory() as temp:
-            key = self.write_state(broker.legacy_state_path(temp), "legacy-owner")
-            self.write_state(broker.state_path(temp), "wrong-protocol-owner", protocol=3)
+            key = self.write_state(broker.legacy_state_path(temp), "browser-v3")
+            server = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertEqual(server.scope_browsers[key], "browser-v3")
+
+    def test_present_invalid_v5_state_never_falls_back_to_v4(self):
+        with tempfile.TemporaryDirectory() as temp:
+            key = self.write_state(
+                broker.previous_state_path(temp), "v4-owner", protocol=4
+            )
+            self.write_state(broker.state_path(temp), "wrong-protocol-owner", protocol=4)
             server = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
             )
             self.assertNotIn(key, server.scope_browsers)
 
-    def test_concurrent_v4_saves_use_distinct_complete_temp_files(self):
+    def test_present_invalid_v4_state_never_falls_back_to_preversioned(self):
+        with tempfile.TemporaryDirectory() as temp:
+            key = self.write_state(broker.legacy_state_path(temp), "legacy-owner")
+            self.write_state(
+                broker.previous_state_path(temp), "wrong-protocol-owner", protocol=3
+            )
+            server = broker.BrokerServer(
+                root=temp, port=0, secret="0123456789abcdef" * 4
+            )
+            self.assertNotIn(key, server.scope_browsers)
+
+    def test_concurrent_v5_saves_use_distinct_complete_temp_files(self):
         with tempfile.TemporaryDirectory() as temp:
             server = broker.BrokerServer(
                 root=temp, port=0, secret="0123456789abcdef" * 4
@@ -153,9 +289,9 @@ class BrokerStateMigrationTests(unittest.TestCase):
                         future.result(timeout=3)
             self.assertEqual(len(set(sources)), 2)
             persisted = json.loads(broker.state_path(temp).read_text(encoding="utf-8"))
-            self.assertEqual(persisted["protocol"], 4)
+            self.assertEqual(persisted["protocol"], 5)
             self.assertFalse(list(
-                broker.connector_dir(temp).glob(".broker-state-v4-*.tmp")
+                broker.connector_dir(temp).glob(".broker-state-v5-*.tmp")
             ))
 
 
@@ -557,6 +693,61 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(response["ok"])
         self.assertIn("impersonate", response["error"])
 
+    async def test_authenticated_agent_advertises_headless_backend(self):
+        chrome = await self.browser("chrome-main")
+        agent = await self.agent("alpha", "desktop-process")
+        await agent.send(json.dumps({
+            "type": "agent_backend_update",
+            "backendUrl": "http://127.0.0.1:51329/",
+            "backendMode": "headless",
+            # Identity is socket-bound. Extra untrusted identity fields cannot
+            # publish this endpoint under another profile or process.
+            "profileId": "beta",
+            "processId": "spoofed-process",
+        }))
+
+        advertised = None
+        for _ in range(20):
+            state_message = await receive_type(chrome, "broker_state")
+            backends = state_message["data"].get("agentBackends") or []
+            if backends:
+                advertised = backends
+                break
+        self.assertEqual(advertised, [{
+            "profileId": "alpha",
+            "processId": "desktop-process",
+            "url": "http://127.0.0.1:51329/",
+            "mode": "headless",
+        }])
+
+        await agent.close()
+        for _ in range(100):
+            if not self.server._public_state()["agentBackends"]:
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual(self.server._public_state()["agentBackends"], [])
+
+    async def test_invalid_agent_backend_metadata_drops_only_that_agent(self):
+        agent = await self.agent("alpha", "invalid-backend-process")
+        await agent.send(json.dumps({
+            "type": "agent_backend_update",
+            "backendUrl": "http://attacker.example:51329/",
+            "backendMode": "headless",
+        }))
+        for _ in range(20):
+            try:
+                await agent.recv()
+            except websockets.exceptions.ConnectionClosed:
+                break
+        else:
+            self.fail("invalid backend metadata did not close the agent socket")
+        for _ in range(100):
+            if "alpha:invalid-backend-process" not in self.server.agents:
+                break
+            await asyncio.sleep(0.01)
+        self.assertNotIn("alpha:invalid-backend-process", self.server.agents)
+        self.assertEqual(self.server._public_state()["agentBackends"], [])
+
     async def test_http_origin_cannot_authenticate_as_browser(self):
         websocket = await websockets.connect(
             self.url,
@@ -579,14 +770,15 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(websockets.exceptions.ConnectionClosed):
             await websocket.recv()
 
-    async def test_protocol_three_client_is_rejected_by_release_four_broker(self):
+    async def test_protocol_four_client_is_rejected_by_release_five_broker(self):
         websocket = await websockets.connect(
             self.url,
             origin="chrome-extension://legacy-release/",
         )
         self.clients.append(websocket)
         challenge = json.loads(await websocket.recv())
-        self.assertEqual(challenge["protocol"], 4)
+        self.assertEqual(challenge["protocol"], 5)
+        self.assertEqual(challenge["brokerVersion"], "0.2.4")
         browser_id = "legacy-browser"
         await websocket.send(json.dumps({
             "type": "hello",
@@ -597,7 +789,7 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
             "proof": broker.role_proof(
                 self.secret, "browser", browser_id, challenge["nonce"]
             ),
-            "protocol": 3,
+            "protocol": 4,
         }))
         with self.assertRaises(websockets.exceptions.ConnectionClosed):
             await websocket.recv()
@@ -616,12 +808,14 @@ class BridgeClientTests(unittest.IsolatedAsyncioTestCase):
         await self.server.start()
         self.url = f"ws://127.0.0.1:{self.server.port}"
         self.browser_socket = None
+        self.backend_metadata = None
         self.client = bridge_client.BridgeClient(
             profile_id="client-profile",
             root=self.temp.name,
             host="127.0.0.1",
             port=self.server.port,
             auto_start_broker=False,
+            backend_metadata_provider=lambda: self.backend_metadata,
         )
         self.client.start(wait=0)
         for _ in range(100):
@@ -696,6 +890,67 @@ class BridgeClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"], {"snapshot": "ok"})
         self.assertNotIn("error", result)
+
+    async def test_sync_client_announces_backend_after_ephemeral_port_binds(self):
+        self.assertEqual(self.server._public_state()["agentBackends"], [])
+        self.backend_metadata = {
+            "backendUrl": "http://127.0.0.1:53566/",
+            "backendMode": "headless",
+        }
+        for _ in range(100):
+            advertised = self.server._public_state()["agentBackends"]
+            if advertised:
+                break
+            await asyncio.sleep(0.02)
+        self.assertEqual(advertised, [{
+            "profileId": "client-profile",
+            "processId": self.client.process_id,
+            "url": "http://127.0.0.1:53566/",
+            "mode": "headless",
+        }])
+
+
+class BridgeClientBackendDiscoveryTests(unittest.TestCase):
+    def test_reads_bound_port_from_loaded_headless_web_server(self):
+        web_server = types.SimpleNamespace(
+            app=types.SimpleNamespace(
+                state=types.SimpleNamespace(bound_port=51329),
+            ),
+        )
+        with mock.patch.dict(
+            bridge_client.os.environ, {"HERMES_SERVE_HEADLESS": "1"}, clear=False
+        ), mock.patch.dict(
+            bridge_client.sys.modules, {"hermes_cli.web_server": web_server}
+        ):
+            self.assertEqual(
+                bridge_client.BridgeClient._headless_backend_metadata(),
+                {
+                    "backendUrl": "http://127.0.0.1:51329/",
+                    "backendMode": "headless",
+                },
+            )
+
+    def test_does_not_advertise_before_bind_or_outside_headless_serve(self):
+        web_server = types.SimpleNamespace(
+            app=types.SimpleNamespace(
+                state=types.SimpleNamespace(bound_port=None),
+            ),
+        )
+        with mock.patch.dict(
+            bridge_client.os.environ, {"HERMES_SERVE_HEADLESS": "1"}, clear=False
+        ), mock.patch.dict(
+            bridge_client.sys.modules, {"hermes_cli.web_server": web_server}
+        ):
+            self.assertIsNone(
+                bridge_client.BridgeClient._headless_backend_metadata()
+            )
+
+        with mock.patch.dict(
+            bridge_client.os.environ, {"HERMES_SERVE_HEADLESS": "0"}, clear=False
+        ):
+            self.assertIsNone(
+                bridge_client.BridgeClient._headless_backend_metadata()
+            )
 
 
 class BridgeClientResponseShapeTests(unittest.TestCase):

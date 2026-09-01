@@ -1,7 +1,8 @@
 // Service worker: owns a direct WebSocket link to the local agent's loopback bridge, the pairing
 // state, and the execution of agent-requested actions against the controlled tab. No native host.
 
-import { DEFAULT_BRIDGE_URL, PROTOCOL_VERSION, OUT, IN, ACTION, STORE, DEFAULT_SETTINGS } from "./protocol.js";
+import { DEFAULT_BRIDGE_URL, PROTOCOL_VERSION, EXPECTED_BROKER_VERSION,
+  OUT, IN, ACTION, STORE, DEFAULT_SETTINGS } from "./protocol.js";
 import { buildSnapshot, clickRef, typeRef, scrollPage, readText, setOverlay,
   hoverRef, pressKey, selectOption, dragRefs, findText, refRect, focusRef } from "./page-actions.js";
 import { attachTab, bindingList, detachTab, normalizeRegistry, removeTabEverywhere,
@@ -25,7 +26,14 @@ const COMPANION_REINSTALL_NOTICE = Object.freeze({
 const LEGACY_DEFAULT_BRIDGE_URLS = new Set([
   "ws://127.0.0.1:8765",
   "ws://localhost:8765",
+  "ws://127.0.0.1:8766",
+  "ws://localhost:8766",
 ]);
+const CURRENT_DEFAULT_BRIDGE_URLS = new Set([
+  DEFAULT_BRIDGE_URL.toLowerCase(),
+  DEFAULT_BRIDGE_URL.toLowerCase().replace("127.0.0.1", "localhost"),
+]);
+const LEGACY_BRIDGE_MIGRATION_KEY = "bridgeMigration021";
 let sessionGen = 0;         // bumped on disconnect/unpair -> already-queued actions are cancelled
 const MAX_QUEUED = 32;
 const MAX_UNPAIRED_PENDING_FRAMES = 8;
@@ -215,8 +223,16 @@ function isLegacyDefaultBridgeUrl(value) {
   return LEGACY_DEFAULT_BRIDGE_URLS.has(String(value || "").trim().replace(/\/$/, "").toLowerCase());
 }
 
+function isCurrentDefaultBridgeUrl(value) {
+  return CURRENT_DEFAULT_BRIDGE_URLS.has(
+    String(value || "").trim().replace(/\/$/, "").toLowerCase(),
+  );
+}
+
 async function ensureBridgeMigration() {
-  const saved = await chrome.storage.local.get([STORE.SETTINGS, STORE.BRIDGE_MIGRATION]);
+  const saved = await chrome.storage.local.get([
+    STORE.SETTINGS, STORE.BRIDGE_MIGRATION, LEGACY_BRIDGE_MIGRATION_KEY,
+  ]);
   const settings = saved[STORE.SETTINGS] || {};
   const current = String(settings.bridgeUrl || "").trim();
   const completed = saved[STORE.BRIDGE_MIGRATION];
@@ -226,18 +242,23 @@ async function ensureBridgeMigration() {
     return { url: current || DEFAULT_BRIDGE_URL, migrated: false,
       customBridge: !!(typeof completed === "object" && completed.customBridge) };
   }
-  const migrated = isLegacyDefaultBridgeUrl(current);
-  // Record whether the address was user-configured BEFORE changing anything.
-  // A legacy user may already have chosen port 8766 manually, so inspecting
-  // only the final port during onInstalled would miss the required reboot note.
-  const customBridge = !!current && !migrated;
+  const previousMigration = saved[LEGACY_BRIDGE_MIGRATION_KEY];
+  const previouslyCustom = !!previousMigration && typeof previousMigration === "object" &&
+    previousMigration.customBridge === true;
+  const legacyDefault = isLegacyDefaultBridgeUrl(current);
+  // Preserve an address that the previous migration already identified as user-configured,
+  // even if it happens to use the old default port. Otherwise move v3/v4 defaults to the
+  // protocol-v5 port so a surviving detached v4 broker cannot capture this extension.
+  const migrated = legacyDefault && !previouslyCustom;
+  const customBridge = !!current && (previouslyCustom ||
+    (!legacyDefault && !isCurrentDefaultBridgeUrl(current)));
   const updates = { [STORE.BRIDGE_MIGRATION]: { completed: true, customBridge } };
   if (migrated) updates[STORE.SETTINGS] = { ...settings, bridgeUrl: DEFAULT_BRIDGE_URL };
   try {
     await chrome.storage.local.set(updates);
   } catch (_) {
     // Even if local persistence is temporarily unavailable, never make the
-    // first protocol-4 connection to the detached 0.2.0 default broker.
+    // first protocol-v5 connection to a detached broker from an older release.
   }
   return { url: migrated ? DEFAULT_BRIDGE_URL : (current || DEFAULT_BRIDGE_URL),
     migrated, customBridge };
@@ -454,12 +475,17 @@ async function onHostMessage(msg, sock) {
         if (alive()) { try { sock.close(); } catch (_) {} }
         break;
       }
-      if (msg.protocol !== PROTOCOL_VERSION) {
+      const compatibilityError = msg.protocol !== PROTOCOL_VERSION
+        ? "Connector companion and extension protocol versions differ."
+        : (msg.brokerVersion !== EXPECTED_BROKER_VERSION
+          ? `Connector companion ${EXPECTED_BROKER_VERSION} is required. Reinstall it and fully restart Hermes.`
+          : null);
+      if (compatibilityError) {
         pairedIntent = false;
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
         if (!sock._probeOnly) {
-          broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
+          broadcast({ cmd: "pairDenied", reason: compatibilityError });
         }
         break;
       }
@@ -490,11 +516,16 @@ async function onHostMessage(msg, sock) {
       break;
     }
     case IN.PAIRED: {
-      if (msg.protocol !== PROTOCOL_VERSION) {
+      const compatibilityError = msg.protocol !== PROTOCOL_VERSION
+        ? "Connector companion and extension protocol versions differ."
+        : (msg.brokerVersion !== EXPECTED_BROKER_VERSION
+          ? `Connector companion ${EXPECTED_BROKER_VERSION} is required. Reinstall it and fully restart Hermes.`
+          : null);
+      if (compatibilityError) {
         pairedIntent = false;
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
-        broadcast({ cmd: "pairDenied", reason: "Connector companion and extension protocol versions differ." });
+        broadcast({ cmd: "pairDenied", reason: compatibilityError });
         break;
       }
       // Verify the agent proved it knows the SAME code — else this could be a rogue local server.
@@ -650,6 +681,35 @@ function tabControlStatus(tab) {
   return { controllable: true, reason: null };
 }
 
+const SITE_ACCESS_GUIDANCE =
+  "Chrome site access is off for this page. Open chrome://extensions, choose Hermes Connector > Details, then set Site access to On all sites.";
+
+function hostPermissionPattern(rawUrl) {
+  try {
+    const url = new URL(String(rawUrl || ""));
+    if (!["http:", "https:"].includes(url.protocol.toLowerCase())) return null;
+    return `${url.protocol}//${url.hostname}/*`;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function siteAccessReason(rawUrl) {
+  const origin = hostPermissionPattern(rawUrl);
+  if (!origin) return null;
+  try {
+    if (await chrome.permissions.contains({ origins: [origin] })) return null;
+  } catch (_) {}
+  return SITE_ACCESS_GUIDANCE;
+}
+
+async function tabControlStatusWithSiteAccess(tab) {
+  const control = tabControlStatus(tab);
+  if (!control.controllable) return control;
+  const reason = await siteAccessReason(effectiveTabUrl(tab));
+  return reason ? { controllable: false, reason } : control;
+}
+
 function isControllableTab(tab) {
   return tabControlStatus(tab).controllable;
 }
@@ -679,6 +739,13 @@ function describeTab(tab, owner = null) {
     active: !!tab.active, owner, ...control };
 }
 
+async function describeTabWithSiteAccess(tab, owner = null) {
+  const described = describeTab(tab, owner);
+  if (!described.controllable || !tab) return described;
+  const reason = await siteAccessReason(effectiveTabUrl(tab));
+  return reason ? { ...described, controllable: false, reason } : described;
+}
+
 function scheduleActiveTabBroadcast(tabId, knownTab = null) {
   const eventGeneration = ++activeTabEventGeneration;
   Promise.resolve().then(async () => {
@@ -692,7 +759,9 @@ function scheduleActiveTabBroadcast(tabId, knownTab = null) {
     if (eventGeneration !== activeTabEventGeneration) return;
     // An onUpdated lookup can finish after focus moved elsewhere. Never publish it as the active tab.
     if (tab && !tab.active) return;
-    broadcast({ cmd: "activeTabChanged", activeTab: describeTab(tab || null) });
+    const described = await describeTabWithSiteAccess(tab || null);
+    if (eventGeneration !== activeTabEventGeneration) return;
+    broadcast({ cmd: "activeTabChanged", activeTab: described });
   }).catch(() => {});
 }
 
@@ -719,7 +788,7 @@ function scheduleAttachedTabRefresh(tabId) {
 }
 
 // Exact target only. An unbound or stale scope fails instead of falling back to whichever page the
-// user most recently focused — the central wrong-tab guarantee of protocol v4.
+// user most recently focused — the central wrong-tab guarantee of protocol v5.
 async function getRetainableTargetTab(msg) {
   const scope = msg && msg.scope;
   if (!scope || !scope.profileId || !scope.sessionId) throw new Error("action has no Hermes session scope");
@@ -813,6 +882,8 @@ async function handleAction(msg, sock, epoch) {
   let tab;
   try {
     tab = await (allowPendingTarget ? getRetainableTargetTab(msg) : getTargetTab(msg));
+    const accessError = await siteAccessReason(effectiveTabUrl(tab));
+    if (accessError) throw new Error(accessError);
   } catch (error) {
     sessionSocketSend(sock, epoch.session,
       { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(error.message || error) });
@@ -837,6 +908,8 @@ async function handleAction(msg, sock, epoch) {
       if (!/^https?:\/\//i.test(u)) { data = { ok: false, error: "only http/https URLs are allowed" }; break; }
       const policyError = urlControlReason(u);
       if (policyError) { data = { ok: false, error: policyError }; break; }
+      const accessError = await siteAccessReason(u);
+      if (accessError) { data = { ok: false, error: accessError }; break; }
       // Trusted-input mode: attach BEFORE navigating so a dialog fired during load (beforeunload,
       // onload alert) is auto-handled instead of freezing the page with nobody attached yet.
       if (useCdp) {
@@ -1013,6 +1086,8 @@ async function handleAction(msg, sock, epoch) {
       }
       const policyError = urlControlReason(nu);
       if (policyError) { data = { ok: false, error: policyError }; break; }
+      const accessError = await siteAccessReason(nu);
+      if (accessError) { data = { ok: false, error: accessError }; break; }
       requireActionAuthorized(sock, epoch);
       const t = await chrome.tabs.create({ url: nu, windowId: tab.windowId, active: true });
       let attached = false;
@@ -1036,8 +1111,8 @@ async function handleAction(msg, sock, epoch) {
     case ACTION.LIST_TABS: {
       requireActionAuthorized(sock, epoch);
       const scoped = await getScopeTabs(msg.scope);
-      data = { tabs: scoped.tabs.map((t, index) => {
-        const control = tabControlStatus(t);
+      data = { tabs: await Promise.all(scoped.tabs.map(async (t, index) => {
+        const control = await tabControlStatusWithSiteAccess(t);
         return {
           index,
           tabId: t.id,
@@ -1047,7 +1122,7 @@ async function handleAction(msg, sock, epoch) {
           controllable: control.controllable,
           ...(control.reason ? { reason: control.reason } : {}),
         };
-      }) };
+      })) };
       break;
     }
     case ACTION.SWITCH_TAB: {
@@ -1055,6 +1130,8 @@ async function handleAction(msg, sock, epoch) {
       const t = scoped.tabs[a.index];
       if (!t) { data = { ok: false, error: "no tab at index " + a.index }; }
       else {
+        const accessError = await siteAccessReason(effectiveTabUrl(t));
+        if (accessError) { data = { ok: false, error: accessError }; break; }
         requireActionAuthorized(sock, epoch);
         await actionBindingMutation(
           sock, epoch,
@@ -1073,6 +1150,8 @@ async function handleAction(msg, sock, epoch) {
       const localIndex = a.index != null ? a.index : scoped.tabs.findIndex((item) => item.id === tab.id);
       const t = scoped.tabs[localIndex];
       if (t) {
+        const accessError = await siteAccessReason(effectiveTabUrl(t));
+        if (accessError) { data = { ok: false, error: accessError }; break; }
         requireActionAuthorized(sock, epoch);
         await actionBindingMutation(
           sock, epoch,
@@ -1125,6 +1204,34 @@ async function handleAction(msg, sock, epoch) {
 const panels = new Set();
 function broadcast(msg) { chrome.runtime.sendMessage({ from: "bg", ...msg }).catch(() => {}); }
 
+async function setUpdateBadge(active, title = "") {
+  const text = active ? "UP" : "";
+  await Promise.all([
+    chrome.action.setBadgeText ? chrome.action.setBadgeText({ text }) : undefined,
+    active && chrome.action.setBadgeBackgroundColor
+      ? chrome.action.setBadgeBackgroundColor({ color: "#c27c0e" })
+      : undefined,
+    chrome.action.setTitle
+      ? chrome.action.setTitle({ title: title || (active
+        ? "Hermes Connector update requires attention"
+        : "Open Hermes") })
+      : undefined,
+  ]);
+}
+
+chrome.storage.local.get(STORE.UPGRADE_NOTICE).then((stored) => {
+  const notice = stored[STORE.UPGRADE_NOTICE] || null;
+  return setUpdateBadge(!!notice, notice
+    ? `Hermes Connector ${notice.extensionVersion}: reinstall the matching companion`
+    : "");
+}).catch(() => {});
+
+if (chrome.runtime.onUpdateAvailable) {
+  chrome.runtime.onUpdateAvailable.addListener((details) => {
+    setUpdateBadge(true, `Hermes Connector ${details.version} is ready to install`).catch(() => {});
+  });
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (chrome.runtime.getManifest().version !== COMPANION_REINSTALL_NOTICE.extensionVersion) return;
   (async () => {
@@ -1140,6 +1247,8 @@ chrome.runtime.onInstalled.addListener((details) => {
     const notice = { ...COMPANION_REINSTALL_NOTICE, previousVersion: details.previousVersion,
       customBridge: migration.customBridge };
     await chrome.storage.local.set({ [STORE.UPGRADE_NOTICE]: notice });
+    await setUpdateBadge(true,
+      `Hermes Connector ${notice.extensionVersion}: reinstall the matching companion`);
     broadcast({ cmd: "upgradeNoticeChanged", notice });
   })().catch((error) => console.error("upgrade migration:", error));
 });
@@ -1201,7 +1310,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const current = saved[STORE.UPGRADE_NOTICE] || null;
         const matches = current && current.id === String(msg.id || "");
         if (matches) {
+          const companionCapabilityConfirmed = paired && brokerState &&
+            Object.prototype.hasOwnProperty.call(brokerState, "agentBackends");
+          if (!companionCapabilityConfirmed) {
+            sendResponse({
+              ok: false,
+              error: `Companion ${chrome.runtime.getManifest().version} is not confirmed yet — reinstall it and restart Hermes`,
+              upgradeNotice: current,
+            });
+            break;
+          }
           await chrome.storage.local.remove(STORE.UPGRADE_NOTICE);
+          await setUpdateBadge(false);
           broadcast({ cmd: "upgradeNoticeChanged", notice: null });
         }
         sendResponse({ ok: true, upgradeNotice: matches ? null : current });
@@ -1241,12 +1361,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // The explicit picker may explain why any local tab is unavailable. Normal rendering must
         // also retain an already-authorized tab while a safe navigation is pending so the user can
         // still see and revoke that authorization; actions remain blocked by `controllable:false`.
-        const tabs = rawTabs.filter((tab) => msg.includeAvailable || isRetainableTab(tab))
-          .sort((a, b) => (a.windowId - b.windowId) || (a.index - b.index))
-          .map((tab) => describeTab(tab, owners.get(tab.id) || null));
+        const orderedTabs = rawTabs.filter((tab) => msg.includeAvailable || isRetainableTab(tab))
+          .sort((a, b) => (a.windowId - b.windowId) || (a.index - b.index));
+        const tabs = await Promise.all(orderedTabs.map(
+          (tab) => describeTabWithSiteAccess(tab, owners.get(tab.id) || null)
+        ));
+        const activeTab = await describeTabWithSiteAccess(activeChromeTab || null,
+          activeChromeTab ? (owners.get(activeChromeTab.id) || null) : null);
         sendResponse({ ok: true, tabs, bindings: registry,
-          activeTab: describeTab(activeChromeTab || null,
-            activeChromeTab ? (owners.get(activeChromeTab.id) || null) : null) });
+          activeTab });
         break;
       }
       case "attachActiveTab": {
@@ -1262,7 +1385,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sendResponse({ ok: false, error: "the active Chrome tab changed; review it and press Attach current again" });
           break;
         }
-        const control = tabControlStatus(tab);
+        const control = await tabControlStatusWithSiteAccess(tab);
         if (!control.controllable) { sendResponse({ ok: false, error: control.reason }); break; }
         const bindings = await attachScopeTab(scope, tab.id);
         sendResponse({ ok: true, tabId: tab.id, bindings });
@@ -1273,7 +1396,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const scope = { profileId: String(msg.profileId || ""), sessionId: String(msg.sessionId || "") };
         scopeKey(scope.profileId, scope.sessionId);
         const tab = await chrome.tabs.get(msg.tabId);
-        const control = tabControlStatus(tab);
+        const control = await tabControlStatusWithSiteAccess(tab);
         if (!control.controllable) { sendResponse({ ok: false, error: control.reason }); break; }
         const bindings = await attachScopeTab(scope, tab.id);
         sendResponse({ ok: true, tabId: tab.id, bindings });

@@ -278,12 +278,14 @@
         <div class="compatibility-scroll"><table class="compatibility">
           <thead><tr><th>Extension installed in Chrome</th><th>Compatible local companion</th><th>Use this pair when</th></tr></thead>
           <tbody>
+            <tr><td><strong>0.2.4</strong> GitHub prerelease candidate for Store review</td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip">Download companion 0.2.4</a></td><td>Only when Chrome explicitly shows 0.2.4. This candidate adds automatic Hermes Desktop discovery; the public Store still serves 0.2.3.</td></tr>
             <tr><td><strong>0.2.3</strong> from the <a href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">public Chrome Web Store listing</a></td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip">Download companion 0.2.3</a></td><td>Everyone whose extension page currently shows 0.2.3.</td></tr>
             <tr><td><strong>0.2.2</strong> legacy released build</td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip">Download companion 0.2.2</a></td><td>Only while Chrome explicitly still shows extension version 0.2.2.</td></tr>
             <tr><td><strong>0.2.1</strong> legacy released or sideloaded build</td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Download companion 0.2.1</a></td><td>Only while Chrome explicitly shows extension version 0.2.1.</td></tr>
             <tr><td><strong>0.2.0</strong> legacy build</td><td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.0/hermes-connector-0.2.0-companion.zip">Download companion 0.2.0</a></td><td>Only while Chrome explicitly shows 0.2.0. Follow the <a href="support/#leveldb-recovery">disk-recovery procedure</a>.</td></tr>
           </tbody>
         </table></div>
+        <p><strong>0.2.4 Desktop candidate:</strong> after installing the matching pair and fully restarting Hermes Desktop, the panel discovers Desktop's dynamic local backend automatically. Select the session and attach tabs in Chrome, then continue the conversation in Hermes Desktop; no separately opened web dashboard is required.</p>
         <p class="warning"><strong>Do not mix versions.</strong> Update the extension first, then install the companion with exactly the same version. See the <a href="support/#compatible-versions">versioned setup guide</a>.</p>
       </div>
 
@@ -300,7 +302,7 @@
         <div class="section-head">
           <p class="kicker">Start in three steps</p>
           <h2>Connect Chrome to Hermes without creating another browser.</h2>
-          <p>The side panel embeds your local Hermes dashboard. You keep your real Chrome profile, choose the Hermes session, and decide which tabs it may use.</p>
+          <p>The side panel keeps session selection and tab attachment beside your real Chrome profile. The current Store pair embeds the local web dashboard; the 0.2.4 candidate also connects directly to Hermes Desktop, where the conversation remains visible.</p>
         </div>
         <div class="steps">
           <article class="card step" style="--glow:rgba(42,211,238,.18)">
@@ -311,7 +313,7 @@
           <article class="card step" style="--glow:rgba(100,107,255,.20)">
             <div class="step-number">2</div>
             <h3>Install the local companion</h3>
-            <p>Check the extension version, download the exact matching companion from the table above, run its installer once, and restart Hermes.</p>
+            <p>Check the extension version, download the exact matching companion from the table above, run its installer once, and fully restart Hermes Desktop or the running Hermes services.</p>
           </article>
           <article class="card step" style="--glow:rgba(234,70,199,.18)">
             <div class="step-number">3</div>
@@ -348,7 +350,7 @@
           <article class="card feature">
             <div class="icon" aria-hidden="true">◫</div>
             <h3>One side panel</h3>
-            <p>The local Hermes dashboard stays inside the Chrome side panel. There is no duplicate chat interface to keep in sync.</p>
+            <p>In web-dashboard mode, the dashboard stays inside the Chrome side panel. In 0.2.4 Desktop mode, the panel shows session and tab controls while the existing Hermes Desktop window keeps the conversation—there is no duplicate chat to synchronize.</p>
           </article>
         </div>
       </div>
@@ -383,7 +385,7 @@
         </div>
         <div class="card requirements">
           <div class="requirements-row"><strong>Browser</strong><span>Google Chrome 120 or later.</span></div>
-          <div class="requirements-row"><strong>Hermes</strong><span>A working local Hermes installation on the same computer.</span></div>
+          <div class="requirements-row"><strong>Hermes</strong><span>A working local Hermes installation on the same computer. Version 0.2.3 uses the web dashboard; candidate 0.2.4 supports Hermes Desktop directly or the web dashboard.</span></div>
           <div class="requirements-row"><strong>Companion</strong><span>The Hermes Connector companion with exactly the same version as the extension, installed once for existing profiles and again after creating a new named Hermes profile.</span></div>
           <div class="requirements-row"><strong>Operating system</strong><span>Windows, macOS, or Linux. Windows uses <code>.\install.ps1</code>; companion 0.2.2 and later also include a double-click launcher. macOS and Linux use <code>./install.sh</code>.</span></div>
         </div>
@@ -416,7 +418,7 @@
           </details>
           <details>
             <summary>Does Chrome update Hermes Connector automatically?</summary>
-            <p>Chrome updates the Web Store extension automatically. It cannot update the separately installed local companion. After any extension version change, verify the version shown by Chrome, install the companion with exactly the same version, and restart Hermes.</p>
+            <p>Chrome updates the Web Store extension automatically. It cannot update the separately installed local companion. After any extension version change, verify the version shown by Chrome, install the companion with exactly the same version, and fully restart Hermes Desktop or the running Hermes services.</p>
           </details>
           <details>
             <summary>Is this an official Nous Research extension?</summary>

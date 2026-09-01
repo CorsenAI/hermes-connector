@@ -8,6 +8,9 @@
 - `screenshot-product-1280x800.png` — 1280×800 verified live end-to-end product
   capture; SHA-256
   `8F5DEAA207A2F513D5D9B6C5EF9E88CEBC44C9344209670095A71953AC7D3585`.
+- `screenshot-desktop-1280x800.png` — 1280×800 isolated Desktop-mode product
+  UI capture; SHA-256
+  `C2E875FC3EC6B02A30B2AEB4065BC5AA01D67DCCE469AD7D725C879C810570E9`.
 
 The fast release gate reads each PNG's IHDR and refuses dimensions that do not
 match the Chrome Web Store requirements.
@@ -63,6 +66,27 @@ asset path. The deterministic fixture-only renderer remains available as
 `python tests/capture_store_screenshot.py`; its default output is
 `tests/artifacts/store-fixture-preview-1280x800.png`, so it cannot overwrite the
 verified product screenshot.
+
+## Hermes Desktop product UI capture
+
+The Desktop screenshot is an OS-level capture of a real headed Chrome for
+Testing window running the actual 0.2.4 extension surface and companion broker.
+It attaches the public non-sensitive `https://example.com/` page to the isolated
+`Project Atlas` fixture session, receives a dynamically announced Desktop-style
+loopback backend, requires the panel to report `Ready · Hermes + Chrome`, and
+captures only after the Web-dashboard iframe is hidden and the real “Hermes
+Desktop connected” surface is visible. It is not composited or generated, and
+it contains no account, token, local path, or real conversation. The isolated
+session metadata is deterministic test data; unlike the primary screenshot,
+this secondary UI capture is not evidence of a model turn.
+
+Reproduce it from source:
+
+```powershell
+& "$env:LOCALAPPDATA\hermes\hermes-agent\venv\Scripts\python.exe" `
+  tests/capture_store_screenshot.py --desktop `
+  --output store/screenshot-desktop-1280x800.png --force
+```
 
 ## Marquee promotional banner
 

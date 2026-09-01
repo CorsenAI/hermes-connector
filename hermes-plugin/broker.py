@@ -33,14 +33,19 @@ except ImportError:  # pragma: no cover - reported by the companion client
     websockets = None
 
 
-PROTOCOL_VERSION = 4
+BROKER_VERSION = "0.2.4"
+PROTOCOL_VERSION = 5
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8766
+DEFAULT_PORT = 8767
+LEGACY_PORTS = (8766,)
 MAX_FRAME_BYTES = 8 * 1024 * 1024
 MAX_TEXT_CHARS = 2_000_000
 MAX_BINDINGS_PER_BROWSER = 256
 MAX_TABS_PER_BINDING = 64
 CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
+AGENT_BACKEND_URL_RE = re.compile(
+    r"^http://(?P<host>127\.0\.0\.1|localhost):(?P<port>[0-9]{1,5})/$"
+)
 
 
 def require_loopback_host(host: str) -> str:
@@ -100,8 +105,140 @@ def legacy_state_path(root: Optional[str | Path] = None) -> Path:
     return connector_dir(root) / "broker-state.json"
 
 
+def previous_state_path(root: Optional[str | Path] = None) -> Path:
+    return connector_dir(root) / "broker-state-v4.json"
+
+
 def log_path(root: Optional[str | Path] = None) -> Path:
     return connector_dir(root) / "broker.log"
+
+
+def _same_path(left: str | Path, right: str | Path) -> bool:
+    try:
+        return os.path.normcase(str(Path(left).expanduser().resolve())) == os.path.normcase(
+            str(Path(right).expanduser().resolve())
+        )
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
+def _argument(command: list[str], name: str) -> Optional[str]:
+    for index, value in enumerate(command):
+        if value == name and index + 1 < len(command):
+            return command[index + 1]
+        prefix = name + "="
+        if value.startswith(prefix):
+            return value[len(prefix):]
+    return None
+
+
+def _is_managed_broker_command(command: list[str], root: Path, port: int) -> bool:
+    """Match only a Connector broker belonging to this exact Hermes root."""
+
+    if "--serve" not in command:
+        return False
+    root_value = _argument(command, "--root")
+    port_value = _argument(command, "--port")
+    host_value = _argument(command, "--host") or DEFAULT_HOST
+    if not root_value or not _same_path(root_value, root):
+        return False
+    try:
+        if int(port_value or "") != int(port):
+            return False
+    except ValueError:
+        return False
+    if host_value not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+
+    for value in command:
+        if Path(value).name.casefold() != "broker.py":
+            continue
+        try:
+            relative = Path(value).expanduser().resolve().relative_to(root.resolve())
+        except (OSError, RuntimeError, ValueError):
+            continue
+        parts = relative.parts
+        if len(parts) == 3 and parts[0].casefold() == "plugins":
+            plugin_directory = parts[1].casefold()
+        elif (len(parts) == 5 and parts[0].casefold() == "profiles" and
+              parts[2].casefold() == "plugins"):
+            plugin_directory = parts[3].casefold()
+        else:
+            continue
+        if plugin_directory == "hermes-connector" or plugin_directory.startswith(
+            ".hermes-connector-previous-"
+        ):
+            return True
+    return False
+
+
+def matching_broker_processes(root: str | Path, port: int, *, psutil_module=None) -> list[Any]:
+    """Return identity-aware processes for an exact installed broker command."""
+
+    if psutil_module is None:
+        try:
+            import psutil as psutil_module  # type: ignore[no-redef]
+        except ImportError:
+            return []
+    normalized_root = hermes_root(str(root)).resolve()
+    matches = []
+    try:
+        processes = psutil_module.process_iter(["pid", "name", "cmdline"])
+    except Exception:
+        return []
+    for process in processes:
+        try:
+            info = process.info
+            if int(info.get("pid") or 0) == os.getpid():
+                continue
+            name = str(info.get("name") or "").casefold()
+            if not name.startswith(("python", "pypy")):
+                continue
+            command = [str(value) for value in (info.get("cmdline") or [])]
+            if _is_managed_broker_command(command, normalized_root, int(port)):
+                matches.append(process)
+        except Exception:
+            continue
+    return matches
+
+
+def stop_broker_processes(root: str | Path, port: int, *, timeout: float = 5.0,
+                          psutil_module=None) -> list[int]:
+    """Stop only verified Connector brokers for *root* and *port*.
+
+    Both the Windows venv launcher and its base-interpreter child can expose the
+    same command line, so terminate every independently verified match. psutil's
+    Process objects retain creation times and therefore remain safe across PID
+    reuse while the stop is in progress.
+    """
+
+    if psutil_module is None:
+        try:
+            import psutil as psutil_module  # type: ignore[no-redef]
+        except ImportError:
+            return []
+    targets = matching_broker_processes(root, port, psutil_module=psutil_module)
+    if not targets:
+        return []
+    pids = sorted({int(process.pid) for process in targets})
+    for process in targets:
+        try:
+            process.terminate()
+        except (psutil_module.NoSuchProcess, psutil_module.AccessDenied):
+            pass
+    _, alive = psutil_module.wait_procs(targets, timeout=max(0.1, float(timeout)))
+    for process in alive:
+        try:
+            process.kill()
+        except (psutil_module.NoSuchProcess, psutil_module.AccessDenied):
+            pass
+    _, still_alive = psutil_module.wait_procs(alive, timeout=max(0.1, float(timeout)))
+    if still_alive:
+        raise RuntimeError(
+            "could not stop the previous Hermes Connector broker: "
+            + ", ".join(str(process.pid) for process in still_alive)
+        )
+    return pids
 
 
 def _restrict_file(path: Path) -> None:
@@ -174,6 +311,28 @@ def clean_id(value: Any, label: str) -> str:
     return text
 
 
+def clean_agent_backend(url: Any, mode: Any) -> tuple[str, str]:
+    """Validate the read-only local backend endpoint an agent advertises.
+
+    The endpoint is metadata for an already authenticated companion process;
+    it never widens the broker listener. Keep the accepted URL grammar exact
+    so a compromised or stale plugin cannot make Chrome fetch credentials,
+    paths, query strings, or a non-loopback host.
+    """
+
+    clean_mode = str(mode or "")
+    clean_url = str(url or "")
+    if clean_mode != "headless":
+        raise ValueError("invalid agent backend mode")
+    match = AGENT_BACKEND_URL_RE.fullmatch(clean_url)
+    if not match:
+        raise ValueError("invalid agent backend URL")
+    port = int(match.group("port"))
+    if not 1 <= port <= 65535:
+        raise ValueError("invalid agent backend port")
+    return f"http://{match.group('host')}:{port}/", clean_mode
+
+
 @dataclass
 class Binding:
     profile_id: str
@@ -210,6 +369,8 @@ class AgentPeer:
     websocket: Any
     profile_id: str
     process_id: str
+    backend_url: Optional[str] = None
+    backend_mode: Optional[str] = None
     connected_at: float = field(default_factory=time.time)
 
     @property
@@ -248,10 +409,10 @@ class BrokerServer:
     # -- persistence -----------------------------------------------------
 
     @staticmethod
-    def _validated_preferences(payload: Any, *, require_protocol: bool) -> Dict[str, str]:
+    def _validated_preferences(payload: Any, *, expected_protocol: Optional[int]) -> Dict[str, str]:
         if not isinstance(payload, dict):
             return {}
-        if require_protocol and payload.get("protocol") != PROTOCOL_VERSION:
+        if expected_protocol is not None and payload.get("protocol") != expected_protocol:
             return {}
         raw = payload.get("scopeBrowsers", {})
         if not isinstance(raw, dict) or len(raw) > MAX_BINDINGS_PER_BROWSER * 16:
@@ -311,21 +472,36 @@ class BrokerServer:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
-            # Import the legacy preference map exactly once. Publishing a v4
-            # snapshot before serving prevents a still-running v3 broker from
-            # changing which browser owns a scope after this point.
+            # Import v4 exactly once, falling back to the pre-versioned state
+            # only when no v4 file exists. A present but invalid v4 file is a
+            # fail-closed boundary and must never expose older mutable state.
             try:
-                legacy_payload = json.loads(legacy_state_path(self.root).read_text(encoding="utf-8"))
-                preferences = self._validated_preferences(legacy_payload, require_protocol=False)
-            except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError):
+                previous_payload = json.loads(
+                    previous_state_path(self.root).read_text(encoding="utf-8")
+                )
+            except FileNotFoundError:
+                try:
+                    legacy_payload = json.loads(
+                        legacy_state_path(self.root).read_text(encoding="utf-8")
+                    )
+                    preferences = self._validated_preferences(
+                        legacy_payload, expected_protocol=None
+                    )
+                except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError):
+                    preferences = {}
+            except (OSError, ValueError, json.JSONDecodeError):
                 preferences = {}
+            else:
+                preferences = self._validated_preferences(
+                    previous_payload, expected_protocol=4
+                )
             self._write_preferences(preferences)
             return preferences
         except (OSError, ValueError, json.JSONDecodeError):
-            # A present but invalid v4 file must never fall back to mutable
-            # legacy state. Start empty and replace it on the next mutation.
+            # A present but invalid v5 file must never fall back to mutable
+            # previous state. Start empty and replace it on the next mutation.
             return {}
-        return self._validated_preferences(payload, require_protocol=True)
+        return self._validated_preferences(payload, expected_protocol=PROTOCOL_VERSION)
 
     def _save_preferences(self) -> None:
         self._write_preferences(self.scope_browsers)
@@ -385,6 +561,7 @@ class BrokerServer:
                 "type": "challenge",
                 "nonce": nonce,
                 "protocol": PROTOCOL_VERSION,
+                "brokerVersion": BROKER_VERSION,
             }))
             raw = await asyncio.wait_for(websocket.recv(), timeout=10)
             hello = self._parse(raw)
@@ -457,6 +634,7 @@ class BrokerServer:
             "browserName": name,
             "proof": broker_proof(self.secret, "browser", browser_id, client_nonce),
             "protocol": PROTOCOL_VERSION,
+            "brokerVersion": BROKER_VERSION,
             "brokerState": self._public_state(),
         }))
         old = self.browsers.get(browser_id)
@@ -510,6 +688,7 @@ class BrokerServer:
             "profileId": profile_id,
             "proof": broker_proof(self.secret, "agent", client_id, client_nonce),
             "protocol": PROTOCOL_VERSION,
+            "brokerVersion": BROKER_VERSION,
             "brokerState": self._public_state(),
         }))
         old = self.agents.get(peer.key)
@@ -735,6 +914,14 @@ class BrokerServer:
                 "ok": True,
                 "data": self._public_state(),
             }))
+        elif kind == "agent_backend_update":
+            backend_url, backend_mode = clean_agent_backend(
+                message.get("backendUrl"), message.get("backendMode")
+            )
+            if peer.backend_url != backend_url or peer.backend_mode != backend_mode:
+                peer.backend_url = backend_url
+                peer.backend_mode = backend_mode
+                await self._broadcast_state()
         elif kind in {"event", "pong"}:
             return
 
@@ -815,10 +1002,25 @@ class BrokerServer:
                 "connected": True,
                 "bindings": [binding.wire() for binding in peer.bindings.values()],
             })
+        agent_backends = [
+            {
+                "profileId": peer.profile_id,
+                "processId": peer.process_id,
+                "url": peer.backend_url,
+                "mode": peer.backend_mode,
+            }
+            for peer in sorted(
+                self.agents.values(),
+                key=lambda item: (item.profile_id, item.process_id),
+            )
+            if peer.backend_url and peer.backend_mode
+        ]
         return {
             "protocol": PROTOCOL_VERSION,
+            "brokerVersion": BROKER_VERSION,
             "browsers": browsers,
             "agentProfiles": sorted({peer.profile_id for peer in self.agents.values()}),
+            "agentBackends": agent_backends,
             "pendingActions": len(self.pending),
         }
 
@@ -872,12 +1074,24 @@ def main(argv: Optional[list[str]] = None) -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--serve", action="store_true", help="run the broker")
     mode.add_argument("--show-code", action="store_true", help="print the local pairing code")
+    mode.add_argument(
+        "--stop-existing", action="store_true",
+        help="stop only a verified installed Connector broker on the selected port",
+    )
     parser.add_argument("--root", default=None, help="Hermes root directory")
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     args = parser.parse_args(argv)
     if args.show_code:
         print(load_or_create_secret(args.root), flush=True)
+        return 0
+    if args.stop_existing:
+        try:
+            stopped = stop_broker_processes(hermes_root(args.root), args.port)
+        except RuntimeError as exc:
+            print(f"Hermes Connector broker cleanup failed: {exc}", file=sys.stderr, flush=True)
+            return 2
+        print(f"Stopped {len(stopped)} previous Hermes Connector broker process(es).", flush=True)
         return 0
     try:
         asyncio.run(_run_from_args(args))

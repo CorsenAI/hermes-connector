@@ -6,8 +6,9 @@ Hermes integrations are out of scope.
 ## Product promise
 
 Hermes Connector attaches real Hermes sessions to tabs in the user's real,
-signed-in Google Chrome profile. The side panel shows the real Hermes dashboard;
-the extension does not implement a second, fake chat.
+signed-in Google Chrome profile. The side panel either shows the real Hermes
+Web dashboard or works beside Hermes Desktop; the extension does not implement
+a second, fake chat.
 
 ## Required user flow
 
@@ -20,7 +21,8 @@ the extension does not implement a second, fake chat.
 3. Pair locally with a persistent high-entropy code. No cloud relay is used.
 4. Open the side panel and choose a real Hermes profile and session.
 5. Attach one or more Chrome tabs to that session and choose its active tab.
-6. Chat in the embedded Hermes dashboard. Browser tools invoked by that exact
+6. Chat in the embedded Web dashboard, or continue in Hermes Desktop while the
+   panel shows session and tab controls. Browser tools invoked by that exact
    Hermes session act only in its attached tabs.
 7. Keep other Hermes sessions/projects isolated, each with its own tabs. A
    single session may open and control additional tabs inside its own scope.

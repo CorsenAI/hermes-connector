@@ -1,5 +1,112 @@
 # Test evidence
 
+## 0.2.4 Hermes Desktop compatibility candidate — 2026-09-01
+
+### Why 0.2.4 is required
+
+The public 0.2.3 pair expects a separately running Hermes web dashboard at its
+configured address. Hermes Desktop instead starts a headless local API on a
+dynamic loopback port and does not expose the dashboard route embedded by the
+side panel. As a result, the 0.2.3 companion can be paired and browser tools can
+be installed while the panel still reports that `127.0.0.1` refused the
+dashboard connection.
+
+The 0.2.4 candidate makes the companion announce that same-process headless
+backend through the authenticated local broker after Hermes Desktop binds its
+port. The broker accepts only an explicit `http://127.0.0.1:<port>/` or
+`http://localhost:<port>/` headless backend, ties the announcement to the
+authenticated agent socket, and removes it on disconnect. The extension first
+keeps the existing web-dashboard path, then falls back to an announced Desktop
+backend. In Desktop mode it hides the unavailable dashboard frame, lists the
+real sessions, and keeps session/tab controls in Chrome while the conversation
+continues in Hermes Desktop.
+
+The previous Windows launch path also kept
+`hermes-agent\\venv\\Scripts\\python.exe` mapped after Desktop stopped its own
+backend. Hermes' fail-closed updater therefore identified the Connector broker
+as a foreign process and aborted. Companion 0.2.4 launches the detached broker
+from the immutable managed base runtime with the companion dependencies exposed
+explicitly, leaving the replaceable Hermes virtual environment free for update.
+Because protocol 4 was shared by 0.2.1–0.2.3, a detached 0.2.3 broker could
+also survive an upgrade, accept a 0.2.4 client, and silently omit the new
+Desktop-backend messages. Release 0.2.4 therefore uses version-checked protocol
+5 on port 8767, imports the validated v4 binding state exactly once, and stops
+only a process whose executable arguments prove it is the prior Connector
+broker for the same Hermes root and legacy port.
+
+### Candidate validation completed so far
+
+- the complete fast source gate passes on Windows: 76 Python tests pass with 6
+  platform/privilege-specific cases skipped, and all 21 JavaScript tests pass;
+  this includes delayed Desktop port discovery, strict loopback validation,
+  authenticated advertisement, disconnect cleanup, session loading, the
+  persistent 0.2.4 notice, request timeouts, loopback-only CSP, and Chrome Site
+  access preflight, plus standard-port migration, exact broker-version checks,
+  fail-closed v4-to-v5 state migration, and strict old-process matching;
+- both Windows companion installers pass from isolated temporary Hermes homes
+  and preserve the 0.2.4 payload version;
+- the real isolated-Chrome acceptance passes a forced web-dashboard outage,
+  automatic fallback to the advertised Desktop-style backend, session loading,
+  exact tab routing, all browser actions, and restoration of dashboard mode;
+- the two-profile real-Chrome acceptance passes concurrent routing, explicit
+  transfer, and stale-owner revocation;
+- the secondary 1280×800 Desktop-mode Store capture was reproduced from the
+  actual extension UI with public `example.com` and isolated session data;
+  SHA-256 `C2E875FC3EC6B02A30B2AEB4065BC5AA01D67DCCE469AD7D725C879C810570E9`.
+
+### Exact packaged-pair and installed-runtime validation
+
+Clean commit `f583074d0773fe81879aecd1e3b0e8145b35411d` produced protocol 5
+archives with `sourceDirty: false`:
+
+- Chrome ZIP: 60,222 bytes; SHA-256
+  `335b35a7531722e58a84054ba102dceda9672699c7d60fc859f7d4c3bd072967`;
+- companion ZIP: 32,635 bytes; SHA-256
+  `3ec1c1c0428441d5f98fd9458bb099808dbb7b39ab9d34dea2dc5ecc29ff5cae`.
+
+The packaged-pair acceptance loaded that exact Chrome ZIP in one and two
+isolated real Chrome profiles and passed every routing/action gate. The exact
+companion ZIP was then installed into the shared Windows Hermes home and all
+16 discovered named profiles. Its strict cleanup stopped both processes in the
+old venv-wrapper/base-runtime broker pair. The still-running old gateway
+correctly demonstrated the documented respawn race; after fully restarting
+Desktop and the gateway, only protocol 5 on `127.0.0.1:8767` remained.
+
+The restarted CLI gateway launched the broker directly from Hermes' immutable
+base runtime, with no venv wrapper process. Hermes' installed
+`_scan_venv_blockers` reported `blocked: false`, zero processes, and no
+Connector broker. With Hermes Desktop restarted as well, the same scan remained
+clear. The live acceptance then loaded the exact packaged extension, proved one
+dynamically announced Desktop backend, listed 86 real sessions, and rendered
+“Hermes Desktop connected”. The harness read only counts, never session titles
+or conversation content.
+
+Finally, a real Hermes Desktop update was started while the new Connector was
+active. Desktop released its backend, launched the detached updater, logged
+`detached update finished OK`, and restarted itself with a ready backend. Unlike
+the two earlier attempts with the old companion, the update log contained no
+Connector venv holder and did not abort on a broker PID.
+
+### Gates still open before distribution
+
+- [ ] Re-run the complete release and packaged-pair gates from the final clean
+  tagged commit.
+- [x] Test an actual Hermes Desktop process after installing the exact packaged
+  companion 0.2.4 and fully restarting Desktop.
+- [x] Run Hermes' installed virtual-environment blocker scanner with the final
+  broker active and confirm the Connector process is not reported.
+- [x] Produce the deterministic clean Chrome/companion archives and release
+  manifest; record their generated sizes and SHA-256 hashes here only after the
+  build exists.
+- [ ] Publish the matching GitHub `v0.2.4` prerelease assets before sending the
+  Chrome package for review.
+- [ ] Upload 0.2.4 to the existing Chrome Web Store item and keep publication
+  deferred until review is approved.
+
+The public Chrome Web Store release remains 0.2.3 throughout these candidate
+gates. Users must keep companion 0.2.3 until Chrome itself explicitly reports
+extension 0.2.4.
+
 ## 0.2.3 release candidate — 2026-08-31
 
 ### Why 0.2.3 is required

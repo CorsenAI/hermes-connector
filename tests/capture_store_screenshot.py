@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Capture a deterministic 1280x800 fixture preview of the extension panel.
 
-The browser profile, broker secret, dashboard data, page, and visible reply are
-all isolated fixtures. This script is for UI regression previews only; it must
-not overwrite or be represented as the verified live Store product capture.
+The browser profile, broker secret, session data, and optional Web-dashboard
+reply are isolated fixtures. The Desktop variant opens the real public
+``example.com`` page and renders the extension's actual Desktop surface, but it
+is still a deterministic UI preview rather than model-turn evidence. Neither
+variant may overwrite or be represented as the verified live Store capture.
 """
 
 from __future__ import annotations
@@ -63,7 +65,7 @@ def wait_for_port(port: int, process: subprocess.Popen, timeout: float = 8) -> N
     raise RuntimeError("broker did not start in time")
 
 
-def wait_panel(panel: live.Cdp, timeout: float = 12) -> dict:
+def wait_panel(panel: live.Cdp, desktop: bool, timeout: float = 12) -> dict:
     expression = """
       (async()=>{
         for(let i=0;i<240;i++){
@@ -71,18 +73,25 @@ def wait_panel(panel: live.Cdp, timeout: float = 12) -> dict:
           const scope=document.querySelector('#scopeInfo')?.textContent||'';
           const selected=document.querySelector('#sessionSelect')?.value||'';
           const frame=document.querySelector('#hermes');
+          const desktopMode=document.querySelector('#desktopMode');
+          const surfaceReady=__DESKTOP__
+            ? (!desktopMode?.hidden && frame?.hidden && desktopMode?.textContent.includes('Hermes Desktop connected'))
+            : (!frame?.hidden && frame?.src.includes('resume=session-a'));
           if(status==='Ready · Hermes + Chrome' && scope.includes('ready on the target') &&
-             selected.includes('session-a') && frame?.src.includes('resume=session-a')){
-            return {ready:true,status,scope,selected,frame:frame.src};
+             selected.includes('session-a') && surfaceReady){
+            return {ready:true,status,scope,selected,frame:frame?.src||'',
+              desktopVisible:!desktopMode?.hidden,desktopText:desktopMode?.textContent||''};
           }
           await new Promise(r=>setTimeout(r,50));
         }
         return {ready:false,status:document.querySelector('#status')?.textContent||'',
           scope:document.querySelector('#scopeInfo')?.textContent||'',
           selected:document.querySelector('#sessionSelect')?.value||'',
-          frame:document.querySelector('#hermes')?.src||''};
+          frame:document.querySelector('#hermes')?.src||'',
+          desktopVisible:!document.querySelector('#desktopMode')?.hidden,
+          desktopText:document.querySelector('#desktopMode')?.textContent||''};
       })()
-    """
+    """.replace("__DESKTOP__", str(desktop).lower())
     state = panel.evaluate(expression)
     if not state or not state.get("ready"):
         raise RuntimeError(f"real side panel did not reach its captured state: {state}")
@@ -123,12 +132,12 @@ def visible_window_rect(hwnd: int) -> wintypes.RECT:
     return rect
 
 
-def prepare_window(hwnd: int) -> None:
+def prepare_window(hwnd: int, left: int = 0, top: int = 0) -> None:
     user32 = ctypes.windll.user32
     user32.SetProcessDPIAware()
     user32.AllowSetForegroundWindow(0xFFFFFFFF)
     user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-    if not user32.SetWindowPos(hwnd, 0, 0, 0, WIDTH, HEIGHT, 0x0040):
+    if not user32.SetWindowPos(hwnd, 0, left, top, WIDTH, HEIGHT, 0x0040):
         raise ctypes.WinError()
     # GetWindowRect includes transparent resize borders. Grow the outer window
     # until DWM's actually visible frame is the exact Store canvas size.
@@ -143,7 +152,7 @@ def prepare_window(hwnd: int) -> None:
             raise ctypes.WinError()
         outer_width = outer.right - outer.left + (WIDTH - visible_width)
         outer_height = outer.bottom - outer.top + (HEIGHT - visible_height)
-        if not user32.SetWindowPos(hwnd, 0, 0, 0, outer_width, outer_height, 0x0040):
+        if not user32.SetWindowPos(hwnd, 0, left, top, outer_width, outer_height, 0x0040):
             raise ctypes.WinError()
     user32.BringWindowToTop(hwnd)
     user32.SetForegroundWindow(hwnd)
@@ -220,7 +229,7 @@ def capture_window(hwnd: int, output: Path) -> tuple[int, int]:
     return image.size
 
 
-def capture(browser_binary: Path, output: Path, force: bool) -> dict:
+def capture(browser_binary: Path, output: Path, force: bool, desktop: bool = False) -> dict:
     if sys.platform != "win32":
         raise RuntimeError("the Store screenshot capture currently requires Windows")
     if output.exists() and not force:
@@ -252,7 +261,10 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
         try:
             wait_for_port(broker_port, broker_process)
             secret = live.broker.load_or_create_secret(temp_root)
-            demo_url = f"http://127.0.0.1:{http_port}/store-demo.html"
+            demo_url = "https://example.com/" if desktop else \
+                f"http://127.0.0.1:{http_port}/store-demo.html"
+            dashboard_url = f"http://127.0.0.1:{live.free_port()}/" if desktop else \
+                f"http://127.0.0.1:{http_port}/"
             browser_process = subprocess.Popen(
                 [
                     str(browser_binary),
@@ -290,7 +302,7 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
             extension_id = worker["url"].split("/")[2]
             browser_id = "store-capture-browser"
             initial_state = {
-                "hermesUrl": f"http://127.0.0.1:{http_port}/",
+                "hermesUrl": dashboard_url,
                 "settings": {
                     "bridgeUrl": f"ws://127.0.0.1:{broker_port}",
                     "pairingCode": secret,
@@ -306,8 +318,12 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
             try:
                 live.wait_for_extension_apis(worker_cdp, extension_id)
                 setup = worker_cdp.evaluate(
-                    "(async()=>{"
-                    "const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});"
+                    f"(async()=>{{let tab=await chrome.tabs.create({{url:{json.dumps(demo_url)},active:true}});"
+                    "for(let i=0;i<200&&tab&&tab.status!=='complete';i++){"
+                    "await new Promise(r=>setTimeout(r,50));tab=await chrome.tabs.get(tab.id);}"
+                    "const tabs=await chrome.tabs.query({});"
+                    "const oldTabs=tabs.filter(item=>item.id!==tab.id).map(item=>item.id);"
+                    "if(oldTabs.length)await chrome.tabs.remove(oldTabs);"
                     f"await chrome.storage.local.clear();await chrome.storage.local.set({json.dumps(initial_state)});"
                     "return {tabId:tab.id,windowId:tab.windowId};})()"
                 )
@@ -319,12 +335,22 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
             if not action_command or action_command.get("shortcut") != "Ctrl+Shift+H":
                 raise RuntimeError(f"extension action shortcut was not registered: {commands}")
 
+            client_options = {}
+            if desktop:
+                client_options["backend_metadata_provider"] = lambda: {
+                    "backendUrl": f"http://127.0.0.1:{http_port}/",
+                    "backendMode": "headless",
+                }
             client = live.bridge_client.BridgeClient(
-                "profile-a", root=temp_root, port=broker_port, auto_start_broker=False
+                "profile-a",
+                root=temp_root,
+                port=broker_port,
+                auto_start_broker=False,
+                **client_options,
             ).start()
 
             hwnd = find_browser_window(browser_process.pid)
-            prepare_window(hwnd)
+            prepare_window(hwnd, 64 if desktop else 0, 64 if desktop else 0)
             panel_targets = open_side_panel(debug_port, hwnd)
             panel_target = next(
                 item for item in panel_targets if item.get("url", "").endswith("/src/sidepanel.html")
@@ -340,7 +366,7 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
                 )
                 if not attached or not attached.get("ok"):
                     raise RuntimeError(f"could not attach the demo tab: {attached}")
-                state = wait_panel(panel)
+                state = wait_panel(panel, desktop)
             finally:
                 panel.close()
 
@@ -350,6 +376,7 @@ def capture(browser_binary: Path, output: Path, force: bool) -> dict:
                 "output": str(output),
                 "width": width,
                 "height": height,
+                "mode": "desktop" if desktop else "web-dashboard",
                 "panel": state,
             }
         finally:
@@ -381,8 +408,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--browser", default=None)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--desktop", action="store_true",
+                        help="capture the actual Desktop-mode panel with isolated session data")
     args = parser.parse_args(argv)
-    result = capture(live.find_chromium(args.browser), args.output.resolve(), args.force)
+    result = capture(
+        live.find_chromium(args.browser),
+        args.output.resolve(),
+        args.force,
+        args.desktop,
+    )
     print(json.dumps(result, indent=2))
     return 0
 

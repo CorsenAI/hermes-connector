@@ -23,7 +23,7 @@ the final packaged bits.
 - [x] The tool handler routes the real `PluginContext.profile_name` and the real
       tool-call `session_id`; no hard-coded test profile participates.
 - [x] Multiple Hermes profile clients can use the companion concurrently while
-      only one local broker owns port 8766.
+      only one local broker owns port 8767.
 - [ ] Restarting the dashboard, gateway, broker, extension worker, and Chrome
       has documented and verified recovery behaviour in the final profile.
 
@@ -54,6 +54,8 @@ the final packaged bits.
 - [ ] A pre-submit end-to-end run loads the exact packaged ZIP in the intended
       signed-in Google Chrome profile.
 - [x] After publication, the existing Store ID serves 0.2.3.
+- [ ] After publication, the existing Store ID serves 0.2.4 with automatic
+      Hermes Desktop backend discovery.
 - [ ] The Store-installed build passes a signed-in-profile smoke test.
 
 Evidence for checked gates is recorded in `TEST-EVIDENCE.md`.
