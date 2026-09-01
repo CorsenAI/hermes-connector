@@ -56,6 +56,16 @@
     .tabTitle { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #c7cdda; }
     .tabRow.current .tabTitle { color: #7ee787; font-weight: 600; }
     iframe { width: 100%; min-height: 0; flex: 1; border: 0; display: block; background: #fff; }
+    iframe[hidden] { display: none; }
+    #desktopMode { min-height: 0; flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 24px; background: radial-gradient(circle at top, #172438, #0b0f14 62%); }
+    #desktopMode[hidden] { display: none; }
+    #desktopMode .desktopCard { max-width: 330px; padding: 18px; border: 1px solid #30425d;
+      border-radius: 12px; background: rgba(16, 21, 29, .94); color: #c7d7ed; line-height: 1.45;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }
+    #desktopMode strong { display: block; color: #7ee787; margin-bottom: 7px; }
+    #desktopMode p { margin: 6px 0 0; font-size: 12px; }
+    #desktopMode .desktopPrivacy { color: #8b95a8; font-size: 10px; }
     #hint { padding: 8px 10px; color: #c7cdda; background: #151b24; border-top: 1px solid #343b48;
       font-size: 11px; line-height: 1.4; flex: none; }
     #setupNotice { position: fixed; z-index: 80; top: 38px; left: 8px; right: 8px;
@@ -107,11 +117,13 @@
         telemetry service. Hermes may still send prompts and attached content to the model provider you configure.</p>
       <p>On macOS or Linux, run <code>./install.sh</code> instead. Keep the pairing code private. Run the
         installer again after creating a new named Hermes profile.</p>
+      <p><b>Chrome settings:</b> keep Site access on all sites. Pinning is optional. Developer mode,
+        Incognito access, and File URL access are not required.</p>
     </details>
     <div class="setupActions">
       <a id="downloadCompanion" class="primaryLink"
-        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip"
-        target="_blank" rel="noopener noreferrer">Download companion 0.2.3</a>
+        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip"
+        target="_blank" rel="noopener noreferrer">Download companion 0.2.4</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Detailed instructions</a>
       <button id="openSetupSettings">Enter pairing code</button>
@@ -120,12 +132,14 @@
   </aside>
   <aside id="upgradeNotice" role="alertdialog" aria-modal="true" aria-labelledby="upgradeTitle" hidden>
     <strong id="upgradeTitle">Companion update required</strong>
-    <p>Re-download and run the 0.2.3 companion installer, then restart running Hermes processes.
+    <p>Re-download and run the 0.2.4 companion installer, then restart running Hermes processes.
       Browser tools may fail until this is done.</p>
     <p id="customPortUpgrade" hidden><b>Custom bridge port:</b> an older detached broker may still own it.
-      After installing 0.2.3, reboot this computer once (or safely stop only that legacy broker),
+      After installing 0.2.4, reboot this computer once (or safely stop only that legacy broker),
       then start Hermes again.</p>
     <div class="upgradeActions">
+      <a id="upgradeCompanion" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip"
+        target="_blank" rel="noopener noreferrer">Download matching companion</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Installation steps</a>
       <button id="dismissUpgradeNotice">I’ve reinstalled it</button>
@@ -134,14 +148,14 @@
   <div id="cfg" role="dialog" aria-modal="true" aria-label="Hermes Connector settings">
     <label>This Chrome profile name
       <input id="browserName" type="text" spellcheck="false" placeholder="Work Chrome" /></label>
-    <label>Hermes dashboard address
+    <label>Hermes Web dashboard address (optional with Hermes Desktop)
       <input id="hermesUrl" type="text" spellcheck="false" placeholder="http://127.0.0.1:9119" /></label>
     <label>Bridge address
       <input id="bridgeUrl" type="text" spellcheck="false" placeholder="ws://127.0.0.1:8766" /></label>
     <label>Pairing code (from companion installer)
       <input id="pairingCode" type="password" spellcheck="false" placeholder="paste the installer's private code" /></label>
     <div class="setupActions">
-      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip"
+      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip"
         target="_blank" rel="noopener noreferrer">Download companion</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Setup help</a>
@@ -179,9 +193,16 @@
   <!-- The user's real Hermes dashboard (sessions, agent picker, model, chat). src is set at runtime
        from the saved address (default the Hermes dashboard port 9119) — never hardcoded in the page. -->
   <iframe id="hermes" title="Hermes dashboard"></iframe>
+  <section id="desktopMode" aria-live="polite" hidden>
+    <div class="desktopCard">
+      <strong>Hermes Desktop connected</strong>
+      <p>Choose the Desktop session above, attach the Chrome tabs it may use, then continue the conversation in Hermes Desktop.</p>
+      <p class="desktopPrivacy">Connector discovery and routing stay on this computer. Hermes uses the model provider you configured.</p>
+    </div>
+  </section>
   <div id="hint" hidden>
-    Start Hermes and open its dashboard (<code>hermes dashboard</code>), then this panel shows it here.
-    If your dashboard runs on a different port, set its address with the ⚙ button.
+    Restart Hermes Desktop after installing the companion, or start the Web dashboard with
+    <code>hermes dashboard</code>. If your dashboard runs on a different fixed port, set its address with the ⚙ button.
   </div>
   <script type="module" src="sidepanel.js"></script>
 </body>

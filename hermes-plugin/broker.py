@@ -41,6 +41,9 @@ MAX_TEXT_CHARS = 2_000_000
 MAX_BINDINGS_PER_BROWSER = 256
 MAX_TABS_PER_BINDING = 64
 CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
+AGENT_BACKEND_URL_RE = re.compile(
+    r"^http://(?P<host>127\.0\.0\.1|localhost):(?P<port>[0-9]{1,5})/$"
+)
 
 
 def require_loopback_host(host: str) -> str:
@@ -174,6 +177,28 @@ def clean_id(value: Any, label: str) -> str:
     return text
 
 
+def clean_agent_backend(url: Any, mode: Any) -> tuple[str, str]:
+    """Validate the read-only local backend endpoint an agent advertises.
+
+    The endpoint is metadata for an already authenticated companion process;
+    it never widens the broker listener. Keep the accepted URL grammar exact
+    so a compromised or stale plugin cannot make Chrome fetch credentials,
+    paths, query strings, or a non-loopback host.
+    """
+
+    clean_mode = str(mode or "")
+    clean_url = str(url or "")
+    if clean_mode != "headless":
+        raise ValueError("invalid agent backend mode")
+    match = AGENT_BACKEND_URL_RE.fullmatch(clean_url)
+    if not match:
+        raise ValueError("invalid agent backend URL")
+    port = int(match.group("port"))
+    if not 1 <= port <= 65535:
+        raise ValueError("invalid agent backend port")
+    return f"http://{match.group('host')}:{port}/", clean_mode
+
+
 @dataclass
 class Binding:
     profile_id: str
@@ -210,6 +235,8 @@ class AgentPeer:
     websocket: Any
     profile_id: str
     process_id: str
+    backend_url: Optional[str] = None
+    backend_mode: Optional[str] = None
     connected_at: float = field(default_factory=time.time)
 
     @property
@@ -735,6 +762,14 @@ class BrokerServer:
                 "ok": True,
                 "data": self._public_state(),
             }))
+        elif kind == "agent_backend_update":
+            backend_url, backend_mode = clean_agent_backend(
+                message.get("backendUrl"), message.get("backendMode")
+            )
+            if peer.backend_url != backend_url or peer.backend_mode != backend_mode:
+                peer.backend_url = backend_url
+                peer.backend_mode = backend_mode
+                await self._broadcast_state()
         elif kind in {"event", "pong"}:
             return
 
@@ -815,10 +850,24 @@ class BrokerServer:
                 "connected": True,
                 "bindings": [binding.wire() for binding in peer.bindings.values()],
             })
+        agent_backends = [
+            {
+                "profileId": peer.profile_id,
+                "processId": peer.process_id,
+                "url": peer.backend_url,
+                "mode": peer.backend_mode,
+            }
+            for peer in sorted(
+                self.agents.values(),
+                key=lambda item: (item.profile_id, item.process_id),
+            )
+            if peer.backend_url and peer.backend_mode
+        ]
         return {
             "protocol": PROTOCOL_VERSION,
             "browsers": browsers,
             "agentProfiles": sorted({peer.profile_id for peer in self.agents.values()}),
+            "agentBackends": agent_backends,
             "pendingActions": len(self.pending),
         }
 

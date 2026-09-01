@@ -1,5 +1,63 @@
 # Test evidence
 
+## 0.2.4 Hermes Desktop compatibility candidate — 2026-09-01
+
+### Why 0.2.4 is required
+
+The public 0.2.3 pair expects a separately running Hermes web dashboard at its
+configured address. Hermes Desktop instead starts a headless local API on a
+dynamic loopback port and does not expose the dashboard route embedded by the
+side panel. As a result, the 0.2.3 companion can be paired and browser tools can
+be installed while the panel still reports that `127.0.0.1` refused the
+dashboard connection.
+
+The 0.2.4 candidate makes the companion announce that same-process headless
+backend through the authenticated local broker after Hermes Desktop binds its
+port. The broker accepts only an explicit `http://127.0.0.1:<port>/` or
+`http://localhost:<port>/` headless backend, ties the announcement to the
+authenticated agent socket, and removes it on disconnect. The extension first
+keeps the existing web-dashboard path, then falls back to an announced Desktop
+backend. In Desktop mode it hides the unavailable dashboard frame, lists the
+real sessions, and keeps session/tab controls in Chrome while the conversation
+continues in Hermes Desktop.
+
+### Candidate validation completed so far
+
+- the complete fast source gate passes on Windows: 71 Python tests pass with 6
+  platform/privilege-specific cases skipped, and all 21 JavaScript tests pass;
+  this includes delayed Desktop port discovery, strict loopback validation,
+  authenticated advertisement, disconnect cleanup, session loading, the
+  persistent 0.2.4 notice, request timeouts, loopback-only CSP, and Chrome Site
+  access preflight;
+- both Windows companion installers pass from isolated temporary Hermes homes
+  and preserve the 0.2.4 payload version;
+- the real isolated-Chrome acceptance passes a forced web-dashboard outage,
+  automatic fallback to the advertised Desktop-style backend, session loading,
+  exact tab routing, all browser actions, and restoration of dashboard mode;
+- the two-profile real-Chrome acceptance passes concurrent routing, explicit
+  transfer, and stale-owner revocation;
+- the secondary 1280×800 Desktop-mode Store capture was reproduced from the
+  actual extension UI with public `example.com` and isolated session data;
+  SHA-256 `C2E875FC3EC6B02A30B2AEB4065BC5AA01D67DCCE469AD7D725C879C810570E9`.
+
+### Gates still open before distribution
+
+- [ ] Re-run the complete release and packaged-pair gates from the final clean
+  tagged commit.
+- [ ] Test an actual Hermes Desktop process after installing the exact packaged
+  companion 0.2.4 and fully restarting Desktop.
+- [ ] Produce the deterministic clean Chrome/companion archives and release
+  manifest; record their generated sizes and SHA-256 hashes here only after the
+  build exists.
+- [ ] Publish the matching GitHub `v0.2.4` prerelease assets before sending the
+  Chrome package for review.
+- [ ] Upload 0.2.4 to the existing Chrome Web Store item and keep publication
+  deferred until review is approved.
+
+The public Chrome Web Store release remains 0.2.3 throughout these candidate
+gates. Users must keep companion 0.2.3 until Chrome itself explicitly reports
+extension 0.2.4.
+
 ## 0.2.3 release candidate — 2026-08-31
 
 ### Why 0.2.3 is required

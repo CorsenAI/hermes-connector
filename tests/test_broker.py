@@ -79,6 +79,35 @@ class CredentialLifecycleTests(unittest.TestCase):
                 )
 
 
+class AgentBackendValidationTests(unittest.TestCase):
+    def test_accepts_only_canonical_loopback_headless_urls(self):
+        self.assertEqual(
+            broker.clean_agent_backend("http://127.0.0.1:51329/", "headless"),
+            ("http://127.0.0.1:51329/", "headless"),
+        )
+        self.assertEqual(
+            broker.clean_agent_backend("http://localhost:80/", "headless"),
+            ("http://localhost:80/", "headless"),
+        )
+
+    def test_rejects_non_loopback_or_ambiguous_backend_metadata(self):
+        invalid = (
+            ("https://127.0.0.1:51329/", "headless"),
+            ("http://127.0.0.2:51329/", "headless"),
+            ("http://localhost:0/", "headless"),
+            ("http://localhost:65536/", "headless"),
+            ("http://localhost:51329", "headless"),
+            ("http://localhost:51329/api/sessions", "headless"),
+            ("http://localhost:51329/?token=secret", "headless"),
+            ("http://user@localhost:51329/", "headless"),
+            ("http://[::1]:51329/", "headless"),
+            ("http://localhost:51329/", "dashboard"),
+        )
+        for url, mode in invalid:
+            with self.subTest(url=url, mode=mode), self.assertRaises(ValueError):
+                broker.clean_agent_backend(url, mode)
+
+
 class BrokerStateMigrationTests(unittest.TestCase):
     def write_state(self, path: Path, owner: str, *, protocol=None) -> str:
         key = broker.scope_key("profile-a", "session-a")
@@ -557,6 +586,61 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(response["ok"])
         self.assertIn("impersonate", response["error"])
 
+    async def test_authenticated_agent_advertises_headless_backend(self):
+        chrome = await self.browser("chrome-main")
+        agent = await self.agent("alpha", "desktop-process")
+        await agent.send(json.dumps({
+            "type": "agent_backend_update",
+            "backendUrl": "http://127.0.0.1:51329/",
+            "backendMode": "headless",
+            # Identity is socket-bound. Extra untrusted identity fields cannot
+            # publish this endpoint under another profile or process.
+            "profileId": "beta",
+            "processId": "spoofed-process",
+        }))
+
+        advertised = None
+        for _ in range(20):
+            state_message = await receive_type(chrome, "broker_state")
+            backends = state_message["data"].get("agentBackends") or []
+            if backends:
+                advertised = backends
+                break
+        self.assertEqual(advertised, [{
+            "profileId": "alpha",
+            "processId": "desktop-process",
+            "url": "http://127.0.0.1:51329/",
+            "mode": "headless",
+        }])
+
+        await agent.close()
+        for _ in range(100):
+            if not self.server._public_state()["agentBackends"]:
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual(self.server._public_state()["agentBackends"], [])
+
+    async def test_invalid_agent_backend_metadata_drops_only_that_agent(self):
+        agent = await self.agent("alpha", "invalid-backend-process")
+        await agent.send(json.dumps({
+            "type": "agent_backend_update",
+            "backendUrl": "http://attacker.example:51329/",
+            "backendMode": "headless",
+        }))
+        for _ in range(20):
+            try:
+                await agent.recv()
+            except websockets.exceptions.ConnectionClosed:
+                break
+        else:
+            self.fail("invalid backend metadata did not close the agent socket")
+        for _ in range(100):
+            if "alpha:invalid-backend-process" not in self.server.agents:
+                break
+            await asyncio.sleep(0.01)
+        self.assertNotIn("alpha:invalid-backend-process", self.server.agents)
+        self.assertEqual(self.server._public_state()["agentBackends"], [])
+
     async def test_http_origin_cannot_authenticate_as_browser(self):
         websocket = await websockets.connect(
             self.url,
@@ -616,12 +700,14 @@ class BridgeClientTests(unittest.IsolatedAsyncioTestCase):
         await self.server.start()
         self.url = f"ws://127.0.0.1:{self.server.port}"
         self.browser_socket = None
+        self.backend_metadata = None
         self.client = bridge_client.BridgeClient(
             profile_id="client-profile",
             root=self.temp.name,
             host="127.0.0.1",
             port=self.server.port,
             auto_start_broker=False,
+            backend_metadata_provider=lambda: self.backend_metadata,
         )
         self.client.start(wait=0)
         for _ in range(100):
@@ -696,6 +782,67 @@ class BridgeClientTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"], {"snapshot": "ok"})
         self.assertNotIn("error", result)
+
+    async def test_sync_client_announces_backend_after_ephemeral_port_binds(self):
+        self.assertEqual(self.server._public_state()["agentBackends"], [])
+        self.backend_metadata = {
+            "backendUrl": "http://127.0.0.1:53566/",
+            "backendMode": "headless",
+        }
+        for _ in range(100):
+            advertised = self.server._public_state()["agentBackends"]
+            if advertised:
+                break
+            await asyncio.sleep(0.02)
+        self.assertEqual(advertised, [{
+            "profileId": "client-profile",
+            "processId": self.client.process_id,
+            "url": "http://127.0.0.1:53566/",
+            "mode": "headless",
+        }])
+
+
+class BridgeClientBackendDiscoveryTests(unittest.TestCase):
+    def test_reads_bound_port_from_loaded_headless_web_server(self):
+        web_server = types.SimpleNamespace(
+            app=types.SimpleNamespace(
+                state=types.SimpleNamespace(bound_port=51329),
+            ),
+        )
+        with mock.patch.dict(
+            bridge_client.os.environ, {"HERMES_SERVE_HEADLESS": "1"}, clear=False
+        ), mock.patch.dict(
+            bridge_client.sys.modules, {"hermes_cli.web_server": web_server}
+        ):
+            self.assertEqual(
+                bridge_client.BridgeClient._headless_backend_metadata(),
+                {
+                    "backendUrl": "http://127.0.0.1:51329/",
+                    "backendMode": "headless",
+                },
+            )
+
+    def test_does_not_advertise_before_bind_or_outside_headless_serve(self):
+        web_server = types.SimpleNamespace(
+            app=types.SimpleNamespace(
+                state=types.SimpleNamespace(bound_port=None),
+            ),
+        )
+        with mock.patch.dict(
+            bridge_client.os.environ, {"HERMES_SERVE_HEADLESS": "1"}, clear=False
+        ), mock.patch.dict(
+            bridge_client.sys.modules, {"hermes_cli.web_server": web_server}
+        ):
+            self.assertIsNone(
+                bridge_client.BridgeClient._headless_backend_metadata()
+            )
+
+        with mock.patch.dict(
+            bridge_client.os.environ, {"HERMES_SERVE_HEADLESS": "0"}, clear=False
+        ):
+            self.assertIsNone(
+                bridge_client.BridgeClient._headless_backend_metadata()
+            )
 
 
 class BridgeClientResponseShapeTests(unittest.TestCase):

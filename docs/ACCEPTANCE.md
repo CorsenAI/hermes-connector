@@ -54,6 +54,8 @@ the final packaged bits.
 - [ ] A pre-submit end-to-end run loads the exact packaged ZIP in the intended
       signed-in Google Chrome profile.
 - [x] After publication, the existing Store ID serves 0.2.3.
+- [ ] After publication, the existing Store ID serves 0.2.4 with automatic
+      Hermes Desktop backend discovery.
 - [ ] The Store-installed build passes a signed-in-profile smoke test.
 
 Evidence for checked gates is recorded in `TEST-EVIDENCE.md`.

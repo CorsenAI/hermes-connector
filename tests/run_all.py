@@ -60,6 +60,24 @@ def metadata_gate() -> None:
         raise SystemExit("permission gate failed: this release has no valid optional permissions")
     if manifest.get("host_permissions") != ["<all_urls>"]:
         raise SystemExit("permission gate failed: the reviewed host permission set changed")
+    extension_csp = str(
+        (manifest.get("content_security_policy") or {}).get("extension_pages") or ""
+    )
+    connect_directive = next(
+        (part.strip() for part in extension_csp.split(";")
+         if part.strip().startswith("connect-src ")),
+        "",
+    )
+    connect_sources = set(connect_directive.split()[1:])
+    required_connect_sources = {
+        "'self'",
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "ws://127.0.0.1:*",
+        "ws://localhost:*",
+    }
+    if connect_sources != required_connect_sources:
+        raise SystemExit("network gate failed: extension connections must stay on loopback")
 
     listing = (ROOT / "store" / "LISTING.md").read_text(encoding="utf-8")
     privacy = (ROOT / "PRIVACY.md").read_text(encoding="utf-8")
@@ -99,6 +117,7 @@ def metadata_gate() -> None:
         ROOT / "store" / "promo-small-440x280.png": (440, 280),
         ROOT / "store" / "promo-marquee-1400x560.png": (1400, 560),
         ROOT / "store" / "screenshot-product-1280x800.png": (1280, 800),
+        ROOT / "store" / "screenshot-desktop-1280x800.png": (1280, 800),
     }
     for artwork, expected in expected_artwork.items():
         if not artwork.is_file() or png_dimensions(artwork) != expected:

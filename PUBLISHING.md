@@ -28,7 +28,7 @@ separately under the same release version.
 
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
-- Companion 0.2.3: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip`
+- Companion 0.2.4 candidate: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
@@ -63,6 +63,9 @@ Prepared assets:
 - `store/screenshot-product-1280x800.png` — 1280×800 real headed-Chrome
   capture with an isolated real Hermes model, exact attached `example.com` tab,
   and verified `bridge_status` → `bridge_current_url` → `bridge_read` calls.
+- `store/screenshot-desktop-1280x800.png` — 1280×800 headed-Chrome Desktop-mode
+  product UI capture with the public `example.com` tab and isolated session
+  metadata.
 
 Generation/capture provenance and the reproducible screenshot command are in
 `store/ASSETS.md`.
@@ -82,10 +85,10 @@ Declare the data the extension handles even though processing is local:
 - **Web history**: URLs and titles of attached tabs; current tab titles/URLs are
   shown locally only after the user opens Tabs.
 - **Authentication information**: the persistent local Connector pairing
-  credential stored in Chrome local storage, plus the ephemeral Hermes dashboard
+  credential stored in Chrome local storage, plus the ephemeral local Hermes
   session token read into memory. Only HMAC proofs—not the pairing credential—go
-  to the companion. The dashboard token is never stored and is returned only to
-  the same HTTP loopback dashboard API. Neither is received by Corsen AI.
+  to the companion. The session token is never stored and is returned only to
+  the same HTTP loopback Hermes API. Neither is received by Corsen AI.
 
 Certify that the data is not sold, is not used for advertising,
 creditworthiness, or unrelated purposes, and is used only for the stated
@@ -95,10 +98,13 @@ has configured that provider, as disclosed in the listing and privacy policy.
 
 Remote code declaration:
 
-> Yes. A cross-origin iframe loads the user's own local Hermes dashboard from a
-> loopback address. The iframe is isolated from extension APIs. No fetched code
-> is evaluated by the extension service worker, content scripts, or extension
-> page context; all browser-control logic is included in the submitted ZIP.
+> Yes. In Web-dashboard mode, a cross-origin iframe loads the user's own local
+> Hermes dashboard from a loopback address and remains isolated from extension
+> APIs. In Hermes Desktop mode, no remote UI or code is loaded: the extension
+> reads authenticated session metadata from Desktop's dynamically announced
+> loopback API. No fetched code is evaluated by the extension service worker,
+> content scripts, or extension page context; all browser-control logic is
+> included in the submitted ZIP.
 
 This disclosure matches Manifest V3's isolated-iframe exemption and avoids
 misrepresenting the real embedded Hermes UI.
@@ -111,8 +117,8 @@ misrepresenting the real embedded Hermes UI.
   inspect and perform requested actions.
 - `storage`: retain local random browser identity, settings, the Connector pairing credential,
   and exact session/tab bindings.
-- `sidePanel`: display connector controls and the isolated local Hermes
-  dashboard alongside the current page.
+- `sidePanel`: display connector controls and Desktop-session status, or the
+  isolated local Hermes Web dashboard, alongside the current page.
 - `alarms`: keep the loopback WebSocket available while a Hermes task is active
   despite Manifest V3 service-worker suspension.
 - `debugger`: Chrome does not permit this permission as optional. The extension
@@ -123,19 +129,38 @@ misrepresenting the real embedded Hermes UI.
 
 Provide Google with the public companion URL and these exact steps:
 
-1. Install the companion in an isolated Hermes home and restart Hermes.
+1. Install the companion in an isolated Hermes home and fully restart Hermes
+   Desktop, or restart the Web dashboard process.
 2. Copy the pairing code printed by the installer.
 3. Open the extension side panel, paste the code, and save.
-4. Choose a real/local test Hermes session and attach a test tab.
+4. Choose a real/local test Hermes session and attach a test tab. With Hermes
+   Desktop, confirm the panel shows “Hermes Desktop connected” without running
+   `hermes dashboard`.
 5. Ask Hermes to call `bridge_snapshot`, `bridge_click`, or `bridge_type`.
 6. Confirm an unbound session is refused and another attached session remains
    isolated.
 
-Mention that the dashboard iframe and companion are required for the main UI to
-be functional during review. Sensitive permissions can trigger manual review,
-so use deferred publishing and answer reviewer questions promptly.
+Mention that the companion is required. Hermes Desktop keeps chat in the
+Desktop app; Web-dashboard mode uses the isolated iframe. Sensitive permissions
+can trigger manual review, so use deferred publishing and answer reviewer
+questions promptly.
 
-## 7. Final release gates
+## 7. 0.2.4 candidate gates
+
+- [ ] Clean committed/tagged 0.2.4 source; Store and companion versions match.
+- [ ] Fast gate, isolated Chromium, and packaged-pair acceptance pass.
+- [ ] Real Hermes Desktop `serve --port 0` discovery is verified without a
+      separately launched Web dashboard.
+- [ ] Exact companion 0.2.4 ZIP is installed on Windows and Desktop is fully
+      restarted before the signed-in Chrome smoke test.
+- [ ] Public GitHub `v0.2.4` prerelease serves the companion, Chrome ZIP, and
+      release manifest before Store review begins.
+- [ ] Store listing, reviewer note, privacy text, support page, and new Desktop
+      screenshot describe the same tested behavior.
+- [ ] Upload only `dist/hermes-connector-0.2.4-chrome.zip` to the existing Store
+      item and submit with deferred publishing.
+
+## 8. Historical 0.2.3 release gates
 
 - [x] Clean committed/tagged source; Store and companion versions match.
 - [x] Fast gate and isolated live Chromium test pass from the packaged source.
@@ -151,7 +176,7 @@ so use deferred publishing and answer reviewer questions promptly.
 - [x] Submit for review with deferred publishing; publish only after approval
       and final artifact/hash verification.
 
-## 8. Approval, public cutover, and verification
+## 9. Historical 0.2.3 approval, public cutover, and verification
 
 The existing Chrome Web Store item now publicly serves 0.2.3. The public
 GitHub `v0.2.3` release is normal and marked Latest, its original tag and three

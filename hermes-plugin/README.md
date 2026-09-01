@@ -17,8 +17,9 @@ this directory to the shared Hermes home and every existing named profile, enabl
 entered once in the extension. Re-run the installer after creating a new
 Hermes profile.
 
-Restart any already-running Hermes dashboard, gateway, or chat process after
-installation so it discovers the newly enabled tools.
+Fully quit and reopen Hermes Desktop, or restart any already-running Hermes
+dashboard, gateway, or chat process, after installation so it discovers the
+newly enabled tools and announces its local backend.
 
 The companion supervises the shared local broker. If that detached process is
 terminated by a launcher restart or crashes, a running profile client starts it

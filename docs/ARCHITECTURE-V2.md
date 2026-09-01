@@ -37,12 +37,15 @@ secret and broker. Deployment and activation roll back across every discovered
 profile if any scope fails. Re-running the installer covers profiles created
 later.
 
-### Real Hermes dashboard
+### Real Hermes session UI
 
-The side panel embeds the local dashboard. A small connector bar uses Hermes'
-existing read-only multi-profile sessions API to select the real profile/session
-and manage its attached Chrome tabs. Selecting a session opens the dashboard at
-`/chat?resume=<sessionId>` under the matching Hermes profile.
+The side panel uses Hermes' existing read-only multi-profile sessions API to
+select the real profile/session and manage its attached Chrome tabs. With the
+Web dashboard, the panel embeds `/chat?resume=<sessionId>` under the matching
+Hermes profile. Hermes Desktop instead starts a headless API on a dynamic
+loopback port. The authenticated companion announces that port through
+`brokerState.agentBackends`; the panel lists sessions from that API and keeps
+the actual conversation in Hermes Desktop.
 
 ## Route
 
@@ -89,6 +92,9 @@ last-used, or first controllable tab.
 - A full Chrome restart preserves browser identity and session preference. Any
   tab that cannot be proven to be the same restored tab must be attached again.
 - Broker or Hermes restarts do not rotate the pairing code.
+- A headless Hermes Desktop process advertises its bound loopback port only
+  after the server has started. The broker validates the exact loopback URL,
+  ties it to the authenticated agent socket, and removes it on disconnect.
 - When Chrome updates an older build to a protocol-4 release (0.2.1+), it migrates only the legacy
   default 8765 address to 8766 and keeps a local notice visible until the user
   confirms the separately downloaded companion was reinstalled. The new port

@@ -650,6 +650,35 @@ function tabControlStatus(tab) {
   return { controllable: true, reason: null };
 }
 
+const SITE_ACCESS_GUIDANCE =
+  "Chrome site access is off for this page. Open chrome://extensions, choose Hermes Connector > Details, then set Site access to On all sites.";
+
+function hostPermissionPattern(rawUrl) {
+  try {
+    const url = new URL(String(rawUrl || ""));
+    if (!["http:", "https:"].includes(url.protocol.toLowerCase())) return null;
+    return `${url.protocol}//${url.hostname}/*`;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function siteAccessReason(rawUrl) {
+  const origin = hostPermissionPattern(rawUrl);
+  if (!origin) return null;
+  try {
+    if (await chrome.permissions.contains({ origins: [origin] })) return null;
+  } catch (_) {}
+  return SITE_ACCESS_GUIDANCE;
+}
+
+async function tabControlStatusWithSiteAccess(tab) {
+  const control = tabControlStatus(tab);
+  if (!control.controllable) return control;
+  const reason = await siteAccessReason(effectiveTabUrl(tab));
+  return reason ? { controllable: false, reason } : control;
+}
+
 function isControllableTab(tab) {
   return tabControlStatus(tab).controllable;
 }
@@ -679,6 +708,13 @@ function describeTab(tab, owner = null) {
     active: !!tab.active, owner, ...control };
 }
 
+async function describeTabWithSiteAccess(tab, owner = null) {
+  const described = describeTab(tab, owner);
+  if (!described.controllable || !tab) return described;
+  const reason = await siteAccessReason(effectiveTabUrl(tab));
+  return reason ? { ...described, controllable: false, reason } : described;
+}
+
 function scheduleActiveTabBroadcast(tabId, knownTab = null) {
   const eventGeneration = ++activeTabEventGeneration;
   Promise.resolve().then(async () => {
@@ -692,7 +728,9 @@ function scheduleActiveTabBroadcast(tabId, knownTab = null) {
     if (eventGeneration !== activeTabEventGeneration) return;
     // An onUpdated lookup can finish after focus moved elsewhere. Never publish it as the active tab.
     if (tab && !tab.active) return;
-    broadcast({ cmd: "activeTabChanged", activeTab: describeTab(tab || null) });
+    const described = await describeTabWithSiteAccess(tab || null);
+    if (eventGeneration !== activeTabEventGeneration) return;
+    broadcast({ cmd: "activeTabChanged", activeTab: described });
   }).catch(() => {});
 }
 
@@ -813,6 +851,8 @@ async function handleAction(msg, sock, epoch) {
   let tab;
   try {
     tab = await (allowPendingTarget ? getRetainableTargetTab(msg) : getTargetTab(msg));
+    const accessError = await siteAccessReason(effectiveTabUrl(tab));
+    if (accessError) throw new Error(accessError);
   } catch (error) {
     sessionSocketSend(sock, epoch.session,
       { type: OUT.ACTION_RESULT, id: msg.id, ok: false, error: String(error.message || error) });
@@ -837,6 +877,8 @@ async function handleAction(msg, sock, epoch) {
       if (!/^https?:\/\//i.test(u)) { data = { ok: false, error: "only http/https URLs are allowed" }; break; }
       const policyError = urlControlReason(u);
       if (policyError) { data = { ok: false, error: policyError }; break; }
+      const accessError = await siteAccessReason(u);
+      if (accessError) { data = { ok: false, error: accessError }; break; }
       // Trusted-input mode: attach BEFORE navigating so a dialog fired during load (beforeunload,
       // onload alert) is auto-handled instead of freezing the page with nobody attached yet.
       if (useCdp) {
@@ -1013,6 +1055,8 @@ async function handleAction(msg, sock, epoch) {
       }
       const policyError = urlControlReason(nu);
       if (policyError) { data = { ok: false, error: policyError }; break; }
+      const accessError = await siteAccessReason(nu);
+      if (accessError) { data = { ok: false, error: accessError }; break; }
       requireActionAuthorized(sock, epoch);
       const t = await chrome.tabs.create({ url: nu, windowId: tab.windowId, active: true });
       let attached = false;
@@ -1036,8 +1080,8 @@ async function handleAction(msg, sock, epoch) {
     case ACTION.LIST_TABS: {
       requireActionAuthorized(sock, epoch);
       const scoped = await getScopeTabs(msg.scope);
-      data = { tabs: scoped.tabs.map((t, index) => {
-        const control = tabControlStatus(t);
+      data = { tabs: await Promise.all(scoped.tabs.map(async (t, index) => {
+        const control = await tabControlStatusWithSiteAccess(t);
         return {
           index,
           tabId: t.id,
@@ -1047,7 +1091,7 @@ async function handleAction(msg, sock, epoch) {
           controllable: control.controllable,
           ...(control.reason ? { reason: control.reason } : {}),
         };
-      }) };
+      })) };
       break;
     }
     case ACTION.SWITCH_TAB: {
@@ -1055,6 +1099,8 @@ async function handleAction(msg, sock, epoch) {
       const t = scoped.tabs[a.index];
       if (!t) { data = { ok: false, error: "no tab at index " + a.index }; }
       else {
+        const accessError = await siteAccessReason(effectiveTabUrl(t));
+        if (accessError) { data = { ok: false, error: accessError }; break; }
         requireActionAuthorized(sock, epoch);
         await actionBindingMutation(
           sock, epoch,
@@ -1073,6 +1119,8 @@ async function handleAction(msg, sock, epoch) {
       const localIndex = a.index != null ? a.index : scoped.tabs.findIndex((item) => item.id === tab.id);
       const t = scoped.tabs[localIndex];
       if (t) {
+        const accessError = await siteAccessReason(effectiveTabUrl(t));
+        if (accessError) { data = { ok: false, error: accessError }; break; }
         requireActionAuthorized(sock, epoch);
         await actionBindingMutation(
           sock, epoch,
@@ -1125,6 +1173,34 @@ async function handleAction(msg, sock, epoch) {
 const panels = new Set();
 function broadcast(msg) { chrome.runtime.sendMessage({ from: "bg", ...msg }).catch(() => {}); }
 
+async function setUpdateBadge(active, title = "") {
+  const text = active ? "UP" : "";
+  await Promise.all([
+    chrome.action.setBadgeText ? chrome.action.setBadgeText({ text }) : undefined,
+    active && chrome.action.setBadgeBackgroundColor
+      ? chrome.action.setBadgeBackgroundColor({ color: "#c27c0e" })
+      : undefined,
+    chrome.action.setTitle
+      ? chrome.action.setTitle({ title: title || (active
+        ? "Hermes Connector update requires attention"
+        : "Open Hermes") })
+      : undefined,
+  ]);
+}
+
+chrome.storage.local.get(STORE.UPGRADE_NOTICE).then((stored) => {
+  const notice = stored[STORE.UPGRADE_NOTICE] || null;
+  return setUpdateBadge(!!notice, notice
+    ? `Hermes Connector ${notice.extensionVersion}: reinstall the matching companion`
+    : "");
+}).catch(() => {});
+
+if (chrome.runtime.onUpdateAvailable) {
+  chrome.runtime.onUpdateAvailable.addListener((details) => {
+    setUpdateBadge(true, `Hermes Connector ${details.version} is ready to install`).catch(() => {});
+  });
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   if (chrome.runtime.getManifest().version !== COMPANION_REINSTALL_NOTICE.extensionVersion) return;
   (async () => {
@@ -1140,6 +1216,8 @@ chrome.runtime.onInstalled.addListener((details) => {
     const notice = { ...COMPANION_REINSTALL_NOTICE, previousVersion: details.previousVersion,
       customBridge: migration.customBridge };
     await chrome.storage.local.set({ [STORE.UPGRADE_NOTICE]: notice });
+    await setUpdateBadge(true,
+      `Hermes Connector ${notice.extensionVersion}: reinstall the matching companion`);
     broadcast({ cmd: "upgradeNoticeChanged", notice });
   })().catch((error) => console.error("upgrade migration:", error));
 });
@@ -1201,7 +1279,18 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const current = saved[STORE.UPGRADE_NOTICE] || null;
         const matches = current && current.id === String(msg.id || "");
         if (matches) {
+          const companionCapabilityConfirmed = paired && brokerState &&
+            Object.prototype.hasOwnProperty.call(brokerState, "agentBackends");
+          if (!companionCapabilityConfirmed) {
+            sendResponse({
+              ok: false,
+              error: `Companion ${chrome.runtime.getManifest().version} is not confirmed yet — reinstall it and restart Hermes`,
+              upgradeNotice: current,
+            });
+            break;
+          }
           await chrome.storage.local.remove(STORE.UPGRADE_NOTICE);
+          await setUpdateBadge(false);
           broadcast({ cmd: "upgradeNoticeChanged", notice: null });
         }
         sendResponse({ ok: true, upgradeNotice: matches ? null : current });
@@ -1241,12 +1330,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // The explicit picker may explain why any local tab is unavailable. Normal rendering must
         // also retain an already-authorized tab while a safe navigation is pending so the user can
         // still see and revoke that authorization; actions remain blocked by `controllable:false`.
-        const tabs = rawTabs.filter((tab) => msg.includeAvailable || isRetainableTab(tab))
-          .sort((a, b) => (a.windowId - b.windowId) || (a.index - b.index))
-          .map((tab) => describeTab(tab, owners.get(tab.id) || null));
+        const orderedTabs = rawTabs.filter((tab) => msg.includeAvailable || isRetainableTab(tab))
+          .sort((a, b) => (a.windowId - b.windowId) || (a.index - b.index));
+        const tabs = await Promise.all(orderedTabs.map(
+          (tab) => describeTabWithSiteAccess(tab, owners.get(tab.id) || null)
+        ));
+        const activeTab = await describeTabWithSiteAccess(activeChromeTab || null,
+          activeChromeTab ? (owners.get(activeChromeTab.id) || null) : null);
         sendResponse({ ok: true, tabs, bindings: registry,
-          activeTab: describeTab(activeChromeTab || null,
-            activeChromeTab ? (owners.get(activeChromeTab.id) || null) : null) });
+          activeTab });
         break;
       }
       case "attachActiveTab": {
@@ -1262,7 +1354,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sendResponse({ ok: false, error: "the active Chrome tab changed; review it and press Attach current again" });
           break;
         }
-        const control = tabControlStatus(tab);
+        const control = await tabControlStatusWithSiteAccess(tab);
         if (!control.controllable) { sendResponse({ ok: false, error: control.reason }); break; }
         const bindings = await attachScopeTab(scope, tab.id);
         sendResponse({ ok: true, tabId: tab.id, bindings });
@@ -1273,7 +1365,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const scope = { profileId: String(msg.profileId || ""), sessionId: String(msg.sessionId || "") };
         scopeKey(scope.profileId, scope.sessionId);
         const tab = await chrome.tabs.get(msg.tabId);
-        const control = tabControlStatus(tab);
+        const control = await tabControlStatusWithSiteAccess(tab);
         if (!control.controllable) { sendResponse({ ok: false, error: control.reason }); break; }
         const bindings = await attachScopeTab(scope, tab.id);
         sendResponse({ ok: true, tabId: tab.id, bindings });

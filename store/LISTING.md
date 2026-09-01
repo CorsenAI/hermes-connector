@@ -1,6 +1,6 @@
-# Chrome Web Store listing — Hermes Connector 0.2.3
+# Chrome Web Store listing — Hermes Connector 0.2.4
 
-Upload: `dist/hermes-connector-0.2.3-chrome.zip`
+Upload: `dist/hermes-connector-0.2.4-chrome.zip`
 
 Privacy policy: `https://corsenai.github.io/hermes-connector/privacy/`
 
@@ -12,7 +12,7 @@ Product, setup, and compatibility: `https://corsenai.github.io/hermes-connector/
 
 Promotional video: `https://www.youtube.com/watch?v=4akSq9cMmFw`
 
-Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip`
+Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
 
 Source: `https://github.com/CorsenAI/hermes-connector`
 
@@ -22,10 +22,12 @@ Source: `https://github.com/CorsenAI/hermes-connector`
 - Small promo: `store/promo-small-440x280.png` (440×280)
 - Marquee promo: `store/promo-marquee-1400x560.png` (1400×560)
 - Verified live E2E capture: `store/screenshot-product-1280x800.png` (1280×800).
-  It shows the unchanged product UI exercised by the verified 0.2.2 live
-  acceptance capture; the 0.2.3 patch changes only companion reliability,
-  versioned download guidance, and regression coverage. The capture shows real Hermes model
-  calls, and the exact attached public `example.com` tab in an isolated profile.
+  It remains an accurate capture of Web-dashboard mode with real Hermes model
+  calls and the exact attached public `example.com` tab in an isolated profile.
+- Desktop-mode product UI capture: `store/screenshot-desktop-1280x800.png`
+  (1280×800). It shows the real 0.2.4 extension surface attached to public
+  `example.com`, with isolated non-sensitive session metadata and no embedded
+  Web-dashboard iframe.
 
 ## Item name
 
@@ -51,7 +53,7 @@ English (United States)
 ```text
 Connect Hermes Agent to the Chrome tabs you choose.
 
-Hermes Connector is a local AI browser automation bridge for Hermes Agent. It embeds your local Hermes dashboard in Chrome’s side panel and routes each selected Hermes session only to the tabs you explicitly attach.
+Hermes Connector is a local AI browser automation bridge for Hermes Agent. It works directly with Hermes Desktop or embeds your local Web dashboard in Chrome’s side panel, and routes each selected Hermes session only to the tabs you explicitly attach.
 
 Use your normal signed-in Chrome profile and existing website sessions—without a hidden automation profile and without guessing which tab an agent should control.
 
@@ -72,14 +74,14 @@ LOCAL CONNECTOR, EXPLICIT CONTROL
 
 • No Corsen AI relay, cloud account, analytics, advertising, tracking, or telemetry
 • The pairing secret uses mutual authentication and is never sent over the connection
-• The local Hermes dashboard runs inside an isolated side-panel frame
+• Hermes Desktop stays in its own app; the optional local Web dashboard runs inside an isolated side-panel frame
 • All browser-control logic is bundled with the extension; no remote control code is downloaded or evaluated
 
 DATA HANDLING
 
 To provide browser automation, the extension handles visible website content, requested screenshots, and the URLs and titles of tabs you attach. Opening “Tabs” displays current tab titles and URLs locally so you can select them. This data goes to your local Hermes installation—not to Corsen AI.
 
-The extension handles two kinds of Authentication information: (1) one persistent local Connector pairing credential stored in Chrome local storage, for which only HMAC proofs—not the credential itself—travel to the companion; and (2) an ephemeral Hermes dashboard session token read into memory and returned only to that same loopback dashboard API. The dashboard token is never stored. Neither item is received by Corsen AI, and the extension does not read website cookies or login storage.
+The extension handles two kinds of Authentication information: (1) one persistent local Connector pairing credential stored in Chrome local storage, for which only HMAC proofs—not the credential itself—travel to the companion; and (2) an ephemeral Hermes local session token read into memory and returned only to that same loopback Hermes API. The session token is never stored. Neither item is received by Corsen AI, and the extension does not read website cookies or login storage.
 
 If you configured Hermes to use a remote AI model provider, Hermes may send relevant content to that provider under your configuration and that provider’s terms.
 
@@ -91,7 +93,7 @@ Trusted input is disabled by default. When you enable it, Chrome’s debugger tr
 
 REQUIREMENTS
 
-• A local Hermes Agent installation and dashboard
+• A local Hermes Agent installation through Hermes Desktop or the Web dashboard
 • The matching Hermes Connector companion, available from the support and download page
 • Chrome on a supported desktop system
 
@@ -102,7 +104,7 @@ installed by double-clicking “Install Hermes Connector.cmd”.
 
 UPGRADING FROM AN OLDER VERSION
 
-Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Restart running Hermes processes after installing companion 0.2.3. Default installations migrate automatically from the legacy local port to protocol 4 on port 8766. If you deliberately configured a custom bridge port, the in-extension notice links to the one-time legacy-broker shutdown/reboot step. The notice remains visible until you confirm the update.
+Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Fully quit and restart Hermes Desktop, dashboards, gateways, and chats after installing companion 0.2.4. Hermes Desktop backends are then discovered automatically even though their local ports change at every launch; running `hermes dashboard` is no longer required for Desktop users. Default installations use protocol 4 on port 8766. The update notice and toolbar badge remain visible until you confirm the matching companion is installed.
 
 WATCH THE COMPLETE DEMO
 
@@ -149,7 +151,7 @@ Stores a random local browser identity, loopback settings, the local Connector p
 `sidePanel`
 
 ```text
-Displays the connector controls and the isolated local Hermes dashboard alongside the user's page.
+Displays the connector controls and Desktop-session status, or the isolated local Hermes Web dashboard, alongside the user's page.
 ```
 
 `alarms`
@@ -171,9 +173,9 @@ Data types to disclose:
 - Website content.
 - Web history.
 - Authentication information — the persistent local Connector pairing credential
-  and the ephemeral local Hermes dashboard session token. The pairing credential
-  itself is never transmitted; the dashboard token is never stored and is sent
-  only to the same HTTP loopback dashboard API. Neither is received by Corsen AI.
+  and the ephemeral local Hermes session token. The pairing credential itself is
+  never transmitted; the session token is never stored and is sent only to the
+  same HTTP loopback Hermes API. Neither is received by Corsen AI.
 
 Certifications:
 
@@ -187,16 +189,18 @@ Certifications:
 Remote code:
 
 ```text
-Yes. A cross-origin iframe loads the user's own local Hermes dashboard from 127.0.0.1/localhost. That iframe is isolated from extension APIs. No fetched code is evaluated in the service worker, content-script, or extension-page context; all browser-control logic is bundled in the submitted ZIP.
+Yes. In Web-dashboard mode, a cross-origin iframe loads the user's own local Hermes dashboard from 127.0.0.1/localhost and remains isolated from extension APIs. In Hermes Desktop mode no remote UI or code is loaded: the extension reads authenticated session metadata from the Desktop backend's dynamically announced loopback API and keeps chat in Hermes Desktop. No fetched code is evaluated in the service worker, content-script, or extension-page context; all browser-control logic is bundled in the submitted ZIP.
 ```
 
 ## Reviewer note
 
 ```text
-No account or remote credentials are required. Install Hermes Agent, then download
-companion 0.2.3 from the public v0.2.3 GitHub release and run the platform
-installer. Restart Hermes, paste the locally printed pairing code into extension
-settings, select a Hermes session, and attach a test tab. Unbound sessions fail
-closed; Trusted input is off by default. The submitted source includes no
-minified or remotely fetched control code.
+No account or remote credentials are required. Install Hermes Agent or Hermes
+Desktop, then download companion 0.2.4 from the public v0.2.4 GitHub prerelease
+and run the platform installer. Fully quit and restart Hermes Desktop (or restart
+the dashboard/gateway/chat process), paste the locally printed pairing code into
+extension settings, select a Hermes session, and attach a test tab. Desktop mode
+automatically discovers the authenticated loopback backend and does not require
+`hermes dashboard`. Unbound sessions fail closed; Trusted input is off by default.
+The submitted source includes no minified or remotely fetched control code.
 ```

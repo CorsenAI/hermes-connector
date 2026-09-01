@@ -129,6 +129,20 @@ class QuietHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path == "/":
+            # Hermes Desktop's headless ``serve`` backend exposes only this
+            # small authenticated bootstrap page, never the dashboard SPA.
+            body = (
+                "<script>window.__HERMES_SESSION_TOKEN__="
+                + json.dumps(self.dashboard_token)
+                + ";</script>"
+            ).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if path == "/api/profiles/sessions":
             expected = "Bearer " + self.dashboard_token
             if self.headers.get("Authorization") != expected:
@@ -419,9 +433,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "bindings": {},
                     "selectedScope": {"profileId": profile_a, "sessionId": session_a},
                     "upgradeNotice": {
-                        "id": "companion-reinstall-0.2.3",
-                        "previousVersion": "0.2.2",
-                        "extensionVersion": "0.2.3",
+                        "id": "companion-reinstall-0.2.4",
+                        "previousVersion": "0.2.3",
+                        "extensionVersion": "0.2.4",
                     },
                 }
                 cdp.evaluate(
@@ -468,7 +482,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             frame_url = panel_state.get("frame", "")
             if "resume=session-a" not in frame_url or "profile=profile-a" not in frame_url:
                 raise AssertionError(f"real side panel did not resume the selected session: {frame_url}")
-            if panel_state.get("noticeHidden") or "0.2.3" not in panel_state.get("noticeText", ""):
+            if panel_state.get("noticeHidden") or "0.2.4" not in panel_state.get("noticeText", ""):
                 raise AssertionError(f"companion update notice was not visible: {panel_state}")
             if not panel_state.get("setupHidden"):
                 raise AssertionError(f"first-run setup stayed visible after pairing configuration: {panel_state}")
@@ -537,7 +551,14 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 raise AssertionError(f"stale session refresh overrode the visible selected scope: {session_race}")
 
             client_a = bridge_client.BridgeClient(
-                profile_a, root=temp_root, port=broker_port, auto_start_broker=False
+                profile_a,
+                root=temp_root,
+                port=broker_port,
+                auto_start_broker=False,
+                backend_metadata_provider=lambda: {
+                    "backendUrl": f"{base}/",
+                    "backendMode": "headless",
+                },
             ).start()
             client_b = bridge_client.BridgeClient(
                 profile_b, root=temp_root, port=broker_port, auto_start_broker=False
@@ -584,27 +605,34 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 raise AssertionError(f"panel did not become ready after exact tab attachment: {ready_status}")
             panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
             try:
-                dashboard_outage = panel_cdp.evaluate(
+                desktop_fallback = panel_cdp.evaluate(
                     "(async()=>{const original=globalThis.fetch;"
                     "globalThis.fetch=(...args)=>{const url=String(args[0]&&args[0].url||args[0]||'');"
                     "if(url.includes('/chat'))return Promise.reject(new Error('simulated dashboard outage'));"
                     "return original(...args);};"
                     "try{document.querySelector('#refreshSessions').click();"
-                    "let unavailable='';for(let i=0;i<100;i++){unavailable=document.querySelector('#status').textContent;"
-                    "if(unavailable==='Hermes dashboard unavailable')break;await new Promise(r=>setTimeout(r,20));}"
+                    "let desktopStatus='';for(let i=0;i<100;i++){desktopStatus=document.querySelector('#status').textContent;"
+                    "if(!document.querySelector('#desktopMode').hidden)break;await new Promise(r=>setTimeout(r,20));}"
+                    "const desktop={visible:!document.querySelector('#desktopMode').hidden,"
+                    "frameHidden:document.querySelector('#hermes').hidden,status:desktopStatus,"
+                    "text:document.querySelector('#desktopMode').textContent};"
                     "globalThis.fetch=original;document.querySelector('#refreshSessions').click();"
                     "let recovered='';for(let i=0;i<100;i++){recovered=document.querySelector('#status').textContent;"
-                    "if(recovered==='Ready · Hermes + Chrome')break;await new Promise(r=>setTimeout(r,20));}"
-                    "return {unavailable,recovered};}finally{globalThis.fetch=original;}})()"
+                    "if(document.querySelector('#desktopMode').hidden&&!document.querySelector('#hermes').hidden&&"
+                    "recovered==='Ready · Hermes + Chrome')break;await new Promise(r=>setTimeout(r,20));}"
+                    "return {desktop,recovered,webFrameVisible:!document.querySelector('#hermes').hidden};}"
+                    "finally{globalThis.fetch=original;}})()"
                 )
             finally:
                 panel_cdp.close()
-            if dashboard_outage != {
-                "unavailable": "Hermes dashboard unavailable",
-                "recovered": "Ready · Hermes + Chrome",
-            }:
+            if (not desktop_fallback or not desktop_fallback.get("desktop", {}).get("visible") or
+                    not desktop_fallback.get("desktop", {}).get("frameHidden") or
+                    "Hermes Desktop connected" not in desktop_fallback.get("desktop", {}).get("text", "") or
+                    desktop_fallback.get("desktop", {}).get("status") != "Ready · Hermes + Chrome" or
+                    desktop_fallback.get("recovered") != "Ready · Hermes + Chrome" or
+                    not desktop_fallback.get("webFrameVisible")):
                 raise AssertionError(
-                    f"dashboard outage was hidden by a false ready state: {dashboard_outage}"
+                    f"Desktop session discovery did not replace the unavailable Web dashboard: {desktop_fallback}"
                 )
             panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
             try:
@@ -872,7 +900,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "(async()=>{for(let i=0;i<100;i++){const notice=document.querySelector('#setupNotice');"
                     "const cfg=document.querySelector('#cfg');const link=notice&&notice.querySelector('a.primaryLink');"
                     "const title=document.querySelector('#setupTitle');"
-                    "if(notice&&cfg&&link&&title&&!notice.hidden&&!cfg.classList.contains('open')&&title.textContent.includes('already installed')){"
+                    "if(notice&&cfg&&link&&title&&!notice.hidden&&!cfg.classList.contains('open')&&title.textContent.includes('service detected')){"
                     "const platform=await chrome.runtime.getPlatformInfo();return {"
                     "text:notice.textContent,href:link.href,status:document.querySelector('#status').textContent,platform:platform.os,"
                     "visibleModals:[...document.querySelectorAll('[aria-modal=true]')].filter(x=>getComputedStyle(x).display!=='none').length};}"
@@ -881,8 +909,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             finally:
                 panel_cdp.close()
             if (not first_run or "What is the companion?" not in first_run.get("text", "") or
-                    "Do not reinstall" not in first_run.get("text", "") or
-                    not first_run.get("href", "").endswith("hermes-connector-0.2.3-companion.zip") or
+                    "cannot confirm its version before pairing" not in first_run.get("text", "") or
+                    "Install the matching 0.2.4 companion once" not in first_run.get("text", "") or
+                    not first_run.get("href", "").endswith("hermes-connector-0.2.4-companion.zip") or
                     first_run.get("status") != "companion detected — enter pairing code" or
                     first_run.get("visibleModals") != 1):
                 raise AssertionError(f"first-run companion setup was incomplete: {first_run}")
@@ -896,6 +925,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 "checks": [
                     "real extension service worker loaded",
                     "real side panel loaded authenticated Hermes sessions",
+                    "Hermes Desktop headless backend discovery survived Web dashboard outage",
                     "first launch detected the installed companion and explained profile re-pairing",
                     "older users received a persistent companion update notice",
                     "unchanged tab rendering stayed storage/event-loop silent",

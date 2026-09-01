@@ -10,6 +10,7 @@ const DEFAULT_BRIDGE = "ws://127.0.0.1:8766";
 const dot = document.getElementById("dot");
 const statusEl = document.getElementById("status");
 const frame = document.getElementById("hermes");
+const desktopMode = document.getElementById("desktopMode");
 const hint = document.getElementById("hint");
 const cfg = document.getElementById("cfg");
 const scopeSection = document.getElementById("scope");
@@ -45,6 +46,7 @@ let scopeSelectionGeneration = 0;
 let dashboardGeneration = 0;
 let scopePersistence = Promise.resolve();
 let targetReadiness = null;
+let sessionSource = Object.freeze({ mode: "dashboard", url: DEFAULT_URL });
 
 const setDot = (kind) => { dot.className = `dot ${kind}`; };
 const keyFor = (scope) => scope ? `${scope.profileId}\u001f${scope.sessionId}` : "";
@@ -107,7 +109,7 @@ function renderConnectionState(message = "", dotKind = "") {
   }
   if (state.dashboardAvailable === false) {
     setDot("warn");
-    statusEl.textContent = "Hermes dashboard unavailable";
+    statusEl.textContent = state.sessionServiceMessage || "Hermes dashboard unavailable";
     return;
   }
   if (!selectedScope) {
@@ -228,15 +230,15 @@ function renderCompanionDetection(detected, checking = false) {
     return;
   }
   if (detected) {
-    setupTitle.textContent = "Companion already installed";
+    setupTitle.textContent = "Companion service detected";
     companionDetection.textContent =
-      `Good news: the companion is already reachable on ${platformLabel()}. Do not reinstall it for this Chrome profile.`;
-    setupStepDownload.textContent = "Use the same private pairing code as your other Chrome profile.";
-    setupStepInstall.textContent = "Paste the 64-character code below; it stays only on this computer.";
+      `A local broker is reachable on ${platformLabel()}, but Chrome cannot confirm its version before pairing. Install the matching 0.2.4 companion once.`;
+    setupStepDownload.textContent = "Download and extract companion 0.2.4; reinstalling preserves the existing private pairing code.";
+    renderPlatformInstallStep();
     setupStepRestart.textContent =
-      "If you lost the code, running the installer again is safe and displays the existing code; then restart Hermes.";
-    setupStepPair.textContent = "Choose a Hermes session and attach only the tabs it may use.";
-    downloadCompanion.textContent = "Installer (only if you lost the code)";
+      "Fully quit and reopen Hermes Desktop, or restart the Hermes services you use.";
+    setupStepPair.textContent = "Paste the displayed 64-character code, choose a Hermes session, and attach only the tabs it may use.";
+    downloadCompanion.textContent = "Download companion 0.2.4";
     if (!setupNotice.hidden) statusEl.textContent = "companion detected — enter pairing code";
     return;
   }
@@ -247,7 +249,7 @@ function renderCompanionDetection(detected, checking = false) {
   renderPlatformInstallStep();
   setupStepRestart.textContent = "Restart Hermes, then copy the private pairing code the installer displays.";
   setupStepPair.textContent = "Paste that code below, choose a Hermes session, and attach only the tabs it may use.";
-  downloadCompanion.textContent = "Download companion 0.2.3";
+  downloadCompanion.textContent = "Download companion 0.2.4";
   if (!setupNotice.hidden) statusEl.textContent = "setup required — companion not reachable";
 }
 
@@ -289,11 +291,58 @@ async function dashboardUrl(scope = null) {
   return makeDashboardUrl(await getUrl(), scope);
 }
 
+function advertisedDesktopBackends() {
+  const items = (state.brokerState && state.brokerState.agentBackends) || [];
+  if (!Array.isArray(items)) return [];
+  const seen = new Set();
+  const backends = [];
+  for (const item of items) {
+    if (!item || item.mode !== "headless") continue;
+    const url = normalizeLoopbackUrl(item.url, "");
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    backends.push({
+      url,
+      profileId: String(item.profileId || "default"),
+      processId: String(item.processId || ""),
+    });
+  }
+  if (selectedScope) {
+    backends.sort((a, b) => Number(b.profileId === selectedScope.profileId) -
+      Number(a.profileId === selectedScope.profileId));
+  }
+  return backends;
+}
+
+function sessionServiceUnavailableMessage() {
+  const brokerStateAvailable = state.brokerState && typeof state.brokerState === "object";
+  const desktopCapabilityAvailable = brokerStateAvailable &&
+    Object.prototype.hasOwnProperty.call(state.brokerState, "agentBackends");
+  return state.paired && !desktopCapabilityAvailable
+    ? `Companion ${chrome.runtime.getManifest().version} required for Hermes Desktop`
+    : "Hermes dashboard unavailable";
+}
+
+function setSessionSource(mode, url) {
+  sessionSource = Object.freeze({ mode, url });
+}
+
 async function showDashboard(scope = null, selectionGeneration = null) {
   const generation = ++dashboardGeneration;
+  if (sessionSource.mode === "desktop") {
+    if (generation !== dashboardGeneration) return false;
+    if (selectionGeneration !== null && selectionGeneration !== scopeSelectionGeneration) return false;
+    frame.hidden = true;
+    frame.removeAttribute("src");
+    desktopMode.hidden = false;
+    hint.hidden = true;
+    return true;
+  }
   const url = await dashboardUrl(scope);
   if (generation !== dashboardGeneration) return false;
   if (selectionGeneration !== null && selectionGeneration !== scopeSelectionGeneration) return false;
+  desktopMode.hidden = true;
+  frame.hidden = false;
   frame.src = url;
   hint.hidden = true;
   return true;
@@ -332,10 +381,28 @@ function sessionLabel(session) {
 
 async function loadSessions() {
   const generation = ++sessionsLoadGeneration;
+  let configuredUrl = DEFAULT_URL;
+  let sessions = null;
+  let source = null;
   try {
-    const url = await getUrl();
+    configuredUrl = await getUrl();
     if (generation !== sessionsLoadGeneration) return false;
-    const sessions = await listDashboardSessions(url);
+    sessions = await listDashboardSessions(configuredUrl);
+    source = { mode: "dashboard", url: configuredUrl };
+  } catch (_) {
+    for (const backend of advertisedDesktopBackends()) {
+      try {
+        sessions = await listDashboardSessions(backend.url, fetch, { headless: true });
+        source = { mode: "desktop", url: backend.url };
+        break;
+      } catch (_) {}
+    }
+  }
+  try {
+    if (!sessions || !source) throw new Error("Hermes session service unavailable");
+    if (generation !== sessionsLoadGeneration) return false;
+    setSessionSource(source.mode, source.url);
+    await showDashboard(selectedScope);
     if (generation !== sessionsLoadGeneration) return false;
     const currentScope = copyScope(selectedScope);
     const currentValue = currentScope ? optionValue(currentScope.profileId, currentScope.sessionId) : "";
@@ -369,13 +436,18 @@ async function loadSessions() {
     sessionSelect.value = currentValue;
     hint.hidden = true;
     state.dashboardAvailable = true;
+    state.sessionServiceMessage = "";
     renderConnectionState();
     return true;
   } catch (_) {
     if (generation !== sessionsLoadGeneration) return false;
+    setSessionSource("dashboard", configuredUrl);
+    desktopMode.hidden = true;
+    frame.hidden = false;
     hint.hidden = false;
     state.dashboardAvailable = false;
-    renderConnectionState("Hermes dashboard unavailable", state.paired ? "warn" : "off");
+    state.sessionServiceMessage = sessionServiceUnavailableMessage();
+    renderConnectionState(state.sessionServiceMessage, state.paired ? "warn" : "off");
     return false;
   }
 }
@@ -742,6 +814,8 @@ dismissUpgradeNotice.onclick = async () => {
   if (result && result.ok) {
     renderUpgradeNotice(result.upgradeNotice);
     document.getElementById("gear").focus();
+  } else if (result && result.error) {
+    renderConnectionState(result.error, "warn");
   }
 };
 
@@ -764,12 +838,13 @@ chrome.runtime.onMessage.addListener((message) => {
         state.brokerState = message.brokerState;
       }
       renderConnectionState(message.ok ? "" : "Pairing failed", message.ok ? "" : "err");
+      loadSessions();
       renderTabs();
       break;
     case "pairDenied":
       state.paired = false;
       targetReadiness = null;
-      state.brokerState = { agentProfiles: [], browsers: [] };
+      state.brokerState = { agentProfiles: [], browsers: [], agentBackends: [] };
       setDot("err");
       statusEl.textContent = "pairing denied — check the code (⚙)";
       renderTabs().then(() => renderConnectionState("Pairing denied — check the code (⚙)", "err"));
@@ -780,7 +855,7 @@ chrome.runtime.onMessage.addListener((message) => {
     case "disconnected":
       state.paired = false;
       targetReadiness = null;
-      state.brokerState = { agentProfiles: [], browsers: [] };
+      state.brokerState = { agentProfiles: [], browsers: [], agentBackends: [] };
       renderConnectionState("Connector broker not reachable", "off");
       renderTabs().then(() => renderConnectionState("Connector broker not reachable", "off"));
       break;
@@ -791,7 +866,7 @@ chrome.runtime.onMessage.addListener((message) => {
     case "brokerState":
       if (message.state) state.brokerState = message.state;
       renderConnectionState();
-      renderTabs();
+      loadSessions().then(() => renderTabs());
       break;
     case "upgradeNoticeChanged":
       renderUpgradeNotice(message.notice);

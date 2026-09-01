@@ -424,7 +424,7 @@ def main(argv: list[str] | None = None) -> int:
     if code is not None:
         print("\nPairing code (keep private; paste once into the Chrome extension):")
         print(code)
-    print("\nRestart running Hermes dashboard, gateway, and chat processes for the profiles you use.")
+    print("\nFully quit and reopen Hermes Desktop, or restart running Hermes dashboard, gateway, and chat processes.")
     print("Re-run this installer after creating a new Hermes profile.")
     return 0
 

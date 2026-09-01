@@ -105,9 +105,11 @@ test("actions stay bound to their authenticated socket and current tab authoriza
       async attach() {}, async detach() {}, async sendCommand() {},
       onEvent: simpleEvent(), onDetach: simpleEvent(),
     },
-    permissions: { async contains() { return false; } },
+    permissions: {
+      async contains(query) { return Array.isArray(query && query.origins); },
+    },
     runtime: {
-      getManifest() { return { version: "0.2.3" }; },
+      getManifest() { return { version: "0.2.4" }; },
       onInstalled: simpleEvent(),
       onMessage: runtimeEvent,
       async sendMessage() {},

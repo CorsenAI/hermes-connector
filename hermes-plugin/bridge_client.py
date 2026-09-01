@@ -100,13 +100,14 @@ class BridgeClient:
 
     def __init__(self, profile_id: str, root: Optional[str | Path] = None,
                  host: str = broker.DEFAULT_HOST, port: Optional[int] = None,
-                 auto_start_broker: bool = True):
+                 auto_start_broker: bool = True, backend_metadata_provider=None):
         self.profile_id = broker.clean_id(profile_id or "default", "profileId")
         self.root = broker.hermes_root(str(root)) if root else broker.hermes_root()
         self.host = host
         self.port = int(port or os.environ.get("HERMES_BRIDGE_PORT", broker.DEFAULT_PORT))
         self.url = f"ws://{self.host}:{self.port}"
         self.auto_start_broker = auto_start_broker
+        self._backend_metadata_provider = backend_metadata_provider
         self.process_id = f"{os.getpid()}-{secrets.token_hex(4)}"
         self.secret = broker.load_or_create_secret(self.root)
 
@@ -417,15 +418,70 @@ class BridgeClient:
             if isinstance(paired.get("brokerState"), dict):
                 self.broker_state = paired["brokerState"]
             self._ready.set()
-            async for raw in websocket:
-                message = self._parse(raw)
-                kind = message.get("type")
-                if kind == "broker_state" and isinstance(message.get("data"), dict):
-                    self.broker_state = message["data"]
-                elif kind in {"agent_response", "status_response"}:
-                    future = self._pending.get(str(message.get("id") or ""))
-                    if future is not None and not future.done():
-                        future.set_result(message)
+            backend_task = None
+            if self._backend_metadata_provider is not None or os.environ.get(
+                "HERMES_SERVE_HEADLESS"
+            ) == "1":
+                backend_task = asyncio.create_task(self._advertise_backend(websocket))
+            try:
+                async for raw in websocket:
+                    message = self._parse(raw)
+                    kind = message.get("type")
+                    if kind == "broker_state" and isinstance(message.get("data"), dict):
+                        self.broker_state = message["data"]
+                    elif kind in {"agent_response", "status_response"}:
+                        future = self._pending.get(str(message.get("id") or ""))
+                        if future is not None and not future.done():
+                            future.set_result(message)
+            finally:
+                if backend_task is not None:
+                    backend_task.cancel()
+                    await asyncio.gather(backend_task, return_exceptions=True)
+
+    @staticmethod
+    def _headless_backend_metadata() -> Optional[dict]:
+        """Return this process's bound headless backend after ``serve`` starts.
+
+        Avoid importing ``hermes_cli.web_server`` from this background thread:
+        plugin registration can run while that module is still importing on
+        the main thread. Once loaded, the server publishes its actual ephemeral
+        port on ``app.state.bound_port``.
+        """
+
+        if os.environ.get("HERMES_SERVE_HEADLESS") != "1":
+            return None
+        web_server = sys.modules.get("hermes_cli.web_server")
+        app = getattr(web_server, "app", None)
+        state = getattr(app, "state", None)
+        raw_port = getattr(state, "bound_port", None)
+        if isinstance(raw_port, bool):
+            return None
+        try:
+            port = int(raw_port)
+        except (TypeError, ValueError):
+            return None
+        if not 1 <= port <= 65535:
+            return None
+        return {
+            "backendUrl": f"http://127.0.0.1:{port}/",
+            "backendMode": "headless",
+        }
+
+    async def _advertise_backend(self, websocket: Any) -> None:
+        provider = self._backend_metadata_provider or self._headless_backend_metadata
+        while not self._stop.is_set():
+            try:
+                metadata = provider()
+            except Exception:
+                metadata = None
+            if isinstance(metadata, dict):
+                await websocket.send(json.dumps({
+                    "type": "agent_backend_update",
+                    "backendUrl": metadata.get("backendUrl"),
+                    "backendMode": metadata.get("backendMode"),
+                }))
+                return
+            await asyncio.sleep(0.1)
 
     @staticmethod
     def _parse(raw: Any) -> dict:

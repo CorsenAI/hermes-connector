@@ -23,8 +23,14 @@ The public Chrome Web Store build is **0.2.3**. Install the companion only after
 checking the extension version in `chrome://extensions`; the Chrome extension
 and local companion must use exactly the same version.
 
+Version **0.2.4** is a GitHub prerelease candidate for Chrome Web Store review.
+It adds automatic Hermes Desktop discovery: the side panel can list Desktop
+sessions and attach tabs without requiring a separately opened web dashboard.
+Do not install companion 0.2.4 until Chrome explicitly shows extension 0.2.4.
+
 | Chrome extension | Matching companion | Protocol / default broker | Status |
 | --- | --- | --- | --- |
+| 0.2.4 | [Companion 0.2.4](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip) | Protocol 4 / `127.0.0.1:8766` + automatic Hermes Desktop backend discovery | GitHub prerelease candidate; use only when Chrome explicitly shows 0.2.4 |
 | 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Current public Store pair |
 | 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.2 |
 | 0.2.1 | [Companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released or sideloaded pair |
@@ -50,12 +56,18 @@ is available on the [support page](https://corsenai.github.io/hermes-connector/s
 
 ## Your Hermes session, inside the Chrome you already use
 
-Hermes Connector embeds the real local Hermes dashboard in Chrome's side panel.
-You decide which tabs each Hermes session may access, and the connector keeps
-that scope exact even when several projects, sessions, or Chrome profiles are
-running at the same time.
+Hermes Connector keeps session selection and tab attachment in Chrome's side
+panel. The current 0.2.3 Store pair embeds the local Hermes web dashboard. The
+0.2.4 prerelease candidate also discovers Hermes Desktop automatically: choose
+the Desktop session and attach tabs in the panel, then continue the conversation
+in Hermes Desktop. In both modes, the connector keeps the scope exact even when
+several projects, sessions, or Chrome profiles are running at the same time.
 
 ![Hermes Connector controlling an explicitly attached Chrome tab from the side panel](store/screenshot-product-1280x800.png)
+
+0.2.4 Desktop candidate preview:
+
+![Hermes Connector 0.2.4 connected directly to Hermes Desktop beside an attached Chrome tab](store/screenshot-desktop-1280x800.png)
 
 With an attached tab, Hermes can:
 
@@ -85,9 +97,11 @@ while each Hermes task receives only the tabs assigned to it.
 ## Quick start
 
 You need a local Hermes Agent installation, desktop Chrome 120 or newer, and the
-small Hermes Connector companion. The extension's first-run screen detects your
-operating system, checks whether the companion is already reachable, and shows
-the appropriate Windows, macOS, or Linux instructions.
+small Hermes Connector companion. Version 0.2.3 uses the local Hermes web
+dashboard; the 0.2.4 candidate can use Hermes Desktop directly or the web
+dashboard. The extension's first-run screen detects your operating system,
+checks whether the companion is already reachable, and shows the appropriate
+Windows, macOS, or Linux instructions.
 
 ### 1. Install the Chrome extension
 
@@ -118,10 +132,11 @@ you can copy the pairing code.
 ./install.sh
 ```
 
-Restart any Hermes dashboard, gateway, or chat process that was already
-running. The installer adds the connector plugin to the shared Hermes home and
-existing named profiles, then prints one private pairing code. Re-run the
-installer after creating a new named Hermes profile.
+Fully quit and reopen Hermes Desktop, or restart any Hermes dashboard, gateway,
+or chat process that was already running. The installer adds the connector
+plugin to the shared Hermes home and existing named profiles, then prints one
+private pairing code. Re-run the installer after creating a new named Hermes
+profile.
 
 ### 4. Pair Chrome and choose the tabs
 
@@ -131,7 +146,9 @@ In the Hermes Connector side panel:
 2. Paste the pairing code printed by the installer and save.
 3. Select the Hermes profile and session you want to use.
 4. Choose **Attach active tab** or **Choose tabs**.
-5. Ask Hermes to work with the selected page.
+5. Ask Hermes to work with the selected page. In 0.2.4 Desktop mode, continue
+   the conversation in Hermes Desktop while the panel keeps the session and tab
+   controls visible.
 
 For example:
 
@@ -166,10 +183,11 @@ Hermes profile and session
 
 Chrome automatically updates the Store extension. It cannot update a local
 companion, so after an extension version change you must install the companion
-with exactly the same version and restart Hermes. If you remove and reinstall
-the extension, or add it to another Chrome profile, the first-run check detects
-an already-running compatible companion and avoids asking you to install it
-again.
+with exactly the same version and fully restart Hermes Desktop or the running
+Hermes services. If you remove and reinstall the extension, or add it to another
+Chrome profile, the first-run check can detect the local broker but cannot prove
+its version before pairing; follow the displayed exact-version installer link.
+Reinstalling the matching companion preserves the existing pairing code.
 
 ## Privacy and security
 
