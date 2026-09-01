@@ -54,15 +54,48 @@ broker for the same Hermes root and legacy port.
   actual extension UI with public `example.com` and isolated session data;
   SHA-256 `C2E875FC3EC6B02A30B2AEB4065BC5AA01D67DCCE469AD7D725C879C810570E9`.
 
+### Exact packaged-pair and installed-runtime validation
+
+Clean commit `f583074d0773fe81879aecd1e3b0e8145b35411d` produced protocol 5
+archives with `sourceDirty: false`:
+
+- Chrome ZIP: 60,222 bytes; SHA-256
+  `335b35a7531722e58a84054ba102dceda9672699c7d60fc859f7d4c3bd072967`;
+- companion ZIP: 32,635 bytes; SHA-256
+  `3ec1c1c0428441d5f98fd9458bb099808dbb7b39ab9d34dea2dc5ecc29ff5cae`.
+
+The packaged-pair acceptance loaded that exact Chrome ZIP in one and two
+isolated real Chrome profiles and passed every routing/action gate. The exact
+companion ZIP was then installed into the shared Windows Hermes home and all
+16 discovered named profiles. Its strict cleanup stopped both processes in the
+old venv-wrapper/base-runtime broker pair. The still-running old gateway
+correctly demonstrated the documented respawn race; after fully restarting
+Desktop and the gateway, only protocol 5 on `127.0.0.1:8767` remained.
+
+The restarted CLI gateway launched the broker directly from Hermes' immutable
+base runtime, with no venv wrapper process. Hermes' installed
+`_scan_venv_blockers` reported `blocked: false`, zero processes, and no
+Connector broker. With Hermes Desktop restarted as well, the same scan remained
+clear. The live acceptance then loaded the exact packaged extension, proved one
+dynamically announced Desktop backend, listed 86 real sessions, and rendered
+“Hermes Desktop connected”. The harness read only counts, never session titles
+or conversation content.
+
+Finally, a real Hermes Desktop update was started while the new Connector was
+active. Desktop released its backend, launched the detached updater, logged
+`detached update finished OK`, and restarted itself with a ready backend. Unlike
+the two earlier attempts with the old companion, the update log contained no
+Connector venv holder and did not abort on a broker PID.
+
 ### Gates still open before distribution
 
 - [ ] Re-run the complete release and packaged-pair gates from the final clean
   tagged commit.
-- [ ] Test an actual Hermes Desktop process after installing the exact packaged
+- [x] Test an actual Hermes Desktop process after installing the exact packaged
   companion 0.2.4 and fully restarting Desktop.
-- [ ] Run Hermes' installed virtual-environment blocker scanner with the final
+- [x] Run Hermes' installed virtual-environment blocker scanner with the final
   broker active and confirm the Connector process is not reported.
-- [ ] Produce the deterministic clean Chrome/companion archives and release
+- [x] Produce the deterministic clean Chrome/companion archives and release
   manifest; record their generated sizes and SHA-256 hashes here only after the
   build exists.
 - [ ] Publish the matching GitHub `v0.2.4` prerelease assets before sending the
