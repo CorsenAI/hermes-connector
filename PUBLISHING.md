@@ -32,8 +32,8 @@ separately under the same release version.
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
 - Complete video demo: `https://youtu.be/4akSq9cMmFw`
-- 0.2.4 prerelease details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4`
-- Companion 0.2.4 candidate: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
+- 0.2.4 release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4`
+- Companion 0.2.4: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
@@ -150,24 +150,28 @@ Desktop app; Web-dashboard mode uses the isolated iframe. Sensitive permissions
 can trigger manual review, so use deferred publishing and answer reviewer
 questions promptly.
 
-## 7. 0.2.4 candidate gates
+## 7. Completed 0.2.4 release gates — 2026-09-02
 
-- [ ] Clean committed/tagged 0.2.4 source; Store and companion versions match.
-- [ ] Fast gate, isolated Chromium, and packaged-pair acceptance pass.
-- [ ] Real Hermes Desktop `serve --port 0` discovery is verified without a
+- [x] Clean committed/tagged 0.2.4 source; Store and companion versions match.
+- [x] Fast gate, isolated Chromium, and packaged-pair acceptance pass.
+- [x] Real Hermes Desktop `serve --port 0` discovery is verified without a
       separately launched Web dashboard.
-- [ ] Desktop and CLI both launch the broker from the update-safe managed base
+- [x] Desktop and CLI both launch the broker from the update-safe managed base
       runtime; Hermes' installed blocker scanner does not report that broker.
-- [ ] Installing 0.2.4 retires only the verified legacy v4/8766 broker and the
+- [x] Installing 0.2.4 retires only the verified legacy v4/8766 broker and the
       v5 state imports the prior v4 bindings exactly once.
-- [ ] Exact companion 0.2.4 ZIP is installed on Windows and Desktop is fully
+- [x] Exact companion 0.2.4 ZIP is installed on Windows and Desktop is fully
       restarted before the signed-in Chrome smoke test.
-- [ ] Public GitHub `v0.2.4` prerelease serves the companion, Chrome ZIP, and
+- [x] Public GitHub `v0.2.4` release serves the companion, Chrome ZIP, and
       release manifest before Store review begins.
-- [ ] Store listing, reviewer note, privacy text, support page, and new Desktop
+- [x] Store listing, reviewer note, privacy text, support page, and new Desktop
       screenshot describe the same tested behavior.
-- [ ] Upload only `dist/hermes-connector-0.2.4-chrome.zip` to the existing Store
-      item and submit with deferred publishing.
+- [x] Upload only `dist/hermes-connector-0.2.4-chrome.zip` to the existing Store
+      item, complete review, and publish the approved version publicly.
+
+The existing Chrome Web Store item publicly serves 0.2.4. The matching GitHub
+release is normal and marked Latest, and Pages publishes the matching 0.2.4
+setup, companion, upgrade, and compatibility guidance.
 
 ## 8. Historical 0.2.3 release gates
 

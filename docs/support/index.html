@@ -27,27 +27,27 @@
 </head>
 <body><main>
   <h1>Hermes Connector support</h1>
-  <p class="sub">Current public Chrome Web Store release: 0.2.3</p>
+  <p class="sub">Current public Chrome Web Store release: 0.2.4</p>
 
   <section class="card current" id="current-release">
-    <span class="badge">Current Store release · 0.2.3</span>
+    <span class="badge">Current Store release · 0.2.4</span>
     <h2>Match the companion to the extension version shown by Chrome</h2>
-    <p>The Store now serves 0.2.3. Check <code>chrome://extensions</code>, then install companion 0.2.3 when Chrome shows Hermes Connector <strong>0.2.3</strong>. Never mix extension and companion versions.</p>
+    <p>The Store now serves 0.2.4. Check <code>chrome://extensions</code>, then install companion 0.2.4 when Chrome shows Hermes Connector <strong>0.2.4</strong>. Never mix extension and companion versions.</p>
     <div class="actions">
       <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install from Chrome Web Store</a>
       <a class="button" href="#compatible-versions">Choose matching companion</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.3">Open 0.2.3 release details</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4">Open 0.2.4 release details</a>
       <a class="button" href="https://youtu.be/4akSq9cMmFw" target="_blank" rel="noopener noreferrer">Watch installation and demo</a>
     </div>
   </section>
 
-  <section class="card warning-card" id="desktop-candidate">
-    <span class="badge">Prerelease candidate · 0.2.4</span>
-    <h2>Hermes Desktop compatibility is staged for Store review</h2>
+  <section class="card current" id="desktop-release">
+    <span class="badge">Current release · 0.2.4</span>
+    <h2>Hermes Desktop compatibility is publicly available</h2>
     <p>Version 0.2.4 adds automatic discovery of Hermes Desktop's dynamic local backend. After the matching companion is installed and Hermes Desktop is fully restarted, choose the Desktop session and attach tabs in Chrome, then continue the conversation in Hermes Desktop. A separately opened web dashboard is not required.</p>
-    <p class="warning"><strong>The public Store still serves 0.2.3.</strong> Use companion 0.2.4 only when <code>chrome://extensions</code> explicitly shows Hermes Connector 0.2.4.</p>
+    <p class="warning"><strong>Chrome updates can roll out gradually.</strong> Use companion 0.2.4 only when <code>chrome://extensions</code> explicitly shows Hermes Connector 0.2.4; otherwise keep the companion matching the version Chrome still shows.</p>
     <div class="actions">
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4">Open 0.2.4 prerelease details</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4">Open 0.2.4 release details</a>
       <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip">Download companion 0.2.4</a>
     </div>
   </section>
@@ -59,16 +59,16 @@
       <thead><tr><th>Chrome extension</th><th>Matching companion</th><th>Protocol / default port</th><th>When to use</th></tr></thead>
       <tbody>
         <tr>
-          <td><span class="pair"><strong>0.2.4</strong> · GitHub prerelease candidate</span></td>
+          <td><span class="pair"><strong>0.2.4</strong> · current public Store build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip">Companion 0.2.4</a></td>
           <td>Protocol 5<br><code>127.0.0.1:8767</code><br>Automatic Hermes Desktop backend discovery</td>
-          <td>Only when Chrome explicitly shows extension 0.2.4. The public Store remains on 0.2.3 until review and publication finish.</td>
+          <td>Current release. Install when Chrome explicitly shows extension 0.2.4.</td>
         </tr>
         <tr>
-          <td><span class="pair"><strong>0.2.3</strong> · current public Store build</span></td>
+          <td><span class="pair"><strong>0.2.3</strong> · legacy released build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip">Companion 0.2.3</a></td>
           <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
-          <td>Everyone whose Chrome extension page shows 0.2.3.</td>
+          <td>Only while Chrome still explicitly shows extension 0.2.3.</td>
         </tr>
         <tr>
           <td><span class="pair"><strong>0.2.2</strong> · legacy released build</span></td>
@@ -80,7 +80,7 @@
           <td><span class="pair"><strong>0.2.1</strong> · legacy released/sideloaded build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip">Companion 0.2.1</a></td>
           <td>Protocol 4<br><code>127.0.0.1:8766</code></td>
-          <td>Only when Chrome explicitly shows extension 0.2.1. Upgrade to 0.2.3 when possible.</td>
+          <td>Only when Chrome explicitly shows extension 0.2.1. Upgrade to the latest Store version when possible.</td>
         </tr>
         <tr>
           <td><span class="pair"><strong>0.2.0</strong> · legacy build</span></td>
@@ -105,7 +105,7 @@
   </section>
 
   <section class="card warning-card" id="upgrade-0-2-4">
-    <h2>Testing the 0.2.4 Desktop prerelease candidate</h2>
+    <h2>Upgrading to 0.2.4</h2>
     <ol class="steps">
       <li>Confirm that <code>chrome://extensions</code> shows Hermes Connector 0.2.4. If it still shows 0.2.3, keep companion 0.2.3.</li>
       <li>Install companion 0.2.4 from the matching row above.</li>

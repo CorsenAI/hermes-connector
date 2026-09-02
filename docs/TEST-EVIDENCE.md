@@ -1,17 +1,17 @@
 # Test evidence
 
-## 0.2.4 Hermes Desktop compatibility candidate — 2026-09-01
+## 0.2.4 Hermes Desktop compatibility release — 2026-09-02
 
 ### Why 0.2.4 is required
 
-The public 0.2.3 pair expects a separately running Hermes web dashboard at its
+The legacy 0.2.3 pair expects a separately running Hermes web dashboard at its
 configured address. Hermes Desktop instead starts a headless local API on a
 dynamic loopback port and does not expose the dashboard route embedded by the
 side panel. As a result, the 0.2.3 companion can be paired and browser tools can
 be installed while the panel still reports that `127.0.0.1` refused the
 dashboard connection.
 
-The 0.2.4 candidate makes the companion announce that same-process headless
+The 0.2.4 release makes the companion announce that same-process headless
 backend through the authenticated local broker after Hermes Desktop binds its
 port. The broker accepts only an explicit `http://127.0.0.1:<port>/` or
 `http://localhost:<port>/` headless backend, ties the announcement to the
@@ -34,7 +34,7 @@ Desktop-backend messages. Release 0.2.4 therefore uses version-checked protocol
 only a process whose executable arguments prove it is the prior Connector
 broker for the same Hermes root and legacy port.
 
-### Candidate validation completed so far
+### Release validation completed
 
 - the complete fast source gate passes on Windows: 76 Python tests pass with 6
   platform/privilege-specific cases skipped, and all 21 JavaScript tests pass;
@@ -87,9 +87,9 @@ active. Desktop released its backend, launched the detached updater, logged
 the two earlier attempts with the old companion, the update log contained no
 Connector venv holder and did not abort on a broker PID.
 
-### Gates still open before distribution
+### Completed distribution status
 
-- [ ] Re-run the complete release and packaged-pair gates from the final clean
+- [x] Re-run the complete release and packaged-pair gates from the final clean
   tagged commit.
 - [x] Test an actual Hermes Desktop process after installing the exact packaged
   companion 0.2.4 and fully restarting Desktop.
@@ -98,14 +98,15 @@ Connector venv holder and did not abort on a broker PID.
 - [x] Produce the deterministic clean Chrome/companion archives and release
   manifest; record their generated sizes and SHA-256 hashes here only after the
   build exists.
-- [ ] Publish the matching GitHub `v0.2.4` prerelease assets before sending the
+- [x] Publish the matching GitHub `v0.2.4` assets before sending the
   Chrome package for review.
-- [ ] Upload 0.2.4 to the existing Chrome Web Store item and keep publication
-  deferred until review is approved.
+- [x] Upload 0.2.4 to the existing Chrome Web Store item, complete review, and
+  publish the approved release publicly.
 
-The public Chrome Web Store release remains 0.2.3 throughout these candidate
-gates. Users must keep companion 0.2.3 until Chrome itself explicitly reports
-extension 0.2.4.
+The public Chrome Web Store release is now 0.2.4. Users must install companion
+0.2.4 only after Chrome itself explicitly reports extension 0.2.4; during the
+automatic rollout, older installed extensions must keep their exact matching
+companion.
 
 ## 0.2.3 release candidate — 2026-08-31
 
