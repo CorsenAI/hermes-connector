@@ -40,3 +40,29 @@ To display it again locally:
 ```text
 python <Hermes home>/plugins/hermes-connector/broker.py --show-code
 ```
+
+## Pairing code and captured output
+
+`--show-code` intentionally writes the full pairing secret to standard output.
+The installer consumes that output and normally displays the code once so it
+can be pasted into Chrome. This is not a redacted diagnostic or a one-time
+secret: terminal recordings, redirected output, installation logs and support
+transcripts can retain a usable copy. Do not publish or share that output.
+File permissions on `connector/credentials.json` do not protect such copies.
+
+For an installation whose output will be recorded, suppress the code display:
+
+```text
+python install.py --no-show-code
+```
+
+Run this command from the extracted companion archive. When installing from a
+source checkout, the equivalent is
+`python scripts/install_companion.py --no-show-code`. Display the pairing code
+separately only when needed, in a private terminal that is not being recorded.
+The option suppresses display; it does not rotate or delete an existing secret.
+
+An output warning or clearing a terminal line cannot retract a secret already
+captured in a log. The explicit display command remains compatible with the
+installer's captured subprocess output; this documentation does not remove
+that exposure or resolve a clear-text-output scanning alert by itself.
