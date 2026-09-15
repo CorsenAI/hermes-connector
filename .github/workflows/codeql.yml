@@ -1,0 +1,73 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - name: Analyze source
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          category: '/language:${{ matrix.language }}'
+          output: '${{ runner.temp }}/codeql-results'
+      - name: Summarize findings
+        if: success()
+        shell: python
+        env:
+          SARIF_DIR: '${{ runner.temp }}/codeql-results'
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          reports = sorted(Path(os.environ['SARIF_DIR']).glob('*.sarif'))
+          if not reports:
+              raise SystemExit('CodeQL produced no SARIF report')
+          total = 0
+          high = 0
+          for report in reports:
+              for run in json.loads(report.read_text(encoding='utf-8')).get('runs', []):
+                  rules = {rule['id']: rule for rule in run['tool']['driver'].get('rules', [])}
+                  for result in run.get('results', []):
+                      rule_id = result.get('ruleId', '')
+                      properties = rules.get(rule_id, {}).get('properties', {})
+                      severity = float(properties.get('security-severity', '0'))
+                      total += 1
+                      high += severity >= 7
+                      print(f'Finding: {rule_id}; security severity: {severity}')
+          print(f'CodeQL findings: {total}; high or critical: {high}')
+          if high:
+              raise SystemExit('Review high or critical CodeQL findings before merging')
