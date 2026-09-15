@@ -45,6 +45,19 @@ jobs:
           output: '${{ runner.temp }}/codeql-results'
       - name: Verify findings and reviewed source
         if: success()
+        shell: bash
         env:
           SARIF_DIR: '${{ runner.temp }}/codeql-results'
-        run: python scripts/check_codeql.py "$SARIF_DIR" --reviews .github/codeql-reviewed.json
+        run: |
+          set -euo pipefail
+          python scripts/check_codeql.py "$SARIF_DIR" --reviews .github/codeql-reviewed.json 2>&1 | tee "$SARIF_DIR/verification.txt"
+      - name: Retain analysis evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: codeql-${{ matrix.language }}-${{ github.event_name }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/codeql-results/*.sarif
+            ${{ runner.temp }}/codeql-results/verification.txt
+          if-no-files-found: error
+          retention-days: 7
