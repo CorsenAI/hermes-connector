@@ -343,7 +343,12 @@ async function showDashboard(scope = null, selectionGeneration = null) {
   if (selectionGeneration !== null && selectionGeneration !== scopeSelectionGeneration) return false;
   desktopMode.hidden = true;
   frame.hidden = false;
-  frame.src = url;
+  // Only reassign frame.src when the target URL actually changed. Setting
+  // iframe.src forces a real reload even when the value is unchanged, and
+  // showDashboard() is called on every periodic loadSessions() poll — so
+  // without this guard the embedded dashboard reloads on every poll tick,
+  // which can also clobber an in-flight keystroke in the dashboard's input.
+  if (frame.src !== url) frame.src = url;
   hint.hidden = true;
   return true;
 }
