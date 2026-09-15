@@ -4,6 +4,76 @@
     "path": "hermes-plugin/broker.py",
     "line": 1086,
     "blob_sha": "c13acfefecfaa281138c6a62db931358fd08b7e8",
-    "reason": "Explicit --show-code is an intentional local secret-display command consumed through captured stdout by the installer. Normal --serve startup does not display the code. Captured output remains sensitive; the companion README documents this residual exposure and the existing installer --no-show-code option. Keep this finding visible in SARIF and GitHub. Any change to this source file invalidates this review."
+    "reason": "Explicit --show-code is an intentional local secret-display command consumed through captured stdout by the installer. Normal --serve startup does not display the code. Captured output remains sensitive; the companion README documents this residual exposure and the existing installer --no-show-code option. Keep this finding visible in SARIF and GitHub. Any change to this source file invalidates this review.",
+    "classification": "intentional-output",
+    "severity": 7.5,
+    "dependencies": {
+      "scripts/install_companion.py": "a11e74ae76af5697a1006261b4cc78b104698482",
+      "tests/test_pairing_output.py": "59ab3740d2379425e94c997b26244fc537a495bb"
+    }
+  },
+  {
+    "rule": "js/resource-exhaustion",
+    "path": "extension/src/background.js",
+    "line": 1023,
+    "severity": 7.5,
+    "classification": "false-positive",
+    "blob_sha": "cba852454391c3af3d63547cb701159e02ca7c80",
+    "dependencies": {
+      "extension/src/bindings.js": "540e6e23f57b924737f33b7530d16e53c3d8cca0",
+      "extension/src/cdp.js": "d67f86859afab1668364e209d6b1ac9056bf2b16",
+      "extension/src/protocol.js": "bb477a6e217c6b08a43470ea8ada504b3af15d81",
+      "extension/src/page-actions.js": "96a9aa0ffe169c02edb83c0878e564931f0d5753",
+      "tests/background-security.test.mjs": "c7cc16f7a3cd0c86b23c8fb688175ed6166f563a"
+    },
+    "reason": "The reported path ends at delay after finite-number validation and explicit 0..15000 bounds. The existing serialized queue rejects a 33rd pending action, and each active wait creates one timer. Regression scenarios verify every boundary, invalid types, saturation, revocation and reconnect recovery. User choice of a bounded legitimate delay is intentional; the reported unbounded allocation is not present on this path."
+  },
+  {
+    "rule": "js/user-controlled-bypass",
+    "path": "extension/src/background.js",
+    "line": 538,
+    "severity": 7.8,
+    "classification": "false-positive",
+    "blob_sha": "cba852454391c3af3d63547cb701159e02ca7c80",
+    "dependencies": {
+      "extension/src/bindings.js": "540e6e23f57b924737f33b7530d16e53c3d8cca0",
+      "extension/src/cdp.js": "d67f86859afab1668364e209d6b1ac9056bf2b16",
+      "extension/src/protocol.js": "bb477a6e217c6b08a43470ea8ada504b3af15d81",
+      "extension/src/page-actions.js": "96a9aa0ffe169c02edb83c0878e564931f0d5753",
+      "tests/background-security.test.mjs": "c7cc16f7a3cd0c86b23c8fb688175ed6166f563a"
+    },
+    "reason": "The reported condition verifies the incoming proof against a locally calculated role/browser/nonce-bound HMAC. A missing nonce, missing proof or unequal proof closes the connection before local authenticated state is assigned. The reported guarded action is the later authenticated() check, not an unchecked browser action. Tests reject incorrect, absent, unsolicited and replayed proofs; positive pairing still works."
+  },
+  {
+    "rule": "js/user-controlled-bypass",
+    "path": "extension/src/background.js",
+    "line": 550,
+    "severity": 7.8,
+    "classification": "false-positive",
+    "blob_sha": "cba852454391c3af3d63547cb701159e02ca7c80",
+    "dependencies": {
+      "extension/src/bindings.js": "540e6e23f57b924737f33b7530d16e53c3d8cca0",
+      "extension/src/cdp.js": "d67f86859afab1668364e209d6b1ac9056bf2b16",
+      "extension/src/protocol.js": "bb477a6e217c6b08a43470ea8ada504b3af15d81",
+      "extension/src/page-actions.js": "96a9aa0ffe169c02edb83c0878e564931f0d5753",
+      "tests/background-security.test.mjs": "c7cc16f7a3cd0c86b23c8fb688175ed6166f563a"
+    },
+    "reason": "This new finding is the strict protocol-success rejection introduced by this hardening, not a removed old alert. The HMAC check has already succeeded and ok must additionally be the literal boolean true. A user-controlled success flag cannot substitute for the proof. Tests reject false, string, numeric, object and missing flags, without binding synchronization."
+  },
+  {
+    "rule": "js/user-controlled-bypass",
+    "path": "extension/src/background.js",
+    "line": 1050,
+    "severity": 7.8,
+    "classification": "false-positive",
+    "blob_sha": "cba852454391c3af3d63547cb701159e02ca7c80",
+    "dependencies": {
+      "extension/src/bindings.js": "540e6e23f57b924737f33b7530d16e53c3d8cca0",
+      "extension/src/cdp.js": "d67f86859afab1668364e209d6b1ac9056bf2b16",
+      "extension/src/protocol.js": "bb477a6e217c6b08a43470ea8ada504b3af15d81",
+      "extension/src/page-actions.js": "96a9aa0ffe169c02edb83c0878e564931f0d5753",
+      "tests/background-security.test.mjs": "c7cc16f7a3cd0c86b23c8fb688175ed6166f563a"
+    },
+    "reason": "The conditional controls optional focus only. Authorization is checked before the branch and again inside production cdp.key before sending keyboard events. Non-empty invalid refs abort on focus failure; empty/non-string refs are rejected before either path. Tests exercise real CDP authorization with absent/null/valid/invalid refs and revocation during focus and attachment, asserting zero input events on rejection."
   }
 ]

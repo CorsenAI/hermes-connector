@@ -88,12 +88,19 @@ class CodeQLReportTests(unittest.TestCase):
             data = b"first\nsecond\n"
             (root / "example.py").write_bytes(data)
             row = checker.findings(report())[0]
-            review = {key: row[key] for key in ("rule", "path", "line")}
-            review.update(reason="fixture only", blob_sha=hashlib.sha1(
+            review = {key: row[key] for key in ("rule", "path", "line", "severity")}
+            review.update(reason="fixture only", classification="false-positive", blob_sha=hashlib.sha1(
                 b"blob " + str(len(data)).encode() + b"\0" + data, usedforsecurity=False).hexdigest())
             self.assertTrue(checker.is_reviewed(row, [review], root))
-            for key, value in (("line", 3), ("end_line", 3), ("path", "other.py"), ("rule", "py/other")):
+            for key, value in (("line", 3), ("end_line", 3), ("path", "other.py"), ("rule", "py/other"), ("severity", 9.9)):
                 self.assertFalse(checker.is_reviewed({**row, key: value}, [review], root))
+            self.assertFalse(checker.is_reviewed(row, [{**review, "classification": "unknown"}], root))
+            (root / "dependency.py").write_bytes(data)
+            review["dependencies"] = {"dependency.py": review["blob_sha"]}
+            self.assertTrue(checker.is_reviewed(row, [review], root))
+            (root / "dependency.py").write_bytes(data + b"changed\n")
+            self.assertFalse(checker.is_reviewed(row, [review], root))
+            (root / "dependency.py").write_bytes(data)
             (root / "example.py").write_bytes(data + b"changed\n")
             self.assertFalse(checker.is_reviewed(row, [review], root))
 

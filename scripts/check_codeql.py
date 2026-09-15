@@ -103,24 +103,35 @@ def findings(document: dict) -> list[dict]:
     return found
 
 
+def source_matches(root: Path, path: str, expected_sha: str) -> bool:
+    relative = Path(path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ReportError("review path must be repository-relative")
+    source = (root / relative).resolve()
+    if not source.is_relative_to(root.resolve()) or not source.is_file():
+        return False
+    data = source.read_bytes()
+    # Git object identity, not a cryptographic signature or password digest.
+    digest = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data,
+                          usedforsecurity=False).hexdigest()
+    return digest == expected_sha
+
+
 def is_reviewed(finding: dict, reviews: list[dict], root: Path) -> bool:
     for review in reviews:
+        if review.get("classification") not in ("false-positive", "intentional-output"):
+            continue
         if not review.get("reason") or any(finding.get(key) != review.get(key)
-                                          for key in ("rule", "path", "line")):
+                                          for key in ("rule", "path", "line", "severity")):
             continue
         if finding.get("end_line") != finding.get("line"):
             continue
-        relative = Path(review["path"])
-        if relative.is_absolute() or ".." in relative.parts:
-            raise ReportError("review path must be repository-relative")
-        source = (root / relative).resolve()
-        if not source.is_relative_to(root.resolve()) or not source.is_file():
-            continue
-        data = source.read_bytes()
-        # Git object identity, not a cryptographic signature or password digest.
-        digest = hashlib.sha1(b"blob " + str(len(data)).encode() + b"\0" + data,
-                              usedforsecurity=False).hexdigest()
-        if digest == review.get("blob_sha"):
+        dependencies = review.get("dependencies", {})
+        if not isinstance(dependencies, dict):
+            raise ReportError("review dependencies must map source paths to Git blob IDs")
+        if source_matches(root, review["path"], review.get("blob_sha")) and all(
+            source_matches(root, path, sha) for path, sha in dependencies.items()
+        ):
             return True
     return False
 
@@ -145,7 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             high += row["severity"] >= 7
             reviewed += accepted
             blocked += row["severity"] >= 7 and not accepted
-            status = "reviewed intentional output; residual exposure remains" if accepted else "unreviewed"
+            status = "reviewed; see source-bound disposition" if accepted else "unreviewed"
             print(f"Finding: {row['rule']}; security severity: {row['severity']}; "
                   f"{row['path']}:{row['line']}; {status}")
         print(f"CodeQL findings: {len(rows)}; high or critical: {high}; "
