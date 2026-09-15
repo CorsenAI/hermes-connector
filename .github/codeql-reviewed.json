@@ -1,0 +1,9 @@
+[
+  {
+    "rule": "py/clear-text-logging-sensitive-data",
+    "path": "hermes-plugin/broker.py",
+    "line": 1086,
+    "blob_sha": "c13acfefecfaa281138c6a62db931358fd08b7e8",
+    "reason": "Explicit --show-code is an intentional local secret-display command consumed through captured stdout by the installer. Normal --serve startup does not display the code. Captured output remains sensitive; the companion README documents this residual exposure and the existing installer --no-show-code option. Keep this finding visible in SARIF and GitHub. Any change to this source file invalidates this review."
+  }
+]

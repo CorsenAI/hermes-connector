@@ -36,6 +36,7 @@ const CURRENT_DEFAULT_BRIDGE_URLS = new Set([
 const LEGACY_BRIDGE_MIGRATION_KEY = "bridgeMigration021";
 let sessionGen = 0;         // bumped on disconnect/unpair -> already-queued actions are cancelled
 const MAX_QUEUED = 32;
+const MAX_WAIT_MS = 15_000;
 const MAX_UNPAIRED_PENDING_FRAMES = 8;
 const MAX_UNPAIRED_PENDING_CHARS = 2_500_000;
 const MAX_PAIRED_PENDING_FRAMES = 32;
@@ -544,8 +545,17 @@ async function onHostMessage(msg, sock) {
         broadcast({ cmd: "pairDenied", reason: "agent identity check failed — wrong pairing code?" });
         break;
       }
-      paired = !!msg.ok;
-      sock._paired = paired;
+      // The proof authenticates the role/identity/nonce, not arbitrary message fields.
+      // Require the protocol's literal success value, then establish local authority.
+      if (msg.ok !== true) {
+        pairedIntent = false;
+        invalidateSession(sock);
+        try { sock.close(); } catch (_) {}
+        broadcast({ cmd: "pairDenied", reason: "broker did not confirm pairing" });
+        break;
+      }
+      paired = true;
+      sock._paired = true;
       if (msg.brokerState && typeof msg.brokerState === "object") brokerState = msg.brokerState;
       if (paired) {
         const cur = (await chrome.storage.local.get(STORE.PAIRING))[STORE.PAIRING] || {};
@@ -1002,11 +1012,19 @@ async function handleAction(msg, sock, epoch) {
       requireActionAuthorized(sock, epoch);
       data = { url: sanitizeUrl(effectiveTabUrl(tab)), title: tab.title };
       break;
-    case ACTION.WAIT:
-      await new Promise((r) => setTimeout(r, Math.min(a.ms || 0, 15000)));
+    case ACTION.WAIT: {
+      let delay = a.ms ?? 0;
+      if (typeof delay !== "number" || !Number.isFinite(delay)) {
+        data = { ok: false, error: "wait.ms must be a finite number" };
+        break;
+      }
+      if (delay < 0) delay = 0;
+      if (delay > MAX_WAIT_MS) delay = MAX_WAIT_MS;
+      await new Promise((r) => setTimeout(r, delay));
       requireActionAuthorized(sock, epoch);
       data = { waited: a.ms };
       break;
+    }
     case ACTION.HOVER: {
       if (useCdp) {
         requireActionAuthorized(sock, epoch);
@@ -1021,10 +1039,15 @@ async function handleAction(msg, sock, epoch) {
       break;
     }
     case ACTION.KEY:
+      requireActionAuthorized(sock, epoch);
+      if (a.ref != null && (typeof a.ref !== "string" || a.ref.length === 0)) {
+        data = { ok: false, error: "key.ref must be a non-empty string when supplied" };
+        break;
+      }
       if (useCdp) {
         // If a ref was given, it MUST focus successfully first — otherwise the trusted keystroke
         // would land on whatever was previously focused (wrong field/button). Abort on failure.
-        if (a.ref) {
+        if (a.ref != null) {
           requireActionAuthorized(sock, epoch);
           const f = await inPage(tab.id, focusRef, [a.ref]);
           requireActionAuthorized(sock, epoch);
