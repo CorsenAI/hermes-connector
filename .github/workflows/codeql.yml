@@ -51,6 +51,16 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_codeql.py "$SARIF_DIR" --reviews .github/codeql-reviewed.json 2>&1 | tee "$SARIF_DIR/verification.txt"
+      - name: Record analyzed source revision
+        if: always()
+        shell: bash
+        env:
+          SARIF_DIR: '${{ runner.temp }}/codeql-results'
+        run: |
+          set -euo pipefail
+          mkdir -p "$SARIF_DIR"
+          git rev-parse HEAD > "$SARIF_DIR/source-commit.txt"
+          git archive --format=zip --output="$SARIF_DIR/source.zip" HEAD
       - name: Retain analysis evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -59,5 +69,7 @@ jobs:
           path: |
             ${{ runner.temp }}/codeql-results/*.sarif
             ${{ runner.temp }}/codeql-results/verification.txt
+            ${{ runner.temp }}/codeql-results/source-commit.txt
+            ${{ runner.temp }}/codeql-results/source.zip
           if-no-files-found: error
           retention-days: 7
