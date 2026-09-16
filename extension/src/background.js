@@ -535,7 +535,7 @@ async function onHostMessage(msg, sock) {
       const expected = await hmacHex(code,
         `broker:browser:${sock._browserId || ""}:${sock._extNonce || ""}`);
       if (!alive()) return;
-      if (!sock._extNonce || !msg.proof || msg.proof !== expected) {
+      if (!sock._extNonce || msg.proof !== expected) {
         // Identity proof failed (or PAIRED arrived with no prior challenge): cut the connection and
         // stop auto-retrying. The user fixes the code in ⚙ (saveSettings reconnects); a rogue server
         // just stays disconnected.
@@ -543,7 +543,7 @@ async function onHostMessage(msg, sock) {
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
         broadcast({ cmd: "pairDenied", reason: "agent identity check failed — wrong pairing code?" });
-        break;
+        return;
       }
       // The proof authenticates the role/identity/nonce, not arbitrary message fields.
       // Require the protocol's literal success value, then establish local authority.
@@ -552,7 +552,7 @@ async function onHostMessage(msg, sock) {
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
         broadcast({ cmd: "pairDenied", reason: "broker did not confirm pairing" });
-        break;
+        return;
       }
       paired = true;
       sock._paired = true;
@@ -874,6 +874,18 @@ function waitComplete(tabId, ms) {
   });
 }
 
+// Validate once and return only a finite delay in the supported interval.
+// Returning constants for out-of-range values also preserves clamping semantics.
+function boundedWaitMs(value) {
+  const requested = value ?? 0;
+  if (typeof requested !== "number" || !Number.isFinite(requested)) {
+    throw new TypeError("wait.ms must be a finite number");
+  }
+  if (requested <= 0) return 0;
+  if (requested >= MAX_WAIT_MS) return MAX_WAIT_MS;
+  return requested;
+}
+
 async function handleAction(msg, sock, epoch) {
   const a = msg.action || {};
   const pageIndependentAction = new Set([
@@ -1013,13 +1025,7 @@ async function handleAction(msg, sock, epoch) {
       data = { url: sanitizeUrl(effectiveTabUrl(tab)), title: tab.title };
       break;
     case ACTION.WAIT: {
-      let delay = a.ms ?? 0;
-      if (typeof delay !== "number" || !Number.isFinite(delay)) {
-        data = { ok: false, error: "wait.ms must be a finite number" };
-        break;
-      }
-      if (delay < 0) delay = 0;
-      if (delay > MAX_WAIT_MS) delay = MAX_WAIT_MS;
+      const delay = boundedWaitMs(a.ms);
       await new Promise((r) => setTimeout(r, delay));
       requireActionAuthorized(sock, epoch);
       data = { waited: a.ms };
@@ -1047,12 +1053,10 @@ async function handleAction(msg, sock, epoch) {
       if (useCdp) {
         // If a ref was given, it MUST focus successfully first — otherwise the trusted keystroke
         // would land on whatever was previously focused (wrong field/button). Abort on failure.
-        if (a.ref != null) {
-          requireActionAuthorized(sock, epoch);
-          const f = await inPage(tab.id, focusRef, [a.ref]);
-          requireActionAuthorized(sock, epoch);
-          if (!f || f.ok !== true) { data = f || { ok: false, error: "could not focus ref: " + a.ref }; break; }
-        }
+        requireActionAuthorized(sock, epoch);
+        const f = a.ref == null ? { ok: true } : await inPage(tab.id, focusRef, [a.ref]);
+        requireActionAuthorized(sock, epoch);
+        if (!f || f.ok !== true) { data = f || { ok: false, error: "could not focus ref: " + a.ref }; break; }
         data = await cdp.key(tab.id, a.key, () => requireActionAuthorized(sock, epoch));
       } else {
         requireActionAuthorized(sock, epoch);
