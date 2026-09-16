@@ -36,6 +36,7 @@ const CURRENT_DEFAULT_BRIDGE_URLS = new Set([
 const LEGACY_BRIDGE_MIGRATION_KEY = "bridgeMigration021";
 let sessionGen = 0;         // bumped on disconnect/unpair -> already-queued actions are cancelled
 const MAX_QUEUED = 32;
+const MAX_WAIT_MS = 15_000;
 const MAX_UNPAIRED_PENDING_FRAMES = 8;
 const MAX_UNPAIRED_PENDING_CHARS = 2_500_000;
 const MAX_PAIRED_PENDING_FRAMES = 32;
@@ -534,7 +535,7 @@ async function onHostMessage(msg, sock) {
       const expected = await hmacHex(code,
         `broker:browser:${sock._browserId || ""}:${sock._extNonce || ""}`);
       if (!alive()) return;
-      if (!sock._extNonce || !msg.proof || msg.proof !== expected) {
+      if (!sock._extNonce || msg.proof !== expected) {
         // Identity proof failed (or PAIRED arrived with no prior challenge): cut the connection and
         // stop auto-retrying. The user fixes the code in ⚙ (saveSettings reconnects); a rogue server
         // just stays disconnected.
@@ -542,10 +543,19 @@ async function onHostMessage(msg, sock) {
         invalidateSession(sock);
         try { sock.close(); } catch (_) {}
         broadcast({ cmd: "pairDenied", reason: "agent identity check failed — wrong pairing code?" });
-        break;
+        return;
       }
-      paired = !!msg.ok;
-      sock._paired = paired;
+      // The proof authenticates the role/identity/nonce, not arbitrary message fields.
+      // Require the protocol's literal success value, then establish local authority.
+      if (msg.ok !== true) {
+        pairedIntent = false;
+        invalidateSession(sock);
+        try { sock.close(); } catch (_) {}
+        broadcast({ cmd: "pairDenied", reason: "broker did not confirm pairing" });
+        return;
+      }
+      paired = true;
+      sock._paired = true;
       if (msg.brokerState && typeof msg.brokerState === "object") brokerState = msg.brokerState;
       if (paired) {
         const cur = (await chrome.storage.local.get(STORE.PAIRING))[STORE.PAIRING] || {};
@@ -864,6 +874,18 @@ function waitComplete(tabId, ms) {
   });
 }
 
+// Validate once and return only a finite delay in the supported interval.
+// Returning constants for out-of-range values also preserves clamping semantics.
+function boundedWaitMs(value) {
+  const requested = value ?? 0;
+  if (typeof requested !== "number" || !Number.isFinite(requested)) {
+    throw new TypeError("wait.ms must be a finite number");
+  }
+  if (requested <= 0) return 0;
+  if (requested >= MAX_WAIT_MS) return MAX_WAIT_MS;
+  return requested;
+}
+
 async function handleAction(msg, sock, epoch) {
   const a = msg.action || {};
   const pageIndependentAction = new Set([
@@ -1002,11 +1024,13 @@ async function handleAction(msg, sock, epoch) {
       requireActionAuthorized(sock, epoch);
       data = { url: sanitizeUrl(effectiveTabUrl(tab)), title: tab.title };
       break;
-    case ACTION.WAIT:
-      await new Promise((r) => setTimeout(r, Math.min(a.ms || 0, 15000)));
+    case ACTION.WAIT: {
+      const delay = boundedWaitMs(a.ms);
+      await new Promise((r) => setTimeout(r, delay));
       requireActionAuthorized(sock, epoch);
       data = { waited: a.ms };
       break;
+    }
     case ACTION.HOVER: {
       if (useCdp) {
         requireActionAuthorized(sock, epoch);
@@ -1021,15 +1045,18 @@ async function handleAction(msg, sock, epoch) {
       break;
     }
     case ACTION.KEY:
+      requireActionAuthorized(sock, epoch);
+      if (a.ref != null && (typeof a.ref !== "string" || a.ref.length === 0)) {
+        data = { ok: false, error: "key.ref must be a non-empty string when supplied" };
+        break;
+      }
       if (useCdp) {
         // If a ref was given, it MUST focus successfully first — otherwise the trusted keystroke
         // would land on whatever was previously focused (wrong field/button). Abort on failure.
-        if (a.ref) {
-          requireActionAuthorized(sock, epoch);
-          const f = await inPage(tab.id, focusRef, [a.ref]);
-          requireActionAuthorized(sock, epoch);
-          if (!f || f.ok !== true) { data = f || { ok: false, error: "could not focus ref: " + a.ref }; break; }
-        }
+        requireActionAuthorized(sock, epoch);
+        const f = a.ref == null ? { ok: true } : await inPage(tab.id, focusRef, [a.ref]);
+        requireActionAuthorized(sock, epoch);
+        if (!f || f.ok !== true) { data = f || { ok: false, error: "could not focus ref: " + a.ref }; break; }
         data = await cdp.key(tab.id, a.key, () => requireActionAuthorized(sock, epoch));
       } else {
         requireActionAuthorized(sock, epoch);

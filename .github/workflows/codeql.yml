@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'fix/security-*']
   pull_request:
     branches: [main]
   schedule:
@@ -43,31 +43,33 @@ jobs:
         with:
           category: '/language:${{ matrix.language }}'
           output: '${{ runner.temp }}/codeql-results'
-      - name: Summarize findings
+      - name: Verify findings and reviewed source
         if: success()
-        shell: python
+        shell: bash
         env:
           SARIF_DIR: '${{ runner.temp }}/codeql-results'
         run: |
-          import json
-          import os
-          from pathlib import Path
-
-          reports = sorted(Path(os.environ['SARIF_DIR']).glob('*.sarif'))
-          if not reports:
-              raise SystemExit('CodeQL produced no SARIF report')
-          total = 0
-          high = 0
-          for report in reports:
-              for run in json.loads(report.read_text(encoding='utf-8')).get('runs', []):
-                  rules = {rule['id']: rule for rule in run['tool']['driver'].get('rules', [])}
-                  for result in run.get('results', []):
-                      rule_id = result.get('ruleId', '')
-                      properties = rules.get(rule_id, {}).get('properties', {})
-                      severity = float(properties.get('security-severity', '0'))
-                      total += 1
-                      high += severity >= 7
-                      print(f'Finding: {rule_id}; security severity: {severity}')
-          print(f'CodeQL findings: {total}; high or critical: {high}')
-          if high:
-              raise SystemExit('Review high or critical CodeQL findings before merging')
+          set -euo pipefail
+          python scripts/check_codeql.py "$SARIF_DIR" --reviews .github/codeql-reviewed.json 2>&1 | tee "$SARIF_DIR/verification.txt"
+      - name: Record analyzed source revision
+        if: always()
+        shell: bash
+        env:
+          SARIF_DIR: '${{ runner.temp }}/codeql-results'
+        run: |
+          set -euo pipefail
+          mkdir -p "$SARIF_DIR"
+          git rev-parse HEAD > "$SARIF_DIR/source-commit.txt"
+          git archive --format=zip --output="$SARIF_DIR/source.zip" HEAD
+      - name: Retain analysis evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: codeql-${{ matrix.language }}-${{ github.event_name }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/codeql-results/*.sarif
+            ${{ runner.temp }}/codeql-results/verification.txt
+            ${{ runner.temp }}/codeql-results/source-commit.txt
+            ${{ runner.temp }}/codeql-results/source.zip
+          if-no-files-found: error
+          retention-days: 7
