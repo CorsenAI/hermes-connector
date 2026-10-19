@@ -39,13 +39,26 @@ later.
 
 ### Real Hermes session UI
 
-The side panel uses Hermes' existing read-only multi-profile sessions API to
-select the real profile/session and manage its attached Chrome tabs. With the
-Web dashboard, the panel embeds `/chat?resume=<sessionId>` under the matching
-Hermes profile. Hermes Desktop instead starts a headless API on a dynamic
-loopback port. The authenticated companion announces that port through
-`brokerState.agentBackends`; the panel lists sessions from that API and keeps
-the actual conversation in Hermes Desktop.
+The side panel lists the real profile/session to select and manages its attached
+Chrome tabs. Three sources, in order (0.2.5):
+
+1. **Web dashboard** — when a local `hermes dashboard` answers at the configured
+   loopback address, the panel reads its sessions API and embeds
+   `/chat?resume=<sessionId>` under the matching Hermes profile (unchanged).
+2. **Companion session service** — the panel sends `browser_query`
+   (`kind: list_sessions`) over its paired broker socket; the broker relays it as
+   `agent_query` to one connected companion (preferring the profile the user is
+   looking at), which lists sessions in-process from Hermes' own session store and
+   answers `agent_query_result`; the broker returns `browser_query_result`. The
+   companion forwards only `id`, `profile`, `title`, `display_name`, `source`,
+   `last_active`, `is_active` (at most 200 rows). The conversation stays in Hermes
+   Desktop or the Hermes CLI.
+3. **Legacy headless Desktop backend** — older Hermes releases started a headless
+   API on a dynamic loopback port that the companion announced through
+   `brokerState.agentBackends`; the panel still reads it when nothing else answers.
+
+When no source answers, the panel says so and names what to start; it never
+renders a connection error page.
 
 ## Route
 
@@ -65,6 +78,16 @@ action_result follows the same request route back to the calling Hermes process
 
 No exact binding means no action. There is no fallback to the globally active,
 last-used, or first controllable tab.
+
+```text
+Side panel (paired browser)            local broker                 companion (any profile)
+  browser_query {id, list_sessions} --> pick one companion ---------> agent_query {brokerId, limit}
+  browser_query_result {id, ok, data} <-- only the routed companion <-- agent_query_result {brokerId, ok, data}
+```
+
+Queries are bounded: one relay timeout, at most four in flight per browser, an
+answer accepted only from the companion that received the question, and a
+disconnect on either side fails the pending query instead of leaving it hanging.
 
 ## Security boundaries
 

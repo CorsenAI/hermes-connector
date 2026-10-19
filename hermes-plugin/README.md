@@ -19,10 +19,12 @@ Hermes profile.
 
 Fully quit and reopen Hermes Desktop, or restart any already-running Hermes
 dashboard, gateway, or chat process, after installation so it discovers the
-newly enabled tools and announces its local backend. Release 0.2.4 moves the
-standard broker from protocol 4 / port 8766 to its version-checked protocol 5 /
-port 8767 and retires only a verified older Connector broker for the same
-Hermes home.
+newly enabled tools and answers the extension's session queries. Release 0.2.5
+adds the companion session service: the side panel asks a connected companion
+for the Hermes session list over the broker, so current Hermes releases work
+without a web dashboard. Release 0.2.4 moved the standard broker from
+protocol 4 / port 8766 to its version-checked protocol 5 / port 8767 and
+retires only a verified older Connector broker for the same Hermes home.
 
 The companion supervises the shared local broker. If that detached process is
 terminated by a launcher restart or crashes, a running profile client starts it

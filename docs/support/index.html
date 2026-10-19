@@ -27,28 +27,28 @@
 </head>
 <body><main>
   <h1>Hermes Connector support</h1>
-  <p class="sub">Current public Chrome Web Store release: 0.2.4</p>
+  <p class="sub">Current public Chrome Web Store release: 0.2.5</p>
 
   <section class="card current" id="current-release">
-    <span class="badge">Current Store release · 0.2.4</span>
+    <span class="badge">Current Store release · 0.2.5</span>
     <h2>Match the companion to the extension version shown by Chrome</h2>
-    <p>The Store now serves 0.2.4. Check <code>chrome://extensions</code>, then install companion 0.2.4 when Chrome shows Hermes Connector <strong>0.2.4</strong>. Never mix extension and companion versions.</p>
+    <p>The Store now serves 0.2.5. Check <code>chrome://extensions</code>, then install companion 0.2.5 when Chrome shows Hermes Connector <strong>0.2.5</strong>. Never mix extension and companion versions.</p>
     <div class="actions">
       <a class="button primary" href="https://chromewebstore.google.com/detail/hermes-connector-%E2%80%94-by-cor/cdhaldcgafmkcnpanlmmpaebabnlledm">Install from Chrome Web Store</a>
       <a class="button" href="#compatible-versions">Choose matching companion</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4">Open 0.2.4 release details</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5">Open 0.2.5 release details</a>
       <a class="button" href="https://youtu.be/4akSq9cMmFw" target="_blank" rel="noopener noreferrer">Watch installation and demo</a>
     </div>
   </section>
 
   <section class="card current" id="desktop-release">
-    <span class="badge">Current release · 0.2.4</span>
-    <h2>Hermes Desktop compatibility is publicly available</h2>
-    <p>Version 0.2.4 adds automatic discovery of Hermes Desktop's dynamic local backend. After the matching companion is installed and Hermes Desktop is fully restarted, choose the Desktop session and attach tabs in Chrome, then continue the conversation in Hermes Desktop. A separately opened web dashboard is not required.</p>
-    <p class="warning"><strong>Chrome updates can roll out gradually.</strong> Use companion 0.2.4 only when <code>chrome://extensions</code> explicitly shows Hermes Connector 0.2.4; otherwise keep the companion matching the version Chrome still shows.</p>
+    <span class="badge">Current release · 0.2.5</span>
+    <h2>Works with current Hermes releases, with or without a web dashboard</h2>
+    <p>Version 0.2.5 lists your Hermes sessions through the local companion itself, over the same authenticated loopback connection it uses for browser actions. Current Hermes releases route Hermes Desktop through one shared gateway that no longer exposes a separate per-profile backend; 0.2.4 therefore needed a running <code>hermes dashboard</code> and showed “Hermes dashboard unavailable” without one. After the matching companion is installed and Hermes is fully restarted, choose the session and attach tabs in Chrome, then continue the conversation in Hermes Desktop or your Hermes chat. The embedded dashboard still appears when you run <code>hermes dashboard</code>.</p>
+    <p class="warning"><strong>Chrome updates can roll out gradually.</strong> Use companion 0.2.5 only when <code>chrome://extensions</code> explicitly shows Hermes Connector 0.2.5; otherwise keep the companion matching the version Chrome still shows.</p>
     <div class="actions">
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4">Open 0.2.4 release details</a>
-      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip">Download companion 0.2.4</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5">Open 0.2.5 release details</a>
+      <a class="button" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip">Download companion 0.2.5</a>
     </div>
   </section>
 
@@ -59,10 +59,16 @@
       <thead><tr><th>Chrome extension</th><th>Matching companion</th><th>Protocol / default port</th><th>When to use</th></tr></thead>
       <tbody>
         <tr>
-          <td><span class="pair"><strong>0.2.4</strong> · current public Store build</span></td>
+          <td><span class="pair"><strong>0.2.5</strong> · current public Store build</span></td>
+          <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip">Companion 0.2.5</a></td>
+          <td>Protocol 5<br><code>127.0.0.1:8767</code><br>Companion session service (no dashboard required)</td>
+          <td>Current release. Install when Chrome explicitly shows extension 0.2.5.</td>
+        </tr>
+        <tr>
+          <td><span class="pair"><strong>0.2.4</strong> · legacy released build</span></td>
           <td><a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip">Companion 0.2.4</a></td>
           <td>Protocol 5<br><code>127.0.0.1:8767</code><br>Automatic Hermes Desktop backend discovery</td>
-          <td>Current release. Install when Chrome explicitly shows extension 0.2.4.</td>
+          <td>Only while Chrome still explicitly shows extension 0.2.4. Needs a running <code>hermes dashboard</code> on current Hermes releases.</td>
         </tr>
         <tr>
           <td><span class="pair"><strong>0.2.3</strong> · legacy released build</span></td>
@@ -104,8 +110,19 @@
     </ol>
   </section>
 
+  <section class="card warning-card" id="upgrade-0-2-5">
+    <h2>Upgrading to 0.2.5</h2>
+    <ol class="steps">
+      <li>Confirm that <code>chrome://extensions</code> shows Hermes Connector 0.2.5. If it still shows 0.2.4, keep companion 0.2.4.</li>
+      <li>Install companion 0.2.5 from the matching row above. The installer copies the same companion into the shared Hermes home and every existing named profile; rerun it after creating a new profile.</li>
+      <li>Fully quit Hermes Desktop and any Hermes CLI process, then reopen Desktop or restart the CLI. The updated companion answers the panel's session queries over the version-checked protocol 5 broker on port <code>8767</code>.</li>
+      <li>Open the connector panel, choose the Hermes profile/session, and attach the intended tabs. Continue chatting in Hermes Desktop or your Hermes chat; a web dashboard address is only needed if you want the embedded dashboard.</li>
+    </ol>
+    <p>Your pairing code is normally preserved. If pairing is rejected, rerun the 0.2.5 installer and save the locally displayed code again.</p>
+  </section>
+
   <section class="card warning-card" id="upgrade-0-2-4">
-    <h2>Upgrading to 0.2.4</h2>
+    <h2>Upgrading to 0.2.4 (legacy)</h2>
     <ol class="steps">
       <li>Confirm that <code>chrome://extensions</code> shows Hermes Connector 0.2.4. If it still shows 0.2.3, keep companion 0.2.3.</li>
       <li>Install companion 0.2.4 from the matching row above.</li>
@@ -141,8 +158,9 @@
   <section class="card" id="troubleshooting">
     <h2>Troubleshooting</h2>
     <ul>
-      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8767</code> for 0.2.4, <code>8766</code> for 0.2.1/0.2.2/0.2.3, or <code>8765</code> for 0.2.0.</li>
-      <li><strong>Hermes Desktop unavailable in 0.2.4:</strong> fully quit and reopen Hermes Desktop after installing companion 0.2.4. The Desktop backend uses a dynamic loopback port and should be discovered automatically; do not enter that temporary port manually.</li>
+      <li><strong>Companion offline:</strong> verify that extension and companion versions match, restart Hermes, and confirm that the matching default port is available: <code>8767</code> for 0.2.4 and 0.2.5, <code>8766</code> for 0.2.1/0.2.2/0.2.3, or <code>8765</code> for 0.2.0.</li>
+      <li><strong>“Hermes sessions unavailable” in 0.2.5:</strong> the panel found neither a web dashboard nor a running Hermes process with the companion. Start Hermes Desktop or a Hermes chat in a profile where the companion is installed (the profile must appear in the panel's readiness line), or run <code>hermes dashboard</code>. Then press ↻.</li>
+      <li><strong>“Hermes dashboard unavailable” in 0.2.4:</strong> current Hermes releases no longer expose the Desktop backend that 0.2.4 relied on. Either run <code>hermes dashboard</code> or upgrade both the extension and the companion to 0.2.5.</li>
       <li><strong>Pairing rejected:</strong> rerun the matching companion installer to display the current local pairing code, then save it again in the extension.</li>
       <li><strong>Action refused:</strong> select the exact Hermes session and attach a permitted normal web tab. Chrome internal pages and other restricted pages cannot be controlled.</li>
       <li><strong>Wrong tab or stale session:</strong> detach the tab, select the intended session, and attach it again. The connector fails closed instead of silently using another active tab.</li>

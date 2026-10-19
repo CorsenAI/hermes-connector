@@ -1,6 +1,6 @@
 # Privacy Policy — Hermes Connector (unofficial · by Corsen AI)
 
-_Last updated: 2026-09-01_
+_Last updated: 2026-10-19_
 
 Hermes Connector lets a Hermes agent running on your computer read and control
 Chrome tabs that you explicitly attach. Corsen AI does not operate a relay,
@@ -16,13 +16,14 @@ To provide its single browser-control purpose, the extension can handle:
   open **Tabs**, current tab titles and URLs are displayed locally so you
   can choose which tabs to attach;
 - text and navigation instructions sent by your locally configured Hermes agent;
-- Hermes profile and session identifiers and titles read from your local Hermes
-  Desktop or Web-dashboard API;
+- Hermes profile and session identifiers and titles, received from the local
+  Hermes Connector companion over the authenticated loopback connection or read
+  from your local Hermes Web-dashboard (or legacy Desktop backend) API;
 - a random browser identifier, tab bindings, the loopback addresses you choose,
   and the local Connector pairing credential stored in `chrome.storage.local`;
-- an ephemeral Hermes local session token, read into memory from Hermes Desktop
-  or the Web dashboard and returned only to that same Hermes loopback HTTP API.
-  The token is never stored by the extension.
+- in Web-dashboard mode only, an ephemeral Hermes local session token, read into
+  memory from the Web dashboard (or legacy Desktop backend) and returned only to
+  that same Hermes loopback HTTP API. The token is never stored by the extension.
 
 The extension does not read website cookies or website/browser login storage. Password,
 one-time-code, and payment-field values are redacted from accessibility
@@ -34,11 +35,14 @@ configuration.
 
 The extension communicates with the separately installed Hermes Connector
 companion over an authenticated loopback WebSocket (`ws://127.0.0.1` or
-`ws://localhost`). It reads session metadata from the local Hermes Desktop API,
-or loads the user-selected local Hermes Web dashboard, over HTTP loopback. Page
-data is sent only to that local Hermes installation to perform the requested
-action. The ephemeral session token is sent only back to that same loopback
-Hermes API. None of this data is sent to Corsen AI.
+`ws://localhost`). It receives session identifiers, profile names, titles and
+activity timestamps from that companion—never working directories, costs or
+message content—or reads session metadata from the local Hermes Web dashboard
+(or legacy Desktop backend) and loads the user-selected local Hermes Web
+dashboard over HTTP loopback. Page data is sent only to that local Hermes
+installation to perform the requested action. The ephemeral session token is
+sent only back to that same loopback Hermes API. None of this data is sent to
+Corsen AI.
 
 What Hermes does after receiving page content depends on the user's Hermes
 configuration. A local model can keep processing on-device. If the user has

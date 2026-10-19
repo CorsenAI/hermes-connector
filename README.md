@@ -11,7 +11,7 @@ automation browser or guessing which tab belongs to which task.
 · [Watch the complete installation and live browser-control demo](https://youtu.be/4akSq9cMmFw)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
 · [Choose the matching companion](https://corsenai.github.io/hermes-connector/support/#compatible-versions)
-· [0.2.4 release details](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4)
+· [0.2.5 release details](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
 · [Corsen AI](https://corsen.ai/)
 
@@ -20,20 +20,23 @@ automation browser or guessing which tab belongs to which task.
 
 ## Current release and compatibility
 
-The public Chrome Web Store build is **0.2.4**. Install the companion only after
+The public Chrome Web Store build is **0.2.5**. Install the companion only after
 checking the extension version in `chrome://extensions`; the Chrome extension
 and local companion must use exactly the same version.
 
-Version **0.2.4** is the [current public release](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4).
-It adds automatic Hermes Desktop discovery: the side panel can list Desktop
-sessions and attach tabs without requiring a separately opened web dashboard.
-Its Windows companion also keeps the detached broker outside Hermes' managed
-virtual-environment launcher so the broker cannot block future Hermes updates.
-Install companion 0.2.4 after Chrome explicitly shows extension 0.2.4.
+Version **0.2.5** is the [current public release](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5).
+The side panel now lists your Hermes sessions through the local companion
+itself, over the same authenticated loopback connection it already uses for
+browser actions. It therefore works with current Hermes releases, in which
+Hermes Desktop no longer exposes a separate per-profile backend, with or without
+a running web dashboard. The embedded dashboard mode is unchanged when you run
+`hermes dashboard`. Install companion 0.2.5 after Chrome explicitly shows
+extension 0.2.5.
 
 | Chrome extension | Matching companion | Protocol / default broker | Status |
 | --- | --- | --- | --- |
-| 0.2.4 | [Companion 0.2.4](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip) | Protocol 5 / `127.0.0.1:8767` + automatic Hermes Desktop backend discovery | Current public Store pair |
+| 0.2.5 | [Companion 0.2.5](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip) | Protocol 5 / `127.0.0.1:8767` + companion session service | Current public Store pair |
+| 0.2.4 | [Companion 0.2.4](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip) | Protocol 5 / `127.0.0.1:8767` + automatic Hermes Desktop backend discovery | Legacy released pair; use only while Chrome still shows 0.2.4 |
 | 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.3 |
 | 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.2 |
 | 0.2.1 | [Companion 0.2.1](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.1/hermes-connector-0.2.1-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released or sideloaded pair |
@@ -60,17 +63,18 @@ is available on the [support page](https://corsenai.github.io/hermes-connector/s
 ## Your Hermes session, inside the Chrome you already use
 
 Hermes Connector keeps session selection and tab attachment in Chrome's side
-panel. The current 0.2.4 Store pair can embed the local Hermes web dashboard or
-discover Hermes Desktop automatically: choose
-the Desktop session and attach tabs in the panel, then continue the conversation
-in Hermes Desktop. In both modes, the connector keeps the scope exact even when
-several projects, sessions, or Chrome profiles are running at the same time.
+panel. The current 0.2.5 Store pair lists your Hermes sessions through the local
+companion (Hermes Desktop or Hermes CLI) or embeds the local Hermes web
+dashboard when one is running: choose the session and attach tabs in the panel,
+then continue the conversation in Hermes. In both modes, the connector keeps
+the scope exact even when several projects, sessions, or Chrome profiles are
+running at the same time.
 
 ![Hermes Connector controlling an explicitly attached Chrome tab from the side panel](store/screenshot-product-1280x800.png)
 
-0.2.4 Desktop release:
+Without a web dashboard (Hermes Desktop or CLI with the companion):
 
-![Hermes Connector 0.2.4 connected directly to Hermes Desktop beside an attached Chrome tab](store/screenshot-desktop-1280x800.png)
+![Hermes Connector connected directly to Hermes beside an attached Chrome tab](store/screenshot-desktop-1280x800.png)
 
 With an attached tab, Hermes can:
 
@@ -100,8 +104,8 @@ while each Hermes task receives only the tabs assigned to it.
 ## Quick start
 
 You need a local Hermes Agent installation, desktop Chrome 120 or newer, and the
-small Hermes Connector companion. Version 0.2.4 can use Hermes Desktop directly
-or the local web dashboard. The extension's first-run screen detects your operating system,
+small Hermes Connector companion. Version 0.2.5 works with Hermes Desktop or the
+Hermes CLI directly, and with the local web dashboard when you run one. The extension's first-run screen detects your operating system,
 checks whether the companion is already reachable, and shows the appropriate
 Windows, macOS, or Linux instructions.
 
@@ -148,9 +152,9 @@ In the Hermes Connector side panel:
 2. Paste the pairing code printed by the installer and save.
 3. Select the Hermes profile and session you want to use.
 4. Choose **Attach active tab** or **Choose tabs**.
-5. Ask Hermes to work with the selected page. In 0.2.4 Desktop mode, continue
-   the conversation in Hermes Desktop while the panel keeps the session and tab
-   controls visible.
+5. Ask Hermes to work with the selected page. Without a web dashboard, continue
+   the conversation in Hermes Desktop or your Hermes chat while the panel keeps
+   the session and tab controls visible.
 
 For example:
 
