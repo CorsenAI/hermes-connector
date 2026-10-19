@@ -110,7 +110,7 @@ test("actions stay bound to their authenticated socket and current tab authoriza
       async contains(query) { return Array.isArray(query && query.origins); },
     },
     runtime: {
-      getManifest() { return { version: "0.2.4" }; },
+      getManifest() { return { version: "0.2.5" }; },
       onInstalled: simpleEvent(),
       onMessage: runtimeEvent,
       async sendMessage(message) { runtimeMessages.push(message); },
@@ -161,14 +161,14 @@ test("actions stay bound to their authenticated socket and current tab authoriza
 
   async function authenticate(socket, nonce) {
     await waitFor(() => socket.readyState === FakeWebSocket.OPEN, "socket open");
-    socket.emit({ type: "challenge", nonce, protocol: 5, brokerVersion: "0.2.4" });
+    socket.emit({ type: "challenge", nonce, protocol: 5, brokerVersion: "0.2.5" });
     const hello = await waitFor(
       () => socket.sent.find((message) => message.type === "hello"), "browser hello",
     );
     const proof = await hmacHex(
       pairingCode, `broker:browser:${hello.browserId}:${hello.nonce}`,
     );
-    socket.emit({ type: "paired", ok: true, proof, protocol: 5, brokerVersion: "0.2.4",
+    socket.emit({ type: "paired", ok: true, proof, protocol: 5, brokerVersion: "0.2.5",
       brokerState: { protocol: 5, browsers: [], agentProfiles: [] } });
     // Brokers send their fresh state immediately after the paired frame. The async HMAC/storage
     // handshake must not let this next frame overtake authentication and get discarded.
@@ -253,25 +253,25 @@ test("actions stay bound to their authenticated socket and current tab authoriza
   assert.equal(unversioned.sent.some((message) => message.type === "hello"), false);
   assert.match(
     runtimeMessages.findLast((message) => message.cmd === "pairDenied").reason,
-    /companion 0\.2\.4 is required/i,
+    /companion 0\.2\.5 is required/i,
   );
 
   await runtime({ cmd: "connect", browserName: "Test Chrome" });
   const inconsistent = await waitFor(() => FakeWebSocket.instances[3], "inconsistent broker socket");
   await waitFor(() => inconsistent.readyState === FakeWebSocket.OPEN, "inconsistent socket open");
   inconsistent.emit({ type: "challenge", nonce: "versioned-server-nonce", protocol: 5,
-    brokerVersion: "0.2.4" });
+    brokerVersion: "0.2.5" });
   const inconsistentHello = await waitFor(
     () => inconsistent.sent.find((message) => message.type === "hello"),
     "versioned browser hello",
   );
   assert.equal(inconsistentHello.protocol, 5);
-  assert.equal(inconsistentHello.extVersion, "0.2.4");
+  assert.equal(inconsistentHello.extVersion, "0.2.5");
   const inconsistentProof = await hmacHex(
     pairingCode, `broker:browser:${inconsistentHello.browserId}:${inconsistentHello.nonce}`,
   );
   inconsistent.emit({ type: "paired", ok: true, proof: inconsistentProof, protocol: 5,
-    brokerVersion: "0.2.3", brokerState: {} });
+    brokerVersion: "0.2.4", brokerState: {} });
   await waitFor(
     () => inconsistent.readyState >= FakeWebSocket.CLOSING,
     "inconsistent paired-version rejection",
@@ -282,7 +282,7 @@ test("actions stay bound to their authenticated socket and current tab authoriza
   const hostile = await waitFor(() => FakeWebSocket.instances[4], "hostile local socket");
   await waitFor(() => hostile.readyState === FakeWebSocket.OPEN, "hostile socket open");
   hostile.emit({ type: "challenge", nonce: "hostile-server-nonce", protocol: 5,
-    brokerVersion: "0.2.4" });
+    brokerVersion: "0.2.5" });
   for (let index = 0; index < 8; index += 1) {
     hostile.emit({ type: "broker_state", data: { index } });
   }

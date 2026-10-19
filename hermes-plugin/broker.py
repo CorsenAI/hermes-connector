@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover - reported by the companion client
     websockets = None
 
 
-BROKER_VERSION = "0.2.4"
+BROKER_VERSION = "0.2.5"
 PROTOCOL_VERSION = 5
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8767
@@ -42,6 +42,11 @@ MAX_FRAME_BYTES = 8 * 1024 * 1024
 MAX_TEXT_CHARS = 2_000_000
 MAX_BINDINGS_PER_BROWSER = 256
 MAX_TABS_PER_BINDING = 64
+# Browser -> companion queries (session discovery without a web dashboard, 0.2.5).
+QUERY_TIMEOUT_SECONDS = 15.0
+MAX_PENDING_QUERIES_PER_BROWSER = 4
+MAX_QUERY_LIMIT = 200
+SUPPORTED_QUERY_KINDS = frozenset({"list_sessions"})
 CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 AGENT_BACKEND_URL_RE = re.compile(
     r"^http://(?P<host>127\.0\.0\.1|localhost):(?P<port>[0-9]{1,5})/$"
@@ -390,6 +395,18 @@ class PendingAction:
     created_at: float = field(default_factory=time.time)
 
 
+@dataclass
+class PendingQuery:
+    """A browser-originated question in flight to exactly one companion."""
+
+    broker_id: str
+    browser: BrowserPeer
+    browser_request_id: str
+    agent: AgentPeer
+    kind: str
+    created_at: float = field(default_factory=time.time)
+
+
 class BrokerServer:
     """Authenticated in-memory router with a small persistent preference map."""
 
@@ -403,6 +420,7 @@ class BrokerServer:
         self.browsers: Dict[str, BrowserPeer] = {}
         self.agents: Dict[str, AgentPeer] = {}
         self.pending: Dict[str, PendingAction] = {}
+        self.pending_queries: Dict[str, PendingQuery] = {}
         self.scope_browsers: Dict[str, str] = self._load_preferences()
         self.binding_lock = asyncio.Lock()
 
@@ -803,8 +821,113 @@ class BrokerServer:
             await self._broadcast_state()
         elif kind == "action_result":
             await self._finish_action(peer, message)
+        elif kind == "browser_query":
+            await self._route_query(peer, message)
         elif kind in {"event", "pong"}:
             return
+
+    # -- browser -> companion queries ------------------------------------
+
+    @staticmethod
+    async def _browser_query_error(peer: BrowserPeer, request_id: str, error: str) -> None:
+        try:
+            await peer.websocket.send(json.dumps({
+                "type": "browser_query_result",
+                "id": request_id,
+                "ok": False,
+                "error": error,
+            }))
+        except Exception:
+            pass
+
+    def _choose_agent(self, preferred_profile: str) -> Optional[AgentPeer]:
+        """Prefer a companion of the profile the user is looking at; else the newest one."""
+
+        candidates = sorted(self.agents.values(), key=lambda item: item.connected_at, reverse=True)
+        if preferred_profile:
+            for peer in candidates:
+                if peer.profile_id == preferred_profile:
+                    return peer
+        return candidates[0] if candidates else None
+
+    async def _route_query(self, peer: BrowserPeer, message: dict) -> None:
+        request_id = str(message.get("id") or "")
+        if not CLIENT_ID_RE.fullmatch(request_id):
+            raise ValueError("invalid query id")
+        kind = str(message.get("kind") or "")
+        if kind not in SUPPORTED_QUERY_KINDS:
+            await self._browser_query_error(peer, request_id, f"unsupported query kind: {kind[:40]}")
+            return
+        in_flight = sum(1 for item in self.pending_queries.values() if item.browser is peer)
+        if in_flight >= MAX_PENDING_QUERIES_PER_BROWSER:
+            await self._browser_query_error(peer, request_id, "too many pending queries; retry shortly")
+            return
+        try:
+            limit = int(message.get("limit") or MAX_QUERY_LIMIT)
+        except (TypeError, ValueError):
+            limit = MAX_QUERY_LIMIT
+        limit = min(max(limit, 1), MAX_QUERY_LIMIT)
+        preferred = str(message.get("profileId") or "")
+        if not CLIENT_ID_RE.fullmatch(preferred):
+            preferred = ""
+        agent = self._choose_agent(preferred)
+        if agent is None:
+            await self._browser_query_error(
+                peer, request_id,
+                "no Hermes companion is connected; start Hermes Desktop or a Hermes chat with the companion installed",
+            )
+            return
+
+        broker_id = secrets.token_hex(16)
+        pending = PendingQuery(broker_id, peer, request_id, agent, kind)
+        self.pending_queries[broker_id] = pending
+        payload = {"type": "agent_query", "id": broker_id, "kind": kind, "limit": limit}
+        if preferred:
+            payload["profileId"] = preferred
+        try:
+            await agent.websocket.send(json.dumps(payload))
+        except Exception:
+            self.pending_queries.pop(broker_id, None)
+            await self._browser_query_error(peer, request_id, "the Hermes companion disconnected")
+            return
+        asyncio.create_task(self._expire_query(broker_id, QUERY_TIMEOUT_SECONDS))
+
+    async def _expire_query(self, broker_id: str, timeout: float) -> None:
+        await asyncio.sleep(timeout)
+        pending = self.pending_queries.pop(broker_id, None)
+        if pending is not None and self.browsers.get(pending.browser.browser_id) is pending.browser:
+            await self._browser_query_error(
+                pending.browser, pending.browser_request_id, "the Hermes companion timed out"
+            )
+
+    async def _finish_query(self, peer: AgentPeer, message: dict) -> None:
+        broker_id = str(message.get("id") or "")
+        pending = self.pending_queries.get(broker_id)
+        if pending is None or pending.agent is not peer:
+            return  # unknown, expired, or an answer from a companion that was not asked
+        self.pending_queries.pop(broker_id, None)
+        if self.browsers.get(pending.browser.browser_id) is not pending.browser:
+            return
+        result: dict = {"type": "browser_query_result", "id": pending.browser_request_id}
+        data = message.get("data")
+        if message.get("ok") and isinstance(data, (dict, list)):
+            result["ok"] = True
+            result["data"] = data
+        else:
+            result["ok"] = False
+            result["error"] = str(message.get("error") or "the Hermes companion returned no data")[:300]
+        try:
+            await pending.browser.websocket.send(json.dumps(result))
+        except Exception:
+            pass
+
+    async def _fail_agent_queries(self, peer: AgentPeer, error: str) -> None:
+        doomed = [item for item in self.pending_queries.values() if item.agent is peer]
+        for pending in doomed:
+            self.pending_queries.pop(pending.broker_id, None)
+        for pending in doomed:
+            if self.browsers.get(pending.browser.browser_id) is pending.browser:
+                await self._browser_query_error(pending.browser, pending.browser_request_id, error)
 
     @staticmethod
     async def _send_binding_revoked(peer: BrowserPeer, binding: Binding) -> None:
@@ -922,6 +1045,8 @@ class BrokerServer:
                 peer.backend_url = backend_url
                 peer.backend_mode = backend_mode
                 await self._broadcast_state()
+        elif kind == "agent_query_result":
+            await self._finish_query(peer, message)
         elif kind in {"event", "pong"}:
             return
 
@@ -1038,6 +1163,8 @@ class BrokerServer:
         if self.browsers.get(peer.browser_id) is not peer:
             return
         self.browsers.pop(peer.browser_id, None)
+        for broker_id in [k for k, item in self.pending_queries.items() if item.browser is peer]:
+            self.pending_queries.pop(broker_id, None)
         await self._fail_browser_pending(peer, "the bound Chrome instance disconnected")
         await self._broadcast_state()
 
@@ -1056,6 +1183,7 @@ class BrokerServer:
         doomed = [item.broker_id for item in self.pending.values() if item.agent is peer]
         for broker_id in doomed:
             self.pending.pop(broker_id, None)
+        await self._fail_agent_queries(peer, "the Hermes companion disconnected")
         await self._broadcast_state()
 
 

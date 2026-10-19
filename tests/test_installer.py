@@ -194,8 +194,8 @@ class CompanionInstallerTests(unittest.TestCase):
 
                 installed_manifest = (target / "plugin.yaml").read_text(encoding="utf-8")
                 installed_broker = (target / "broker.py").read_text(encoding="utf-8")
-                self.assertRegex(installed_manifest, r"(?m)^version:\s*0\.2\.4\s*$")
-                self.assertRegex(installed_broker, r'(?m)^BROKER_VERSION\s*=\s*"0\.2\.4"\s*$')
+                self.assertRegex(installed_manifest, r"(?m)^version:\s*0\.2\.5\s*$")
+                self.assertRegex(installed_broker, r'(?m)^BROKER_VERSION\s*=\s*"0\.2\.5"\s*$')
                 self.assertRegex(installed_broker, r"(?m)^PROTOCOL_VERSION\s*=\s*5\s*$")
                 self.assertRegex(installed_broker, r"(?m)^DEFAULT_PORT\s*=\s*8767\s*$")
 
@@ -243,7 +243,7 @@ class CompanionInstallerTests(unittest.TestCase):
             with self.subTest(contract=label):
                 self.assertIsNotNone(match, f"missing {label} declaration")
 
-        self.assertEqual(extension_manifest["version"], "0.2.4")
+        self.assertEqual(extension_manifest["version"], "0.2.5")
         self.assertEqual(plugin_version.group(1), extension_manifest["version"])
         self.assertEqual(broker_version.group(1), extension_manifest["version"])
         self.assertEqual(int(broker_protocol.group(1)), 5)

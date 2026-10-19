@@ -26,6 +26,7 @@ EXTENSION_FILES = (
     "src/dashboard-api.js",
     "src/page-actions.js",
     "src/protocol.js",
+    "src/session-sources.js",
     "src/sidepanel.html",
     "src/sidepanel.js",
 )
@@ -36,6 +37,7 @@ COMPANION_FILES = (
     "broker.py",
     "plugin.yaml",
     "README.md",
+    "sessions.py",
 )
 FIXED_TIME = (2020, 1, 1, 0, 0, 0)
 

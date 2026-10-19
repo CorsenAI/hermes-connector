@@ -32,6 +32,7 @@ PLUGIN_FILES = (
     "broker.py",
     "plugin.yaml",
     "README.md",
+    "sessions.py",
 )
 
 

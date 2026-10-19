@@ -2,7 +2,7 @@
 // state, and the execution of agent-requested actions against the controlled tab. No native host.
 
 import { DEFAULT_BRIDGE_URL, PROTOCOL_VERSION, EXPECTED_BROKER_VERSION,
-  OUT, IN, ACTION, STORE, DEFAULT_SETTINGS } from "./protocol.js";
+  OUT, IN, ACTION, QUERY, STORE, DEFAULT_SETTINGS } from "./protocol.js";
 import { buildSnapshot, clickRef, typeRef, scrollPage, readText, setOverlay,
   hoverRef, pressKey, selectOption, dragRefs, findText, refRect, focusRef } from "./page-actions.js";
 import { attachTab, bindingList, detachTab, normalizeRegistry, removeTabEverywhere,
@@ -273,6 +273,61 @@ function invalidateSession(sock = null) {
   paired = false;
   brokerState = { protocol: PROTOCOL_VERSION, browsers: [], agentProfiles: [] };
   if (sock) sock._paired = false;
+  failSessionQueries("the Connector link to Hermes was reset");
+}
+
+// ---- panel -> companion questions (session list without a web dashboard) ------------------
+
+const SESSION_QUERY_TIMEOUT_MS = 15000;
+const sessionQueries = new Map();   // id -> { resolve, timer }
+let sessionQueryCounter = 0;
+let sessionQueryInFlight = null;    // one list_sessions at a time; concurrent panel calls share it
+
+function failSessionQueries(error) {
+  for (const [id, pending] of sessionQueries) {
+    clearTimeout(pending.timer);
+    sessionQueries.delete(id);
+    pending.resolve({ ok: false, error });
+  }
+}
+
+function resolveSessionQuery(msg) {
+  const pending = sessionQueries.get(String(msg.id || ""));
+  if (!pending) return;
+  clearTimeout(pending.timer);
+  sessionQueries.delete(String(msg.id));
+  if (msg.ok === true && msg.data && typeof msg.data === "object") {
+    pending.resolve({ ok: true, data: msg.data });
+  } else {
+    pending.resolve({ ok: false, error: String(msg.error || "the Hermes companion returned no data").slice(0, 300) });
+  }
+}
+
+// Ask a connected companion for the Hermes session list over the paired socket. Resolves
+// { ok:true, data:{ sessions, source } } or { ok:false, error } — never throws.
+function querySessions(limit, profileId) {
+  if (sessionQueryInFlight) return sessionQueryInFlight;
+  const sock = ws;
+  if (!paired || !sock || sock.readyState !== WebSocket.OPEN || sock._paired !== true) {
+    return Promise.resolve({ ok: false, error: "not paired" });
+  }
+  const id = `panel-${Date.now().toString(36)}-${++sessionQueryCounter}`;
+  const bounded = Math.min(Math.max(Number(limit) || 200, 1), 200);
+  const message = { type: OUT.BROWSER_QUERY, id, kind: QUERY.LIST_SESSIONS, limit: bounded };
+  if (profileId && /^[A-Za-z0-9_.:-]{1,160}$/.test(String(profileId))) message.profileId = String(profileId);
+  sessionQueryInFlight = new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      sessionQueries.delete(id);
+      resolve({ ok: false, error: "the Hermes companion did not answer" });
+    }, SESSION_QUERY_TIMEOUT_MS);
+    sessionQueries.set(id, { resolve, timer });
+    if (!socketSend(sock, message)) {
+      clearTimeout(timer);
+      sessionQueries.delete(id);
+      resolve({ ok: false, error: "the Connector link to Hermes is not open" });
+    }
+  }).finally(() => { sessionQueryInFlight = null; });
+  return sessionQueryInFlight;
 }
 
 function clearSocketKeepalive() {
@@ -574,6 +629,10 @@ async function onHostMessage(msg, sock) {
       if (!authenticated()) break;
       if (msg.data && typeof msg.data === "object") brokerState = msg.data;
       broadcast({ cmd: "brokerState", state: brokerState });
+      break;
+    case IN.BROWSER_QUERY_RESULT:
+      if (!authenticated()) break;
+      resolveSessionQuery(msg);
       break;
     case IN.BINDING_REVOKED: {
       if (!authenticated()) break;
@@ -1303,6 +1362,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         companionDetected = false;
         const probe = await connectBridge(true);
         sendResponse({ ok: !!probe, detected: companionDetected });
+        break;
+      }
+      case "listSessions": {
+        sendResponse(await querySessions(msg.limit, msg.profileId));
         break;
       }
       case "dismissUpgradeNotice": {
