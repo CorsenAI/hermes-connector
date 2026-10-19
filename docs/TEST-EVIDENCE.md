@@ -47,12 +47,35 @@ projected rows through Hermes' aggregated listing in 0.66 s and through the dire
 read-only store fallback in 0.06 s; projected keys were exactly
 `display_name, id, is_active, last_active, profile, source, title`.
 
+### Real Hermes acceptance (opt-in, real model turn)
+
+`tests/e2e_real_hermes.py` on a temporary Hermes home (clean `HERMES_*` environment, companion
+0.2.5 installed **and enabled**, broker on an ephemeral port, no web dashboard reachable: the
+panel's dashboard address points at a closed loopback port). Three consecutive green runs on
+2026-10-19 with a small Anthropic model:
+
+- the real Hermes CLI turn, served by the gateway Hermes auto-starts for that home, called
+  `bridge_status`, `bridge_current_url` and `bridge_read` on the attached `https://example.com/`
+  tab and answered `CONNECTOR_E2E_OK`;
+- while that process was alive, the real side panel listed the real session through the
+  companion (`sessionListVia: companion`, status `Ready · Hermes + Chrome`, card "Hermes
+  connected through the companion");
+- the test stops the auto-started gateway at teardown; no test process outlived the run.
+
+### Packaged pair
+
+`python scripts/build_release.py --skip-tests` → `hermes-connector-0.2.5-chrome.zip`
+(62 966 bytes, SHA-256 `047cfd24a76766c6ceaedb58d72a4b5b2544667f9ac0411f76b34ac3649a7f07`) and
+`hermes-connector-0.2.5-companion.zip` (36 809 bytes, SHA-256
+`5779f58a8265cd11f7bd46b0e2855569bffde2d071c81002b44c0187ec944e93`); identical hashes on a
+second build. `python tests/e2e_packaged_release.py` → "Packaged release pair acceptance passed:
+0.2.5". House store-build check on the extracted extension: OK, one known `<all_urls>` warning
+(the reviewed permission set, justified in the listing).
+
 ### Still to record for 0.2.5
 
-- Real Hermes acceptance on a temporary Hermes home (`tests/e2e_real_hermes.py`)
-  with no web dashboard running.
-- Packaged pair acceptance on the built archives.
 - Owner smoke test in a signed-in Chrome profile.
+- Public GitHub `v0.2.5` release and Chrome Web Store review.
 
 ## 0.2.4 Hermes Desktop compatibility release — 2026-09-02
 

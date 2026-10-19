@@ -155,9 +155,9 @@ questions promptly.
 - [x] Clean committed source on the release branch; Store and companion versions match (0.2.5).
 - [x] Fast gate (`tests/run_all.py`), broker relay/companion provider unit tests, and the
       isolated Chromium acceptance (companion / legacy headless / nothing-answers scenarios) pass.
-- [ ] Real Hermes acceptance on a temporary Hermes home proves the session list arrives through
+- [x] Real Hermes acceptance on a temporary home proves the session list arrives through
       the companion with no web dashboard running and that the model's `bridge_*` calls succeed.
-- [ ] Packaged pair acceptance (`tests/e2e_packaged_release.py`) passes on the built archives.
+- [x] Packaged pair acceptance (`tests/e2e_packaged_release.py`) passes on the built archives.
 - [ ] Public GitHub `v0.2.5` prerelease serves the companion, Chrome ZIP, and release manifest
       before Store review begins.
 - [ ] Store listing, reviewer note, privacy text, support page, and screenshots describe the

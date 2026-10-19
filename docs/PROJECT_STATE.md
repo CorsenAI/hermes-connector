@@ -5,42 +5,48 @@
 
 ## Where we are
 
-- Public release on the Chrome Web Store: **0.2.4** (extension + companion), `main` at `bfd9bc2`.
-- 0.2.4 lists Hermes sessions only through the Hermes **web dashboard** (`/chat` token +
-  `/api/profiles/sessions`) or through a Desktop **headless `hermes serve` backend** advertised by
-  the companion. Current Hermes (source `ca069e12`, 2026-10-15) runs Desktop through one
-  gateway-hosted API that never publishes the token and never sets `HERMES_SERVE_HEADLESS`, so the
-  second path is dead and the first depends on a dashboard process that nobody restarts after a
-  reboot. Panel symptom: "Hermes dashboard unavailable", empty session list, no tab can be attached.
-- Live reproduction (unmodified 0.2.4, real Chromium, 2026-10-19): the panel works as soon as a
-  dashboard listens on 127.0.0.1:9119 (200 sessions, embedded chat). Not an extension-code defect,
-  but an architecture dependency that no longer holds on current Hermes.
-- Work branch for the fix: `feat/0.2.5-session-service` (from `main`). Baseline release gate green
-  on this machine (`python tests/run_all.py`: Python suite OK, JS 21/21).
+- Public release on the Chrome Web Store: **0.2.4**. Current Hermes (October 2026) routes Desktop
+  through one gateway-hosted API that publishes no session token and runs no headless backend,
+  so 0.2.4's panel only works while `hermes dashboard` is running ("Hermes dashboard unavailable"
+  otherwise). Reproduced live with the unmodified 0.2.4 extension.
+- **0.2.5 is implemented, tested and packaged** on branch `feat/0.2.5-session-service`
+  (3 commits on top of `main`/`bfd9bc2`): the panel asks a connected companion for the Hermes
+  session list over the paired broker socket; the companion lists sessions in-process and
+  forwards seven label/identity fields; dashboard mode and the legacy headless mode are unchanged;
+  the panel names what to start instead of showing Chrome's "refused to connect" page.
+- Proof: 94 Python tests, 27 JS tests, fast release gate, Chromium acceptance (16 checks incl.
+  the three discovery scenarios), packaged pair acceptance, store-build check, and three green
+  real-Hermes runs (`sessionListVia: companion`, `CONNECTOR_E2E_OK`). See `TEST_MATRIX.md`.
+- Artifacts (reproducible): `dist/hermes-connector-0.2.5-chrome.zip`
+  (SHA-256 `047cfd24…9a7f07`), `dist/hermes-connector-0.2.5-companion.zip`
+  (SHA-256 `5779f58a…944e93`), `dist/release-0.2.5.json`. Unpacked copy for the owner's Chrome:
+  `data/preview/hermes-connector-0.2.5/` (profile workspace, outside the repository).
 
 ## Next action
 
-Implement the companion **session service** (PRODUCT_PLAN.md §0.2.5) test-first: broker relay
-tests in `tests/test_broker.py`, then `hermes-plugin/broker.py` + `bridge_client.py`, then the
-extension (`session-sources.js` pure module + `background.js` + `sidepanel.js`), then the
-Chromium acceptance scenario.
+Owner decisions: (1) smoke-test 0.2.5 on his Chrome (unpacked preview + 0.2.5 companion on all
+profiles — note the 0.2.4 Store extension in other Chrome profiles then shows the companion update
+notice until the Store ships 0.2.5), (2) GO to merge into `main`, tag `v0.2.5`, publish the GitHub
+prerelease with the two archives and `release-0.2.5.json`, push Pages, and upload the Chrome ZIP to
+the Store item with deferred publishing.
 
 ## Blockers
 
-None for the code. Publication (GitHub release/Pages, Chrome Web Store upload) needs the owner's
-explicit GO and his accounts.
+None in the code. Publication requires the owner's accounts and explicit GO.
 
 ## Verified state
 
 | Item | Value | How verified |
 |---|---|---|
-| Manifest version | 0.2.4 (target 0.2.5) | `extension/manifest.json` |
-| Commit | `bfd9bc2` (main) | `git log --oneline -1` |
+| Manifest / companion / broker version | 0.2.5 / 0.2.5 / 0.2.5 | release gate version lock |
+| Branch / commits | `feat/0.2.5-session-service` — `4dcb79a`, `1886196`, `b4623be` (+ this docs commit) | `git log --oneline -4` |
 | Automatic tests | green | `python tests/run_all.py` → "Fast release gate passed." |
-| Manual Chrome check | 0.2.4 panel verified live against a running dashboard | diagnostics kept outside the repository |
-| Store build | not built for 0.2.5 | — |
+| Chromium acceptance | green, 16 checks | `python tests/e2e_chromium.py` |
+| Real Hermes acceptance | green ×3 | `python tests/e2e_real_hermes.py` |
+| Store build | built, reproducible | `dist/release-0.2.5.json` |
 
 ## Latest changes
 
-- 2026-10-19: project copied from the delivered tree; worktree metadata pruned; uncommitted
-  `archive/connector-real-fix` work stashed for triage; branch `feat/0.2.5-session-service` created.
+- 2026-10-19: companion session service (broker relay, in-process provider, pure source order,
+  background query path, panel wording) — tests first, then code; docs/pages/listing/privacy
+  updated; release archives built; real-Hermes acceptance adapted to current Hermes and green.

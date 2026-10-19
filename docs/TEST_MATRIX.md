@@ -1,24 +1,25 @@
 # TEST_MATRIX — Hermes Connector 0.2.5
 
 > One case per line. Nothing is DONE without (a) an automatic test and (b) a manual check in a
-> real Chrome. "Proof" names the exact test or evidence file.
+> real Chrome. "Proof" names the exact test or evidence file. Dates are 2026-10-19 unless noted.
 
 | ID | Case | Type | Command / gesture | Expected | Status | Proof | Date |
 |---|---|---|---|---|---|---|---|
-| T-101 | Broker relays `browser_query list_sessions` to a connected companion and returns its answer | auto | `python -m unittest tests.test_broker -k query` | `browser_query_result ok:true` with the companion payload | TODO | | |
-| T-102 | No companion connected → bounded error, no hang | auto | same | `ok:false`, error names "no Hermes" | TODO | | |
-| T-103 | Companion never answers → timeout error, pending entry cleaned | auto | same | error within the relay timeout; `pending` empty | TODO | | |
-| T-104 | Oversized / malformed query or result is rejected | auto | same | frame dropped or error, socket stays usable | TODO | | |
-| T-105 | A browser that is not authenticated gets no relay | auto | same | socket closed at hello, nothing routed | TODO | | |
-| T-106 | Companion provider projection keeps only allowed fields, caps rows and title length | auto | `python -m unittest tests.test_plugin_sessions` | no `cwd`/cost/token keys; ≤200 rows; title ≤200 chars | TODO | | |
-| T-107 | Companion answers `agent_query` from a fake provider; provider exception → `ok:false` | auto | same | exact `agent_query_result` frames | TODO | | |
-| T-108 | Pure session-source order: dashboard → companion → headless | auto | `node --test tests/session-sources.test.mjs` | first available source wins; mode labels correct | TODO | | |
-| T-109 | Background answers `listSessions` from the panel through the paired socket | auto | `node --test tests/background-session.test.mjs` | resolves with sessions; rejects when unpaired | TODO | | |
-| T-110 | Panel: dashboard down + no headless backend + companion present → list filled, status "Chrome linked · choose a session", conversation-in-Hermes notice | auto (Chromium) | `python tests/e2e_chromium.py` | new scenario green, existing scenarios green | TODO | | |
-| T-111 | Panel: nothing answers → wording names what to start | auto (Chromium) | same | status text per R5 | TODO | | |
-| T-112 | Release gate | auto | `python tests/run_all.py` | "Fast release gate passed." with 0.2.5 everywhere | TODO | | |
-| T-113 | Packaged release archives | auto | `python scripts/build_release.py` | two zips + release JSON, leakage scan clean | TODO | | |
-| T-114 | Real Hermes acceptance on a temporary home (model turn + session list through the companion, dashboard absent) | manual/opt-in | `python tests/e2e_real_hermes.py` | `bridge_*` called by the model; panel lists the temp session | TODO | | |
-| T-115 | Manual check on the owner's Chrome (unpacked 0.2.5 + 0.2.5 companion on an isolated home) | manual | load unpacked, ↻ | screenshot of the filled list without a dashboard | TODO | | |
+| T-101 | Broker relays `browser_query list_sessions` to a connected companion and returns its answer | auto | `python -m unittest tests.test_broker` | `browser_query_result ok:true` with the companion payload; no browser id leaks to the companion | PASS | `test_query_is_relayed_to_a_companion_and_its_answer_returns`, `test_preferred_profile_companion_is_chosen_when_present` | 2026-10-19 |
+| T-102 | No companion connected → bounded error, no hang | auto | same | `ok:false`, error names "no Hermes" | PASS | `test_no_companion_connected_yields_a_bounded_error` | 2026-10-19 |
+| T-103 | Companion never answers / disconnects → error, pending entry cleaned | auto | same | error within the relay timeout; `pending_queries` empty | PASS | `test_unanswered_query_times_out_and_is_cleaned`, `test_companion_disconnect_fails_its_pending_queries` | 2026-10-19 |
+| T-104 | Unknown kind, bad id, forged answer, per-browser cap | auto | same | error / socket closed / forged answer ignored / "too many" | PASS | `test_unknown_kind_and_bad_ids_are_rejected_without_relay`, `test_only_the_routed_companion_may_answer`, `test_pending_queries_per_browser_are_capped` | 2026-10-19 |
+| T-105 | A browser that is not authenticated gets no relay | auto | same | socket closed, nothing routed | PASS | `test_unpaired_browser_cannot_query` | 2026-10-19 |
+| T-106 | Companion projection keeps only allowed fields, caps rows and title length | auto | `python -m unittest tests.test_plugin_sessions` | no `cwd`/cost/token keys; ≤200 rows; title ≤200 chars | PASS | `ProjectionTests` (2 tests) | 2026-10-19 |
+| T-107 | Companion answers `agent_query` from a provider; provider exception → `ok:false`; unknown kind refused | auto | same | exact `agent_query_result` frames | PASS | `ClientQueryAnswerTests` (3 tests), `ProviderTests` (4 tests) | 2026-10-19 |
+| T-108 | Pure session-source order: dashboard → companion → headless | auto | `node --test tests/session-sources.test.mjs` | first available source wins; wording per state | PASS | 5 tests | 2026-10-19 |
+| T-109 | Background answers `listSessions` from the panel through the paired socket | auto | `node --test tests/background-query.test.mjs` | resolves with sessions; refuses when unpaired; one query in flight; reset fails pending | PASS | 1 test (27/27 JS in total) | 2026-10-19 |
+| T-110 | Panel: dashboard down + companion present → list filled, "Hermes connected through the companion", status Ready; legacy headless still works when the companion listing fails | auto (Chromium) | `CHROME_BINARY=… python tests/e2e_chromium.py` | scenarios A and B green, all 16 checks green | PASS | run output: 16 checks incl. "companion session service replaced the unavailable Web dashboard" | 2026-10-19 |
+| T-111 | Panel: nothing answers → wording names what to start, hint visible, no broken page, then recovery | auto (Chromium) | same (scenario C) | status "Hermes sessions unavailable · the companion did not answer…", `#hermes` hidden, recovery to Ready | PASS | check "no session source reported honestly without a broken page" | 2026-10-19 |
+| T-112 | Release gate | auto | `python tests/run_all.py` | "Fast release gate passed." with 0.2.5 everywhere | PASS | 94 Python tests OK (skipped=2), 27 JS, gates passed | 2026-10-19 |
+| T-113 | Packaged release archives + packaged pair acceptance | auto | `python scripts/build_release.py --skip-tests`; `python tests/e2e_packaged_release.py` | two zips + release JSON, reproducible hashes; packaged pair acceptance passes | PASS | chrome zip sha256 `047cfd24…9a7f07`, companion zip `5779f58a…944e93` (identical on rebuild); "Packaged release pair acceptance passed: 0.2.5" | 2026-10-19 |
+| T-114 | Real Hermes acceptance on a temporary home: model turn calls `bridge_*`; the real companion lists the real session to the real panel with no dashboard reachable | auto/opt-in (real model) | `TMPDIR=/tmp python tests/e2e_real_hermes.py --source-profile <minimal profile> --browser <chromium>` | `CONNECTOR_E2E_OK`, `sessionListVia: companion`, `sessionListStatus: Ready · Hermes + Chrome` | PASS (3 consecutive runs) | run output; no test gateway left behind | 2026-10-19 |
+| T-115 | Store build check on the packaged extension | auto | `node scripts/check-store-build.mjs <extracted chrome zip>` | OK; only the known `<all_urls>` warning (justified in the listing, reviewed set unchanged) | PASS | "OK avec 1 avertissement(s)" | 2026-10-19 |
+| T-116 | Owner check on the owner's Chrome (unpacked 0.2.5 + 0.2.5 companion) | manual | load `preview/hermes-connector-0.2.5`, ↻ | filled list without a dashboard | TODO (owner) | | |
 
 Statuses: `TODO` · `IN PROGRESS` · `PASS` · `FAIL` · `BLOCKED` · `N/A` (with reason).
