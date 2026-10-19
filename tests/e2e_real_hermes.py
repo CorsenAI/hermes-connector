@@ -24,6 +24,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 import e2e_chromium as live
@@ -126,7 +127,12 @@ def run_hermes(
         check=False,
     )
     if completed.returncode:
-        raise RuntimeError(f"Hermes model turn exited with code {completed.returncode}")
+        err_tail = " ".join((completed.stderr or "").split())[-1200:]
+        out_tail = " ".join((completed.stdout or "").split())[-1200:]
+        raise RuntimeError(
+            f"Hermes model turn exited with code {completed.returncode}; "
+            f"stdout tail: {out_tail!r}; stderr tail: {err_tail!r}"
+        )
     return completed.stdout, completed.stderr
 
 
@@ -153,6 +159,9 @@ def install_candidate_companion(destination: Path) -> Path:
     target, previous = module.install(live.PLUGIN, destination)
     if previous is not None:
         raise RuntimeError("temporary profile unexpectedly contained an older companion")
+    # Current Hermes loads only plugins listed in ``plugins.enabled``; a copied payload alone is
+    # never registered, so enable it exactly as the public installer does.
+    module.enable_plugin(destination)
     return target
 
 
@@ -219,7 +228,9 @@ def launch_browser(
             "await new Promise(r=>setTimeout(r,50));}throw new Error('example.com did not load');})()"
         )
         initial_state = {
-            "hermesUrl": f"http://127.0.0.1:{dashboard_port}/" if dashboard_port else None,
+            # No dashboard in this run: point the panel at a closed loopback port so a dashboard
+            # that happens to run on the host machine can never serve the session list here.
+            "hermesUrl": f"http://127.0.0.1:{dashboard_port}/" if dashboard_port else "http://127.0.0.1:1/",
             "settings": {
                 "bridgeUrl": f"ws://127.0.0.1:{broker_port}",
                 "pairingCode": secret,
@@ -258,6 +269,17 @@ def launch_browser(
     )
     panel_cdp = live.Cdp(panel["webSocketDebuggerUrl"])
     try:
+        # The extension page can still be committing when its target appears; wait for its
+        # extension APIs before asking it anything (a cold renderer answers `chrome.runtime` late).
+        for _ in range(100):
+            ready = panel_cdp.evaluate(
+                "(()=>typeof chrome!=='undefined'&&!!chrome.runtime&&!!chrome.runtime.sendMessage)()"
+            )
+            if ready:
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError("side panel page never exposed its extension APIs")
         paired = panel_cdp.evaluate(
             "(async()=>{for(let i=0;i<200;i++){const s=await chrome.runtime.sendMessage({cmd:'getState'});"
             "if(s&&s.paired)return true;await new Promise(r=>setTimeout(r,50));}return false;})()"
@@ -506,6 +528,49 @@ def validate_recording(path: Path, reference_capture: Path) -> dict:
     }
 
 
+def watch_companion_session_list(panel: dict, profile_id: str, session_id: str,
+                                 stop: threading.Event, timeout: float = 180) -> dict:
+    """Poll the real side panel while a real Hermes process is alive and record the first moment
+    the companion session service lists the tested session (no dashboard is reachable)."""
+
+    expected = f"{profile_id}\x1f{session_id}"
+    deadline = time.time() + timeout
+    last: dict = {}
+    while time.time() < deadline and (not stop.is_set() or stop_grace_until(stop) > time.time()):
+        panel_cdp = live.Cdp(panel["webSocketDebuggerUrl"])
+        try:
+            last = panel_cdp.evaluate(
+                "(async()=>{const s=await chrome.runtime.sendMessage({cmd:'getState'});"
+                "return {options:[...document.querySelectorAll('#sessionSelect option')].map(o=>o.value),"
+                "status:document.querySelector('#status').textContent,"
+                "desktopVisible:!document.querySelector('#desktopMode').hidden,"
+                "desktopText:document.querySelector('#desktopMode').textContent,"
+                "frameHidden:document.querySelector('#hermes').hidden,"
+                "paired:!!(s&&s.paired),agentProfiles:(s&&s.brokerState&&s.brokerState.agentProfiles)||[]};})()"
+            ) or {}
+        except Exception as exc:  # the panel target can be busy for a moment
+            last = {"error": str(exc)}
+        finally:
+            panel_cdp.close()
+        if (expected in (last.get("options") or []) and last.get("desktopVisible")
+                and "through the companion" in last.get("desktopText", "")):
+            last["seenAt"] = time.time()
+            return last
+        time.sleep(0.5)
+    return last
+
+
+_GRACE: dict = {}
+
+
+def stop_grace_until(stop: threading.Event, grace: float = 20.0) -> float:
+    """Keep watching ``grace`` seconds after the model turn ends: the companion's answer and the
+    panel refresh can land just after the CLI prints its final line."""
+    if stop.is_set() and "until" not in _GRACE:
+        _GRACE["until"] = time.time() + grace
+    return _GRACE.get("until", 0.0)
+
+
 def run(
     source_profile: Path,
     browser: Path,
@@ -551,16 +616,22 @@ def run(
             stdout=broker_log,
             stderr=subprocess.STDOUT,
         )
+        hermes_env: dict[str, str] | None = None
         try:
             wait_for_port(broker_port, broker_process)
             hermes_env = os.environ.copy()
+            # Run the temporary Hermes with a clean Hermes environment: session/supervision markers
+            # inherited from a launching Hermes session would make the spawned gateway believe it is a
+            # supervised daemon (idle exit "not armed") and leak a process after the test.
+            for key in [name for name in hermes_env if name.startswith("HERMES_")]:
+                hermes_env.pop(key, None)
             hermes_env["HERMES_HOME"] = str(temp_root)
             hermes_env["HERMES_BRIDGE_PORT"] = str(broker_port)
             _, setup_stderr = run_hermes(
                 hermes,
                 hermes_env,
                 "Reply exactly SESSION_READY. Do not call any tool.",
-                max_turns=3,
+                max_turns=12,
                 cwd=demo_workspace,
             )
             match = SESSION_RE.search(setup_stderr)
@@ -591,14 +662,35 @@ def run(
                 "Page heading: <heading>; URL scheme: <scheme without punctuation>; URL host: "
                 "<hostname with spaces around dots>. Never use browser_* or a Markdown link."
             )
-            stdout, _ = run_hermes(
-                hermes,
-                hermes_env,
-                prompt,
-                resume=session_id,
-                max_turns=10,
-                cwd=demo_workspace,
-            )
+            # While the real Hermes process is alive, its companion must serve the session list to
+            # the real panel (no dashboard is reachable in this run).
+            watcher_stop = threading.Event()
+            watcher_result: dict = {}
+
+            def _watch() -> None:
+                watcher_result.update(
+                    watch_companion_session_list(panel, profile_id, session_id, watcher_stop)
+                )
+
+            watcher = threading.Thread(target=_watch, name="companion-session-watch", daemon=True)
+            watcher.start()
+            try:
+                stdout, _ = run_hermes(
+                    hermes,
+                    hermes_env,
+                    prompt,
+                    resume=session_id,
+                    max_turns=12,
+                    cwd=demo_workspace,
+                )
+            finally:
+                watcher_stop.set()
+                watcher.join(timeout=35)
+            if "seenAt" not in watcher_result:
+                raise AssertionError(
+                    "the real companion never served the session list to the real panel: "
+                    f"{watcher_result}"
+                )
             agent_log_path = temp_root / "logs" / "agent.log"
             agent_log = agent_log_path.read_text(encoding="utf-8", errors="replace") \
                 if agent_log_path.is_file() else ""
@@ -682,6 +774,8 @@ def run(
                 "page": "https://example.com/",
                 "tools": list(required_tools),
                 "result": "CONNECTOR_E2E_OK",
+                "sessionListVia": "companion",
+                "sessionListStatus": watcher_result.get("status"),
             }
             if capture is not None:
                 dashboard_log = (temp_root / "dashboard.log").open("w", encoding="utf-8")
@@ -848,6 +942,14 @@ def run(
                 finish_window_recording(recorder_process, check=False)
             stop_process(browser_process)
             stop_process(dashboard_process)
+            if hermes_env is not None:
+                # The CLI turns auto-started a gateway for the temporary home; stop it explicitly
+                # instead of relying on its idle exit, so no test daemon outlives the test.
+                try:
+                    subprocess.run([hermes, "gateway", "stop"], env=hermes_env, cwd=temp_root,
+                                   capture_output=True, timeout=45, check=False)
+                except (OSError, subprocess.SubprocessError):
+                    pass
             stop_process(broker_process)
             if browser_log is not None:
                 browser_log.close()
