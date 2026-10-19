@@ -4,6 +4,8 @@
 
 import { listDashboardSessions, makeDashboardUrl, normalizeLoopbackUrl } from "./dashboard-api.js";
 import { DEFAULT_BRIDGE_URL } from "./protocol.js";
+import { SOURCE_MODE, conversationNotice, discoverSessions,
+  sessionServiceUnavailableMessage } from "./session-sources.js";
 
 const DEFAULT_URL = "http://127.0.0.1:9119/";
 
@@ -11,6 +13,7 @@ const dot = document.getElementById("dot");
 const statusEl = document.getElementById("status");
 const frame = document.getElementById("hermes");
 const desktopMode = document.getElementById("desktopMode");
+const desktopModeTitle = document.getElementById("desktopModeTitle");
 const hint = document.getElementById("hint");
 const cfg = document.getElementById("cfg");
 const scopeSection = document.getElementById("scope");
@@ -109,7 +112,7 @@ function renderConnectionState(message = "", dotKind = "") {
   }
   if (state.dashboardAvailable === false) {
     setDot("warn");
-    statusEl.textContent = state.sessionServiceMessage || "Hermes dashboard unavailable";
+    statusEl.textContent = state.sessionServiceMessage || unavailableMessage();
     return;
   }
   if (!selectedScope) {
@@ -232,13 +235,13 @@ function renderCompanionDetection(detected, checking = false) {
   if (detected) {
     setupTitle.textContent = "Companion service detected";
     companionDetection.textContent =
-      `A local broker is reachable on ${platformLabel()}, but Chrome cannot confirm its version before pairing. Install the matching 0.2.4 companion once.`;
-    setupStepDownload.textContent = "Download and extract companion 0.2.4; reinstalling preserves the existing private pairing code.";
+      `A local broker is reachable on ${platformLabel()}, but Chrome cannot confirm its version before pairing. Install the matching 0.2.5 companion once.`;
+    setupStepDownload.textContent = "Download and extract companion 0.2.5; reinstalling preserves the existing private pairing code.";
     renderPlatformInstallStep();
     setupStepRestart.textContent =
       "Fully quit and reopen Hermes Desktop, or restart the Hermes services you use.";
     setupStepPair.textContent = "Paste the displayed 64-character code, choose a Hermes session, and attach only the tabs it may use.";
-    downloadCompanion.textContent = "Download companion 0.2.4";
+    downloadCompanion.textContent = "Download companion 0.2.5";
     if (!setupNotice.hidden) statusEl.textContent = "companion detected — enter pairing code";
     return;
   }
@@ -249,7 +252,7 @@ function renderCompanionDetection(detected, checking = false) {
   renderPlatformInstallStep();
   setupStepRestart.textContent = "Restart Hermes, then copy the private pairing code the installer displays.";
   setupStepPair.textContent = "Paste that code below, choose a Hermes session, and attach only the tabs it may use.";
-  downloadCompanion.textContent = "Download companion 0.2.4";
+  downloadCompanion.textContent = "Download companion 0.2.5";
   if (!setupNotice.hidden) statusEl.textContent = "setup required — companion not reachable";
 }
 
@@ -314,26 +317,30 @@ function advertisedDesktopBackends() {
   return backends;
 }
 
-function sessionServiceUnavailableMessage() {
-  const brokerStateAvailable = state.brokerState && typeof state.brokerState === "object";
-  const desktopCapabilityAvailable = brokerStateAvailable &&
-    Object.prototype.hasOwnProperty.call(state.brokerState, "agentBackends");
-  return state.paired && !desktopCapabilityAvailable
-    ? `Companion ${chrome.runtime.getManifest().version} required for Hermes Desktop`
-    : "Hermes dashboard unavailable";
+function unavailableMessage() {
+  return sessionServiceUnavailableMessage({
+    paired: !!state.paired,
+    brokerState: state.brokerState,
+    companionVersion: chrome.runtime.getManifest().version,
+  });
 }
 
 function setSessionSource(mode, url) {
   sessionSource = Object.freeze({ mode, url });
 }
 
+function conversationStaysInHermes() {
+  return sessionSource.mode === SOURCE_MODE.DESKTOP || sessionSource.mode === SOURCE_MODE.COMPANION;
+}
+
 async function showDashboard(scope = null, selectionGeneration = null) {
   const generation = ++dashboardGeneration;
-  if (sessionSource.mode === "desktop") {
+  if (conversationStaysInHermes()) {
     if (generation !== dashboardGeneration) return false;
     if (selectionGeneration !== null && selectionGeneration !== scopeSelectionGeneration) return false;
     frame.hidden = true;
     frame.removeAttribute("src");
+    if (desktopModeTitle) desktopModeTitle.textContent = conversationNotice(sessionSource.mode);
     desktopMode.hidden = false;
     hint.hidden = true;
     return true;
@@ -382,26 +389,32 @@ function sessionLabel(session) {
 async function loadSessions() {
   const generation = ++sessionsLoadGeneration;
   let configuredUrl = DEFAULT_URL;
-  let sessions = null;
-  let source = null;
+  let discovery = { ok: false, errors: [] };
   try {
     configuredUrl = await getUrl();
     if (generation !== sessionsLoadGeneration) return false;
-    sessions = await listDashboardSessions(configuredUrl);
-    source = { mode: "dashboard", url: configuredUrl };
-  } catch (_) {
-    for (const backend of advertisedDesktopBackends()) {
-      try {
-        sessions = await listDashboardSessions(backend.url, fetch, { headless: true });
-        source = { mode: "desktop", url: backend.url };
-        break;
-      } catch (_) {}
-    }
+    const preferredProfile = selectedScope ? selectedScope.profileId : "";
+    discovery = await discoverSessions({
+      dashboardUrl: configuredUrl,
+      loadDashboard: (url) => listDashboardSessions(url),
+      loadCompanion: async (limit) => {
+        const answer = await runtime({ cmd: "listSessions", limit, profileId: preferredProfile });
+        if (!answer || !answer.ok) {
+          throw new Error(answer && answer.error ? answer.error : "companion unavailable");
+        }
+        return answer.data ? answer.data.sessions : null;
+      },
+      loadHeadless: (url) => listDashboardSessions(url, fetch, { headless: true }),
+      headlessBackends: advertisedDesktopBackends(),
+    });
+  } catch (error) {
+    discovery = { ok: false, errors: [String(error && error.message ? error.message : error)] };
   }
   try {
-    if (!sessions || !source) throw new Error("Hermes session service unavailable");
+    if (!discovery.ok) throw new Error("Hermes session service unavailable");
     if (generation !== sessionsLoadGeneration) return false;
-    setSessionSource(source.mode, source.url);
+    const sessions = discovery.sessions;
+    setSessionSource(discovery.mode, discovery.url);
     await showDashboard(selectedScope);
     if (generation !== sessionsLoadGeneration) return false;
     const currentScope = copyScope(selectedScope);
@@ -441,12 +454,15 @@ async function loadSessions() {
     return true;
   } catch (_) {
     if (generation !== sessionsLoadGeneration) return false;
-    setSessionSource("dashboard", configuredUrl);
+    setSessionSource(SOURCE_MODE.DASHBOARD, configuredUrl);
     desktopMode.hidden = true;
-    frame.hidden = false;
+    // No source answered: never leave Chrome's "refused to connect" page in the panel.
+    frame.hidden = true;
+    frame.removeAttribute("src");
     hint.hidden = false;
     state.dashboardAvailable = false;
-    state.sessionServiceMessage = sessionServiceUnavailableMessage();
+    state.sessionServiceMessage = unavailableMessage();
+    state.sessionServiceErrors = discovery.errors || [];
     renderConnectionState(state.sessionServiceMessage, state.paired ? "warn" : "off");
     return false;
   }

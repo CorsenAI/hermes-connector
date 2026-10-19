@@ -122,8 +122,8 @@
     </details>
     <div class="setupActions">
       <a id="downloadCompanion" class="primaryLink"
-        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip"
-        target="_blank" rel="noopener noreferrer">Download companion 0.2.4</a>
+        href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip"
+        target="_blank" rel="noopener noreferrer">Download companion 0.2.5</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Detailed instructions</a>
       <button id="openSetupSettings">Enter pairing code</button>
@@ -132,13 +132,13 @@
   </aside>
   <aside id="upgradeNotice" role="alertdialog" aria-modal="true" aria-labelledby="upgradeTitle" hidden>
     <strong id="upgradeTitle">Companion update required</strong>
-    <p>Re-download and run the 0.2.4 companion installer, then restart running Hermes processes.
+    <p>Re-download and run the 0.2.5 companion installer, then restart running Hermes processes.
       Browser tools may fail until this is done.</p>
     <p id="customPortUpgrade" hidden><b>Custom bridge port:</b> an older detached broker may still own it.
-      After installing 0.2.4, reboot this computer once (or safely stop only that legacy broker),
+      After installing 0.2.5, reboot this computer once (or safely stop only that legacy broker),
       then start Hermes again.</p>
     <div class="upgradeActions">
-      <a id="upgradeCompanion" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip"
+      <a id="upgradeCompanion" href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip"
         target="_blank" rel="noopener noreferrer">Download matching companion</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Installation steps</a>
@@ -155,7 +155,7 @@
     <label>Pairing code (from companion installer)
       <input id="pairingCode" type="password" spellcheck="false" placeholder="paste the installer's private code" /></label>
     <div class="setupActions">
-      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip"
+      <a href="https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip"
         target="_blank" rel="noopener noreferrer">Download companion</a>
       <a href="https://corsenai.github.io/hermes-connector/support/" target="_blank"
         rel="noopener noreferrer">Setup help</a>
@@ -195,14 +195,16 @@
   <iframe id="hermes" title="Hermes dashboard"></iframe>
   <section id="desktopMode" aria-live="polite" hidden>
     <div class="desktopCard">
-      <strong>Hermes Desktop connected</strong>
-      <p>Choose the Desktop session above, attach the Chrome tabs it may use, then continue the conversation in Hermes Desktop.</p>
+      <strong id="desktopModeTitle">Hermes Desktop connected</strong>
+      <p>Choose the Hermes session above, attach the Chrome tabs it may use, then continue the conversation
+        in Hermes Desktop or in the Hermes chat you started.</p>
       <p class="desktopPrivacy">Connector discovery and routing stay on this computer. Hermes uses the model provider you configured.</p>
     </div>
   </section>
   <div id="hint" hidden>
-    Restart Hermes Desktop after installing the companion, or start the Web dashboard with
-    <code>hermes dashboard</code>. If your dashboard runs on a different fixed port, set its address with the ⚙ button.
+    No Hermes session list is reachable. Start Hermes Desktop or a Hermes chat with the companion installed —
+    the list then comes through the Connector — or start the Web dashboard with <code>hermes dashboard</code>.
+    If your dashboard runs on a different fixed port, set its address with the ⚙ button.
   </div>
   <script type="module" src="sidepanel.js"></script>
 </body>

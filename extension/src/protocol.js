@@ -11,7 +11,7 @@ export const DEFAULT_BRIDGE_URL = "ws://127.0.0.1:8767";
 
 // v5: v4 routing/auth plus a release-isolated port and an exact broker release handshake.
 export const PROTOCOL_VERSION = 5;
-export const EXPECTED_BROKER_VERSION = "0.2.4";
+export const EXPECTED_BROKER_VERSION = "0.2.5";
 
 // Direct-connection flow: the extension opens a WebSocket to the local agent. The agent's bridge
 // requires a chrome-extension:// Origin and then authenticates the paired extension with role-bound
@@ -24,6 +24,7 @@ export const OUT = {
   BINDING_SYNC: "binding_sync",   // { bindings:[{profileId,sessionId,tabIds,activeTabId}] }
   BINDING_UPDATE: "binding_update",
   BINDING_REMOVE: "binding_remove",
+  BROWSER_QUERY: "browser_query", // { id, kind:"list_sessions", limit, profileId? } — answered by a companion
   EVENT: "event",                 // { name, ... } page/agent lifecycle notifications
   BYE: "bye",
 };
@@ -35,8 +36,14 @@ export const IN = {
   PAIR_DENIED: "pair_denied",     // { reason }
   BROKER_STATE: "broker_state",   // { data:{browsers,agentProfiles,...} }
   BINDING_REVOKED: "binding_revoked", // another Chrome profile explicitly claimed this scope
+  BROWSER_QUERY_RESULT: "browser_query_result", // { id, ok, data? | error } — the companion's answer
   ACTION: "action",               // { id, scope, targetTabId, action:{ kind, ...args } }
   PING: "ping",                   // { id }
+};
+
+// Browser -> companion question kinds. Only the session list is needed today.
+export const QUERY = {
+  LIST_SESSIONS: "list_sessions", // { limit } -> { sessions:[{id, profile, title, ...}], source }
 };
 
 // Action kinds the agent may request. Kept small and explicit so the store review and

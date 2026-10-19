@@ -433,9 +433,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "bindings": {},
                     "selectedScope": {"profileId": profile_a, "sessionId": session_a},
                     "upgradeNotice": {
-                        "id": "companion-reinstall-0.2.4",
+                        "id": "companion-reinstall-0.2.5",
                         "previousVersion": "0.2.3",
-                        "extensionVersion": "0.2.4",
+                        "extensionVersion": "0.2.5",
                     },
                 }
                 cdp.evaluate(
@@ -484,7 +484,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     raise AssertionError(
                         f"real side panel did not resume the selected session: {frame_url}"
                     )
-                if panel_state.get("noticeHidden") or "0.2.4" not in panel_state.get("noticeText", ""):
+                if panel_state.get("noticeHidden") or "0.2.5" not in panel_state.get("noticeText", ""):
                     raise AssertionError(f"companion update notice was not visible: {panel_state}")
                 if not panel_state.get("setupHidden"):
                     raise AssertionError(
@@ -570,6 +570,21 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             if not session_race or not session_race.get("stayedB") or not session_race.get("reset"):
                 raise AssertionError(f"stale session refresh overrode the visible selected scope: {session_race}")
 
+            # Deterministic companion session service (0.2.5): the real BridgeClient answers the
+            # panel's list_sessions query from this provider, never from the machine's Hermes.
+            companion_listing = {"mode": "answer"}
+            companion_sessions = [
+                {"id": session_a, "profile": profile_a, "title": "Project Atlas", "display_name": None,
+                 "source": "local", "last_active": 1700000002.0, "is_active": True},
+                {"id": session_b, "profile": profile_b, "title": "Release QA", "display_name": None,
+                 "source": "local", "last_active": 1700000001.0, "is_active": False},
+            ]
+
+            def e2e_session_provider(limit: int, profile_id: str) -> dict:
+                if companion_listing["mode"] == "fail":
+                    return {"ok": False, "error": "e2e companion listing disabled"}
+                return {"ok": True, "data": {"sessions": companion_sessions[:limit], "source": "e2e-companion"}}
+
             client_a = bridge_client.BridgeClient(
                 profile_a,
                 root=temp_root,
@@ -579,9 +594,11 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "backendUrl": f"{base}/",
                     "backendMode": "headless",
                 },
+                session_provider=e2e_session_provider,
             ).start()
             client_b = bridge_client.BridgeClient(
-                profile_b, root=temp_root, port=broker_port, auto_start_broker=False
+                profile_b, root=temp_root, port=broker_port, auto_start_broker=False,
+                session_provider=e2e_session_provider,
             ).start()
             clients.extend([client_a, client_b])
             state = wait_client(client_a, browser_id)
@@ -623,18 +640,26 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if ready_status != "Ready · Hermes + Chrome":
                 raise AssertionError(f"panel did not become ready after exact tab attachment: {ready_status}")
-            panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
-            try:
-                desktop_fallback = panel_cdp.evaluate(
+            # Scenario A — Web dashboard outage, companion present: the companion session service
+            # replaces the dashboard and the conversation stays in Hermes.
+            def outage_script(block_root: bool) -> str:
+                blocked = "url.includes('/chat')"
+                if block_root:
+                    # Also starve the legacy headless bootstrap page so no source can answer.
+                    blocked += "||url===" + json.dumps(f"{base}/")
+                return (
                     "(async()=>{const original=globalThis.fetch;"
                     "globalThis.fetch=(...args)=>{const url=String(args[0]&&args[0].url||args[0]||'');"
-                    "if(url.includes('/chat'))return Promise.reject(new Error('simulated dashboard outage'));"
+                    f"if({blocked})return Promise.reject(new Error('simulated dashboard outage'));"
                     "return original(...args);};"
                     "try{document.querySelector('#refreshSessions').click();"
-                    "let desktopStatus='';for(let i=0;i<100;i++){desktopStatus=document.querySelector('#status').textContent;"
-                    "if(!document.querySelector('#desktopMode').hidden)break;await new Promise(r=>setTimeout(r,20));}"
+                    "let desktopStatus='';for(let i=0;i<150;i++){desktopStatus=document.querySelector('#status').textContent;"
+                    "if(!document.querySelector('#desktopMode').hidden||!document.querySelector('#hint').hidden)break;"
+                    "await new Promise(r=>setTimeout(r,20));}"
                     "const desktop={visible:!document.querySelector('#desktopMode').hidden,"
                     "frameHidden:document.querySelector('#hermes').hidden,status:desktopStatus,"
+                    "hintHidden:document.querySelector('#hint').hidden,"
+                    "options:[...document.querySelectorAll('#sessionSelect option')].map(o=>o.value),"
                     "text:document.querySelector('#desktopMode').textContent};"
                     "globalThis.fetch=original;document.querySelector('#refreshSessions').click();"
                     "let recovered='';for(let i=0;i<100;i++){recovered=document.querySelector('#status').textContent;"
@@ -643,8 +668,29 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "return {desktop,recovered,webFrameVisible:!document.querySelector('#hermes').hidden};}"
                     "finally{globalThis.fetch=original;}})()"
                 )
-            finally:
-                panel_cdp.close()
+
+            def run_outage(block_root: bool) -> dict:
+                panel = Cdp(panel_target["webSocketDebuggerUrl"])
+                try:
+                    return panel.evaluate(outage_script(block_root))
+                finally:
+                    panel.close()
+
+            companion_fallback = run_outage(block_root=False)
+            if (not companion_fallback or not companion_fallback.get("desktop", {}).get("visible") or
+                    not companion_fallback.get("desktop", {}).get("frameHidden") or
+                    "Hermes connected through the companion" not in companion_fallback.get("desktop", {}).get("text", "") or
+                    companion_fallback.get("desktop", {}).get("status") != "Ready · Hermes + Chrome" or
+                    not any("session-b" in value for value in companion_fallback.get("desktop", {}).get("options", [])) or
+                    companion_fallback.get("recovered") != "Ready · Hermes + Chrome" or
+                    not companion_fallback.get("webFrameVisible")):
+                raise AssertionError(
+                    f"companion session service did not replace the unavailable Web dashboard: {companion_fallback}"
+                )
+
+            # Scenario B — companion listing fails, legacy headless Desktop backend still advertised.
+            companion_listing["mode"] = "fail"
+            desktop_fallback = run_outage(block_root=False)
             if (not desktop_fallback or not desktop_fallback.get("desktop", {}).get("visible") or
                     not desktop_fallback.get("desktop", {}).get("frameHidden") or
                     "Hermes Desktop connected" not in desktop_fallback.get("desktop", {}).get("text", "") or
@@ -654,6 +700,17 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 raise AssertionError(
                     f"Desktop session discovery did not replace the unavailable Web dashboard: {desktop_fallback}"
                 )
+
+            # Scenario C — nothing answers: the panel names what to start and shows no broken page.
+            nothing = run_outage(block_root=True)
+            companion_listing["mode"] = "answer"
+            nothing_state = nothing.get("desktop", {}) if nothing else {}
+            if (nothing_state.get("visible") or not nothing_state.get("frameHidden") or
+                    nothing_state.get("hintHidden") is not False or
+                    "Hermes sessions unavailable" not in nothing_state.get("status", "") or
+                    "did not answer" not in nothing_state.get("status", "") or
+                    nothing.get("recovered") != "Ready · Hermes + Chrome"):
+                raise AssertionError(f"unavailable session service was not reported honestly: {nothing}")
             panel_cdp = Cdp(panel_target["webSocketDebuggerUrl"])
             try:
                 # Drain the legitimate bindingsChanged event created by the
@@ -930,8 +987,8 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if (not first_run or "What is the companion?" not in first_run.get("text", "") or
                     "cannot confirm its version before pairing" not in first_run.get("text", "") or
-                    "Install the matching 0.2.4 companion once" not in first_run.get("text", "") or
-                    not first_run.get("href", "").endswith("hermes-connector-0.2.4-companion.zip") or
+                    "Install the matching 0.2.5 companion once" not in first_run.get("text", "") or
+                    not first_run.get("href", "").endswith("hermes-connector-0.2.5-companion.zip") or
                     first_run.get("status") != "companion detected — enter pairing code" or
                     first_run.get("visibleModals") != 1):
                 raise AssertionError(f"first-run companion setup was incomplete: {first_run}")
@@ -945,7 +1002,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 "checks": [
                     "real extension service worker loaded",
                     "real side panel loaded authenticated Hermes sessions",
-                    "Hermes Desktop headless backend discovery survived Web dashboard outage",
+                    "companion session service replaced the unavailable Web dashboard",
+                    "legacy Hermes Desktop headless backend discovery still works when the companion listing fails",
+                    "no session source reported honestly without a broken page",
                     "first launch detected the installed companion and explained profile re-pairing",
                     "older users received a persistent companion update notice",
                     "unchanged tab rendering stayed storage/event-loop silent",

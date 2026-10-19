@@ -295,7 +295,7 @@ class BrokerStateMigrationTests(unittest.TestCase):
             ))
 
 
-class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
+class BrokerHarness(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.secret = "0123456789abcdef" * 4
@@ -404,6 +404,8 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
             "timeout": 2,
         }))
 
+
+class BrokerRoutingTests(BrokerHarness):
     async def test_exact_sessions_route_to_different_browsers(self):
         chrome_a = await self.browser("chrome-a", "Work Chrome")
         chrome_b = await self.browser("chrome-b", "Personal Chrome")
@@ -778,7 +780,7 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.clients.append(websocket)
         challenge = json.loads(await websocket.recv())
         self.assertEqual(challenge["protocol"], 5)
-        self.assertEqual(challenge["brokerVersion"], "0.2.4")
+        self.assertEqual(challenge["brokerVersion"], "0.2.5")
         browser_id = "legacy-browser"
         await websocket.send(json.dumps({
             "type": "hello",
@@ -791,6 +793,151 @@ class BrokerRoutingTests(unittest.IsolatedAsyncioTestCase):
             ),
             "protocol": 4,
         }))
+        with self.assertRaises(websockets.exceptions.ConnectionClosed):
+            await websocket.recv()
+
+
+class BrokerQueryRelayTests(BrokerHarness):
+    """Browser -> broker -> companion session queries (0.2.5 session service)."""
+
+    async def query(self, websocket, request_id: str = "q-1", kind: str = "list_sessions",
+                    **extra) -> None:
+        await websocket.send(json.dumps({
+            "type": "browser_query", "id": request_id, "kind": kind, **extra,
+        }))
+
+    @staticmethod
+    async def maybe_receive_type(websocket, expected: str, timeout: float = 0.3):
+        """Like receive_type, but returns None instead of failing when nothing arrives."""
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                return None
+            try:
+                payload = json.loads(await asyncio.wait_for(websocket.recv(), remaining))
+            except asyncio.TimeoutError:
+                return None
+            if payload.get("type") == expected:
+                return payload
+
+    async def test_query_is_relayed_to_a_companion_and_its_answer_returns(self):
+        chrome = await self.browser("chrome-q")
+        companion = await self.agent("alpha", "proc-q")
+
+        await self.query(chrome, "q-1", limit=50)
+        relayed = await receive_type(companion, "agent_query")
+        self.assertEqual(relayed["kind"], "list_sessions")
+        self.assertEqual(relayed["limit"], 50)
+        self.assertNotEqual(relayed["id"], "q-1", "broker ids never leak the browser request id")
+        self.assertNotIn("browserId", relayed)
+
+        payload = {"sessions": [{"id": "s-1", "profile": "alpha", "title": "Hello"}]}
+        await companion.send(json.dumps({
+            "type": "agent_query_result", "id": relayed["id"], "ok": True, "data": payload,
+        }))
+        result = await receive_type(chrome, "browser_query_result")
+        self.assertEqual(result["id"], "q-1")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["data"], payload)
+        self.assertNotIn("error", result)
+        self.assertEqual(self.server.pending_queries, {})
+
+    async def test_preferred_profile_companion_is_chosen_when_present(self):
+        chrome = await self.browser("chrome-q")
+        other = await self.agent("alpha", "proc-a")
+        preferred = await self.agent("beta", "proc-b")
+
+        await self.query(chrome, "q-2", profileId="beta")
+        relayed = await receive_type(preferred, "agent_query")
+        self.assertEqual(relayed["kind"], "list_sessions")
+        await asyncio.sleep(0.05)
+        self.assertEqual(self.server.pending_queries[relayed["id"]].agent.profile_id, "beta")
+        await other.close()
+
+    async def test_no_companion_connected_yields_a_bounded_error(self):
+        chrome = await self.browser("chrome-q")
+        await self.query(chrome, "q-3")
+        result = await receive_type(chrome, "browser_query_result")
+        self.assertEqual(result["id"], "q-3")
+        self.assertFalse(result["ok"])
+        self.assertIn("no Hermes", result["error"])
+        self.assertNotIn("data", result)
+
+    async def test_unanswered_query_times_out_and_is_cleaned(self):
+        chrome = await self.browser("chrome-q")
+        await self.agent("alpha", "proc-slow")
+        with mock.patch.object(broker, "QUERY_TIMEOUT_SECONDS", 0.2):
+            await self.query(chrome, "q-4")
+            result = await receive_type(chrome, "browser_query_result")
+        self.assertEqual(result["id"], "q-4")
+        self.assertFalse(result["ok"])
+        self.assertIn("timed out", result["error"])
+        self.assertEqual(self.server.pending_queries, {})
+
+    async def test_companion_disconnect_fails_its_pending_queries(self):
+        chrome = await self.browser("chrome-q")
+        companion = await self.agent("alpha", "proc-gone")
+        await self.query(chrome, "q-5")
+        await receive_type(companion, "agent_query")
+        await companion.close()
+        result = await receive_type(chrome, "browser_query_result")
+        self.assertEqual(result["id"], "q-5")
+        self.assertFalse(result["ok"])
+        self.assertIn("disconnected", result["error"])
+        self.assertEqual(self.server.pending_queries, {})
+
+    async def test_only_the_routed_companion_may_answer(self):
+        chrome = await self.browser("chrome-q")
+        routed = await self.agent("alpha", "proc-routed")
+        intruder = await self.agent("alpha", "proc-intruder")
+        await self.query(chrome, "q-6", profileId="alpha")
+        relayed = None
+        answering_peer = None
+        for candidate, other in ((routed, intruder), (intruder, routed)):
+            relayed = await self.maybe_receive_type(candidate, "agent_query")
+            if relayed is not None:
+                answering_peer = other
+                break
+        self.assertIsNotNone(relayed, "one companion must receive the query")
+        await answering_peer.send(json.dumps({
+            "type": "agent_query_result", "id": relayed["id"], "ok": True,
+            "data": {"sessions": [{"id": "forged"}]},
+        }))
+        await asyncio.sleep(0.1)
+        self.assertIn(relayed["id"], self.server.pending_queries, "a forged answer is ignored")
+
+    async def test_unknown_kind_and_bad_ids_are_rejected_without_relay(self):
+        chrome = await self.browser("chrome-q")
+        companion = await self.agent("alpha", "proc-k")
+        await self.query(chrome, "q-7", kind="dump_everything")
+        result = await receive_type(chrome, "browser_query_result")
+        self.assertFalse(result["ok"])
+        self.assertIn("unsupported", result["error"])
+        await self.query(chrome, "x" * 161)
+        with self.assertRaises(websockets.exceptions.ConnectionClosed):
+            await receive_type(chrome, "browser_query_result")
+        await asyncio.sleep(0.05)
+        self.assertEqual(self.server.pending_queries, {})
+        await companion.close()
+
+    async def test_pending_queries_per_browser_are_capped(self):
+        chrome = await self.browser("chrome-q")
+        companion = await self.agent("alpha", "proc-cap")
+        for index in range(broker.MAX_PENDING_QUERIES_PER_BROWSER):
+            await self.query(chrome, f"q-cap-{index}")
+            await receive_type(companion, "agent_query")
+        await self.query(chrome, "q-cap-over")
+        result = await receive_type(chrome, "browser_query_result")
+        self.assertEqual(result["id"], "q-cap-over")
+        self.assertFalse(result["ok"])
+        self.assertIn("too many", result["error"])
+
+    async def test_unpaired_browser_cannot_query(self):
+        websocket = await websockets.connect(self.url, origin="chrome-extension://unit-test/")
+        self.clients.append(websocket)
+        await websocket.recv()  # challenge
+        await self.query(websocket, "q-unpaired")
         with self.assertRaises(websockets.exceptions.ConnectionClosed):
             await websocket.recv()
 
