@@ -75,3 +75,18 @@
 - **Proof / source**: `hermes-plugin/bridge_client.py` (incompatible release → `stop_broker_processes`).
 - **Consequence**: the live acceptance (`tests/e2e_real_hermes.py`) remains the only path that
   touches a real Hermes, on a temporary home.
+
+## D-006 — 0.2.5 publication order: GitHub pre-release first, Latest unchanged
+
+- **Date**: 2026-10-19
+- **Status**: ratified (owner asked the agent to publish)
+- **Decision**: v0.2.5 is published as a GitHub **pre-release** (tag `v0.2.5` on the release
+  branch, `make_latest=false`) before the Store upload; `main`, Pages and "Latest" stay on 0.2.4
+  until Google approves extension 0.2.5, then the release is promoted and `main` fast-forwarded.
+- **Why**: the 0.2.5 panel links to the v0.2.5 companion download, which must exist when Google
+  reviews the package; 0.2.4 users must keep seeing the 0.2.4 instructions and download.
+- **Proof / source**: GitHub API after publication — `releases/tags/v0.2.5` prerelease=true with
+  3 assets; `releases/latest` = v0.2.4; downloaded assets' SHA-256 equal `dist/`.
+- **Consequence**: publication credentials are a short-lived token limited to public repositories,
+  created in the owner's attached tab and stored only in the profile `.env` (never printed); it
+  expires 2026-10-26.
