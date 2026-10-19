@@ -1,5 +1,59 @@
 # Test evidence
 
+## 0.2.5 companion session service — 2026-10-19
+
+### Why 0.2.5 is required
+
+Hermes releases from October 2026 serve Hermes Desktop through one gateway-hosted
+loopback API for every profile. That API deliberately never publishes the
+dashboard session token (`gateway/run_api.py`, "the gateway-hosted listener never
+publishes it") and never runs the headless `hermes serve` backend whose dynamic
+port 0.2.4 discovered. Consequently the 0.2.4 side panel can be paired, the
+`bridge_*` tools can be installed, and the panel still shows "Hermes dashboard
+unavailable" with Chrome's `127.0.0.1 refused to connect` page, unless the user
+separately keeps `hermes dashboard` running. Reproduced on a live install with the
+unmodified 0.2.4 extension: the panel lists sessions as soon as a dashboard listens
+on `127.0.0.1:9119`, and nothing otherwise.
+
+Release 0.2.5 lets the panel ask a connected companion for the session list over
+the paired broker socket (`browser_query` → `agent_query` →
+`agent_query_result` → `browser_query_result`). The companion lists sessions
+in-process from Hermes' own store and forwards seven label/identity fields only.
+The web-dashboard mode and the legacy headless-backend mode are unchanged.
+
+### Automated evidence (Linux, Hermes venv Python 3.14, Node 26)
+
+| Gate | Command | Result |
+|---|---|---|
+| Python suites (broker relay, companion provider/projection, installer, release, routing) | `python -m unittest discover -s tests -p "test_*.py"` | 94 tests, OK (skipped=2) |
+| Extension unit tests (pure source order, background query path, bindings, CDP) | `node --test tests/*.test.mjs` | 27 tests, 27 pass, 0 fail |
+| Fast release gate (version lock 0.2.5, permissions, loopback CSP, contract strings, artwork, leakage, line endings) | `python tests/run_all.py` | "Fast release gate passed." |
+| Isolated Chromium acceptance (Playwright Chromium 1243, headless) | `CHROME_BINARY=… python tests/e2e_chromium.py` | 16 checks, including: companion session service replaced the unavailable Web dashboard; legacy headless discovery still works when the companion listing fails; no session source reported honestly without a broken page |
+
+The Chromium run drives the real extension in a real browser with the real
+`BridgeClient` as companion (deterministic session provider), a real broker
+process on an ephemeral port, and a fixture dashboard. Scenario A starves `/chat`
+and expects the panel to show "Hermes connected through the companion" with the
+companion's sessions and status `Ready · Hermes + Chrome`; scenario B makes the
+companion listing fail and expects the legacy `Hermes Desktop connected` path;
+scenario C starves every HTTP source and expects the status line
+"Hermes sessions unavailable · the companion did not answer…", the hint visible and
+the dashboard frame hidden, then full recovery to `Ready · Hermes + Chrome`.
+
+### Live provider measurement
+
+On the live install (24 profiles), the companion's default provider returned 5
+projected rows through Hermes' aggregated listing in 0.66 s and through the direct
+read-only store fallback in 0.06 s; projected keys were exactly
+`display_name, id, is_active, last_active, profile, source, title`.
+
+### Still to record for 0.2.5
+
+- Real Hermes acceptance on a temporary Hermes home (`tests/e2e_real_hermes.py`)
+  with no web dashboard running.
+- Packaged pair acceptance on the built archives.
+- Owner smoke test in a signed-in Chrome profile.
+
 ## 0.2.4 Hermes Desktop compatibility release — 2026-09-02
 
 ### Why 0.2.4 is required
