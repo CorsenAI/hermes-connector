@@ -467,9 +467,9 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     "bindings": {},
                     "selectedScope": {"profileId": profile_a, "sessionId": session_a},
                     "upgradeNotice": {
-                        "id": "companion-reinstall-0.2.5",
+                        "id": "companion-reinstall-0.2.6",
                         "previousVersion": "0.2.3",
-                        "extensionVersion": "0.2.5",
+                        "extensionVersion": "0.2.6",
                     },
                 }
                 cdp.evaluate(
@@ -518,7 +518,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     raise AssertionError(
                         f"real side panel did not resume the selected session: {frame_url}"
                     )
-                if panel_state.get("noticeHidden") or "0.2.5" not in panel_state.get("noticeText", ""):
+                if panel_state.get("noticeHidden") or "0.2.6" not in panel_state.get("noticeText", ""):
                     raise AssertionError(f"companion update notice was not visible: {panel_state}")
                 if not panel_state.get("setupHidden"):
                     raise AssertionError(
@@ -609,7 +609,7 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
             if not session_race or not session_race.get("stayedB") or not session_race.get("reset"):
                 raise AssertionError(f"stale session refresh overrode the visible selected scope: {session_race}")
 
-            # Deterministic companion session service (0.2.5): the real BridgeClient answers the
+            # Deterministic companion session service (0.2.6): the real BridgeClient answers the
             # panel's list_sessions query from this provider, never from the machine's Hermes.
             companion_listing = {"mode": "answer"}
             companion_sessions = [
@@ -1026,8 +1026,8 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                 panel_cdp.close()
             if (not first_run or "What is the companion?" not in first_run.get("text", "") or
                     "cannot confirm its version before pairing" not in first_run.get("text", "") or
-                    "Install the matching 0.2.5 companion once" not in first_run.get("text", "") or
-                    not first_run.get("href", "").endswith("hermes-connector-0.2.5-companion.zip") or
+                    "Install the matching 0.2.6 companion once" not in first_run.get("text", "") or
+                    not first_run.get("href", "").endswith("hermes-connector-0.2.6-companion.zip") or
                     first_run.get("status") != "companion detected — enter pairing code" or
                     first_run.get("visibleModals") != 1):
                 raise AssertionError(f"first-run companion setup was incomplete: {first_run}")

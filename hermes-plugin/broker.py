@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover - reported by the companion client
     websockets = None
 
 
-BROKER_VERSION = "0.2.5"
+BROKER_VERSION = "0.2.6"
 PROTOCOL_VERSION = 5
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8767
@@ -42,7 +42,7 @@ MAX_FRAME_BYTES = 8 * 1024 * 1024
 MAX_TEXT_CHARS = 2_000_000
 MAX_BINDINGS_PER_BROWSER = 256
 MAX_TABS_PER_BINDING = 64
-# Browser -> companion queries (session discovery without a web dashboard, 0.2.5).
+# Browser -> companion queries (session discovery without a web dashboard, 0.2.6).
 QUERY_TIMEOUT_SECONDS = 15.0
 MAX_PENDING_QUERIES_PER_BROWSER = 4
 MAX_QUERY_LIMIT = 200

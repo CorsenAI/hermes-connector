@@ -56,7 +56,7 @@ the final packaged bits.
 - [x] After publication, the existing Store ID serves 0.2.3.
 - [x] After publication, the existing Store ID serves 0.2.4 with automatic
       Hermes Desktop backend discovery.
-- [ ] After publication, the existing Store ID serves 0.2.5 with the companion
+- [ ] After publication, the existing Store ID serves 0.2.6 with the companion
       session service (session list without a web dashboard).
 - [ ] The Store-installed build passes a signed-in-profile smoke test.
 

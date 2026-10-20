@@ -243,7 +243,7 @@ class CompanionInstallerTests(unittest.TestCase):
             with self.subTest(contract=label):
                 self.assertIsNotNone(match, f"missing {label} declaration")
 
-        self.assertEqual(extension_manifest["version"], "0.2.5")
+        self.assertEqual(extension_manifest["version"], "0.2.6")
         self.assertEqual(plugin_version.group(1), extension_manifest["version"])
         self.assertEqual(broker_version.group(1), extension_manifest["version"])
         self.assertEqual(int(broker_protocol.group(1)), 5)

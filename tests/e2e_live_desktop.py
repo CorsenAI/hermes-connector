@@ -53,7 +53,7 @@ def read_broker_state(secret: str, timeout: float = 90) -> dict:
                 challenge = json.loads(socket.recv(timeout=3))
                 if (challenge.get("protocol") != live.broker.PROTOCOL_VERSION or
                         challenge.get("brokerVersion") != live.broker.BROKER_VERSION):
-                    raise RuntimeError("the live broker does not match release 0.2.5")
+                    raise RuntimeError("the live broker does not match release 0.2.6")
                 socket.send(json.dumps({
                     "type": "hello",
                     "role": "browser",
@@ -63,7 +63,7 @@ def read_broker_state(secret: str, timeout: float = 90) -> dict:
                         secret, "browser", browser_id, challenge["nonce"]
                     ),
                     "nonce": client_nonce,
-                    "extVersion": "0.2.5",
+                    "extVersion": "0.2.6",
                     "protocol": live.broker.PROTOCOL_VERSION,
                 }))
                 paired = json.loads(socket.recv(timeout=3))
@@ -75,7 +75,7 @@ def read_broker_state(secret: str, timeout: float = 90) -> dict:
                         "the live broker did not authenticate as the installed companion"
                     )
                 if paired.get("brokerVersion") != live.broker.BROKER_VERSION:
-                    raise RuntimeError("the authenticated broker is not release 0.2.5")
+                    raise RuntimeError("the authenticated broker is not release 0.2.6")
                 last = paired.get("brokerState") or {}
         except (OSError, TimeoutError):
             time.sleep(0.25)
@@ -245,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--extension-zip",
         type=Path,
-        default=ROOT / "dist" / "hermes-connector-0.2.5-chrome.zip",
+        default=ROOT / "dist" / "hermes-connector-0.2.6-chrome.zip",
     )
     parser.add_argument(
         "--hermes-root",

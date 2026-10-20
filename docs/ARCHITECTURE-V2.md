@@ -40,7 +40,7 @@ later.
 ### Real Hermes session UI
 
 The side panel lists the real profile/session to select and manages its attached
-Chrome tabs. Three sources, in order (0.2.5):
+Chrome tabs. Three sources, in order (0.2.6):
 
 1. **Web dashboard** — when a local `hermes dashboard` answers at the configured
    loopback address, the panel reads its sessions API and embeds

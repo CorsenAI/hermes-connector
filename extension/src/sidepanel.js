@@ -235,13 +235,13 @@ function renderCompanionDetection(detected, checking = false) {
   if (detected) {
     setupTitle.textContent = "Companion service detected";
     companionDetection.textContent =
-      `A local broker is reachable on ${platformLabel()}, but Chrome cannot confirm its version before pairing. Install the matching 0.2.5 companion once.`;
-    setupStepDownload.textContent = "Download and extract companion 0.2.5; reinstalling preserves the existing private pairing code.";
+      `A local broker is reachable on ${platformLabel()}, but Chrome cannot confirm its version before pairing. Install the matching 0.2.6 companion once.`;
+    setupStepDownload.textContent = "Download and extract companion 0.2.6; reinstalling preserves the existing private pairing code.";
     renderPlatformInstallStep();
     setupStepRestart.textContent =
       "Fully quit and reopen Hermes Desktop, or restart the Hermes services you use.";
     setupStepPair.textContent = "Paste the displayed 64-character code, choose a Hermes session, and attach only the tabs it may use.";
-    downloadCompanion.textContent = "Download companion 0.2.5";
+    downloadCompanion.textContent = "Download companion 0.2.6";
     if (!setupNotice.hidden) statusEl.textContent = "companion detected — enter pairing code";
     return;
   }
@@ -252,7 +252,7 @@ function renderCompanionDetection(detected, checking = false) {
   renderPlatformInstallStep();
   setupStepRestart.textContent = "Restart Hermes, then copy the private pairing code the installer displays.";
   setupStepPair.textContent = "Paste that code below, choose a Hermes session, and attach only the tabs it may use.";
-  downloadCompanion.textContent = "Download companion 0.2.5";
+  downloadCompanion.textContent = "Download companion 0.2.6";
   if (!setupNotice.hidden) statusEl.textContent = "setup required — companion not reachable";
 }
 

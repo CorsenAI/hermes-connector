@@ -3,7 +3,7 @@ import { webcrypto } from "node:crypto";
 import test from "node:test";
 
 // Background answers the panel's `listSessions` only over the authenticated broker socket and
-// turns the companion's `browser_query_result` into the panel-facing reply (0.2.5 session service).
+// turns the companion's `browser_query_result` into the panel-facing reply (0.2.6 session service).
 
 function eventTarget() {
   const listeners = [];
@@ -69,7 +69,7 @@ test("listSessions travels over the paired socket and resolves with the companio
     debugger: { async attach() {}, async detach() {}, async sendCommand() {}, onEvent: simpleEvent(), onDetach: simpleEvent() },
     permissions: { async contains() { return true; } },
     runtime: {
-      getManifest() { return { version: "0.2.5" }; },
+      getManifest() { return { version: "0.2.6" }; },
       onInstalled: simpleEvent(), onMessage: runtimeEvent,
       async sendMessage() {}, async getPlatformInfo() { return { os: "linux" }; },
     },
@@ -107,10 +107,10 @@ test("listSessions travels over the paired socket and resolves with the companio
 
   const socket = await waitFor(() => FakeWebSocket.instances[0], "socket");
   await waitFor(() => socket.readyState === FakeWebSocket.OPEN, "socket open");
-  socket.emit({ type: "challenge", nonce: "query-server-nonce", protocol: 5, brokerVersion: "0.2.5" });
+  socket.emit({ type: "challenge", nonce: "query-server-nonce", protocol: 5, brokerVersion: "0.2.6" });
   const hello = await waitFor(() => socket.sent.find((m) => m.type === "hello"), "hello");
   const proof = await hmacHex(pairingCode, `broker:browser:${hello.browserId}:${hello.nonce}`);
-  socket.emit({ type: "paired", ok: true, proof, protocol: 5, brokerVersion: "0.2.5",
+  socket.emit({ type: "paired", ok: true, proof, protocol: 5, brokerVersion: "0.2.6",
     brokerState: { protocol: 5, browsers: [], agentProfiles: ["work"], agentBackends: [] } });
   await waitFor(() => socket.sent.find((m) => m.type === "binding_sync"), "binding sync");
 

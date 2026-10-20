@@ -1,6 +1,6 @@
-# Chrome Web Store listing — Hermes Connector 0.2.5
+# Chrome Web Store listing — Hermes Connector 0.2.6
 
-Upload: `dist/hermes-connector-0.2.5-chrome.zip`
+Upload: `dist/hermes-connector-0.2.6-chrome.zip`
 
 Privacy policy: `https://corsenai.github.io/hermes-connector/privacy/`
 
@@ -12,9 +12,9 @@ Product, setup, and compatibility: `https://corsenai.github.io/hermes-connector/
 
 Promotional video: `https://www.youtube.com/watch?v=4akSq9cMmFw`
 
-Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip`
+Companion download: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.6/hermes-connector-0.2.6-companion.zip`
 
-Release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5`
+Release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.6`
 
 Source: `https://github.com/CorsenAI/hermes-connector`
 
@@ -108,7 +108,7 @@ installed by double-clicking “Install Hermes Connector.cmd”.
 
 UPGRADING FROM AN OLDER VERSION
 
-Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Fully quit and restart Hermes Desktop, dashboards, gateways, and chats after installing companion 0.2.5. Version 0.2.5 lists your Hermes sessions through the companion itself, so the side panel works with current Hermes releases whether or not a Web dashboard is running; the embedded dashboard remains available when you run `hermes dashboard`. Companion 0.2.5 keeps the version-checked protocol 5 broker on port 8767. On Windows, it also keeps its detached broker outside Hermes' managed virtual-environment launcher so it does not block later Hermes Desktop or CLI updates. The update notice and toolbar badge remain visible until you confirm the matching companion is installed.
+Chrome updates the extension automatically, but the local companion must be downloaded and installed again. Fully quit and restart Hermes Desktop, dashboards, gateways, and chats after installing companion 0.2.6. Version 0.2.6 lists your Hermes sessions through the companion itself, so the side panel works with current Hermes releases whether or not a Web dashboard is running; the embedded dashboard remains available when you run `hermes dashboard`. Companion 0.2.6 keeps the version-checked protocol 5 broker on port 8767. On Windows, it also keeps its detached broker outside Hermes' managed virtual-environment launcher so it does not block later Hermes Desktop or CLI updates. The update notice and toolbar badge remain visible until you confirm the matching companion is installed.
 
 WATCH THE COMPLETE DEMO
 
@@ -121,7 +121,7 @@ OFFICIAL LINKS
 
 Corsen AI official website: https://corsen.ai/
 Product, setup, and compatible downloads: https://corsenai.github.io/hermes-connector/
-Version 0.2.5 release details: https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5
+Version 0.2.6 release details: https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.6
 Source code and releases: https://github.com/CorsenAI/hermes-connector
 Support: https://corsenai.github.io/hermes-connector/support/
 Privacy policy: https://corsenai.github.io/hermes-connector/privacy/
@@ -201,7 +201,7 @@ Yes. In Web-dashboard mode, a cross-origin iframe loads the user's own local Her
 
 ```text
 No account or remote credentials are required. Install Hermes Agent or Hermes
-Desktop, then download companion 0.2.5 from the public v0.2.5 GitHub release
+Desktop, then download companion 0.2.6 from the public v0.2.6 GitHub release
 and run the platform installer. Fully quit and restart Hermes Desktop (or restart
 the dashboard/gateway/chat process), paste the locally printed pairing code into
 extension settings, select a Hermes session, and attach a test tab. The session
