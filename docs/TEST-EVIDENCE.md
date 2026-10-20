@@ -1,5 +1,48 @@
 # Test evidence
 
+## 0.2.6 — session service merged with main's fixes — 2026-10-20
+
+### Why 0.2.6
+
+The 0.2.5 build (GitHub prerelease of 2026-10-19, never submitted to the Store) was made from a
+base frozen at 0.2.4 (`bfd9bc2`). Twenty-six commits had been published on `main` since then,
+including fixes in shipped extension code: pairing accepted only on a literal `ok: true`, bounded
+and validated `wait.ms`, validated `key.ref` with authorization rechecked before key actions,
+backslash escaping in snapshots, and no dashboard reload on every 15-second poll. 0.2.6 is the
+0.2.5 session service merged with all of them (decision D-007).
+
+### Integration findings
+
+- Textual merge: clean. Semantic conflict: main's "a temporary session API failure does not reload
+  the existing iframe" against 0.2.5's "no broken page when nothing answers". Resolved by hiding the
+  frame without removing its `src` (D-008).
+- Main's panel test harness assumed single-line imports; adapted to the 0.2.6 module imports.
+- `tests/e2e_snapshot_escape.py` attached before the extension had verified `PAIRED` (fails on
+  unmodified `main` too: 1 run in 7). It now waits for extension-side pairing: 8/8 runs.
+
+### Automated evidence (Linux, Hermes venv Python 3.14, Node 26, Chrome for Testing 153)
+
+| Gate | Command | Result |
+|---|---|---|
+| Fast release gate (version lock 0.2.6, permissions, CSP, contract strings, artwork, leakage, line endings) | `python tests/run_all.py` | 114 Python tests OK (skipped=2), 77/77 JS, "Fast release gate passed." |
+| Isolated Chromium acceptance | `CHROME_BINARY=… python tests/e2e_chromium.py` | 16 checks, including the three session-source scenarios |
+| Snapshot escaping through broker + extension | `python tests/e2e_snapshot_escape.py` | 8/8: 6 exact labels; old-code control 3 mismatches |
+| POSIX installer | `sh tests/e2e_installer_posix.sh` | passed |
+| Packaged pair acceptance | `python tests/e2e_packaged_release.py` | "Packaged release pair acceptance passed: 0.2.6" |
+| Store build check | `node scripts/check-store-build.mjs <extracted chrome zip>` | OK, one known `<all_urls>` warning |
+
+`python scripts/build_release.py --skip-tests` → `hermes-connector-0.2.6-chrome.zip` (63 585 bytes,
+SHA-256 `08e2645a409523ea6c037ce0d4633988c8efbf3a9c2702e828ec18d36eb414b5`) and
+`hermes-connector-0.2.6-companion.zip` (37 849 bytes, SHA-256
+`80fc7bc42e9f7e5d9a02c81f79b3f132b08fc29db47d167db365df3bbc36aeb6`).
+
+### Not rerun on 0.2.6
+
+The real-model acceptance (`tests/e2e_real_hermes.py`) cannot start a test gateway on the
+owner's machine while his live multiplexing Hermes gateway runs: Hermes allows one gateway per
+OS user (exit 75; exit 78 with an isolated `XDG_STATE_HOME`). The 0.2.5 build passed it three
+times; the companion code is unchanged in 0.2.6.
+
 ## 0.2.5 companion session service — 2026-10-19
 
 ### Why 0.2.5 is required

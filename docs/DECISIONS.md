@@ -90,3 +90,31 @@
 - **Consequence**: publication credentials are a short-lived token limited to public repositories,
   created in the owner's attached tab and stored only in the profile `.env` (never printed); it
   expires 2026-10-26.
+
+## D-007 — Merge `main` into the session-service release and renumber it 0.2.6
+
+- **Date**: 2026-10-20
+- **Status**: ratified (owner chose "0.2.6 — new version")
+- **Decision**: the 0.2.5 work is merged with `origin/main` (26 commits published after 0.2.4:
+  PRs #9, #10, #12, #13, #15 — pairing confirmation `msg.ok === true`, bounded `wait.ms`,
+  validated `key.ref`, snapshot backslash escaping, dashboard reload guard, CodeQL/CI hardening)
+  and shipped as **0.2.6**. The v0.2.5 GitHub prerelease is left in place, marked superseded.
+- **Why**: 0.2.5 was built from a local `main` frozen at `bfd9bc2` (0.2.4) and never fetched; its
+  ZIP lacked every fix above (checked in the archive itself). A published tag is not re-packed
+  under the same number; the Store never received 0.2.5.
+- **Proof / source**: `git merge-base origin/main 4a54914` = `bfd9bc2`; the 0.2.5 chrome ZIP has
+  none of `boundedWaitMs`, `msg.ok !== true`, `key.ref must be`, `frame.src !== url`; the 0.2.6
+  ZIP has all of them (TEST_MATRIX T-118…T-123).
+- **Consequence**: before any future version work, `git fetch` and compare `origin/main` with the
+  local base. After Store approval, `main` can be fast-forwarded to the release branch again.
+
+## D-008 — Panel behaviour when no session source answers
+
+- **Date**: 2026-10-20
+- **Status**: ratified
+- **Decision**: the frame is hidden (no broken page, D-003 wording kept) but its `src` is kept,
+  so a temporary failure never reloads an already-loaded dashboard when the source recovers.
+- **Why**: main's test "a temporary session API failure does not reload the existing iframe" and
+  0.2.5's scenario C ("no broken page") conflicted only on removing `src`; hiding satisfies both.
+- **Proof / source**: `tests/sidepanel-navigation.test.mjs` 12/12; Chromium scenario C green.
+- **Consequence**: when switching to companion/Desktop mode the frame is still unloaded, as before.

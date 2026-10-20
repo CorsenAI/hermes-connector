@@ -1,7 +1,9 @@
-# TEST_MATRIX — Hermes Connector 0.2.5
+# TEST_MATRIX — Hermes Connector 0.2.6
 
 > One case per line. Nothing is DONE without (a) an automatic test and (b) a manual check in a
 > real Chrome. "Proof" names the exact test or evidence file. Dates are 2026-10-19 unless noted.
+> T-101…T-117 were proven on the 0.2.5 build; 0.2.6 = that build merged with `main` (D-007),
+> re-proven by T-118…T-124.
 
 | ID | Case | Type | Command / gesture | Expected | Status | Proof | Date |
 |---|---|---|---|---|---|---|---|
@@ -20,7 +22,14 @@
 | T-113 | Packaged release archives + packaged pair acceptance | auto | `python scripts/build_release.py --skip-tests`; `python tests/e2e_packaged_release.py` | two zips + release JSON, reproducible hashes; packaged pair acceptance passes | PASS | chrome zip sha256 `047cfd24…9a7f07`, companion zip `5779f58a…944e93` (identical on rebuild); "Packaged release pair acceptance passed: 0.2.5" | 2026-10-19 |
 | T-114 | Real Hermes acceptance on a temporary home: model turn calls `bridge_*`; the real companion lists the real session to the real panel with no dashboard reachable | auto/opt-in (real model) | `TMPDIR=/tmp python tests/e2e_real_hermes.py --source-profile <minimal profile> --browser <chromium>` | `CONNECTOR_E2E_OK`, `sessionListVia: companion`, `sessionListStatus: Ready · Hermes + Chrome` | PASS (3 consecutive runs) | run output; no test gateway left behind | 2026-10-19 |
 | T-115 | Store build check on the packaged extension | auto | `node scripts/check-store-build.mjs <extracted chrome zip>` | OK; only the known `<all_urls>` warning (justified in the listing, reviewed set unchanged) | PASS | "OK avec 1 avertissement(s)" | 2026-10-19 |
-| T-116 | Owner check on the owner's Chrome (unpacked 0.2.5 + 0.2.5 companion) | manual | load `preview/hermes-connector-0.2.5`, ↻ | filled list without a dashboard | TODO (owner) | | |
-| T-117 | Public GitHub pre-release equals the tested artifacts | auto | anonymous `GET releases/tags/v0.2.5`, `releases/latest`, download the 3 assets, `sha256sum` vs `dist/` | prerelease=true, 3 assets, latest still v0.2.4, hashes identical, companion URL HTTP 200 | PASS | `047cfd24…`, `5779f58a…`, `9adfee6a…` identical; release page screenshot (Pre-release badge, 3 assets) | 2026-10-19 |
+| T-116 | Owner check on the owner's Chrome (0.2.6 extension + 0.2.6 companion; after Store approval, since companion 0.2.6 stops his Store 0.2.4 Chromes) | manual | Store-installed 0.2.6 (or unpacked `dist` zip), ↻ | filled list without a dashboard | TODO (owner) | | |
+| T-117 | Public GitHub pre-release (v0.2.5, superseded by 0.2.6) equals the tested artifacts | auto | anonymous `GET releases/tags/v0.2.5`, `releases/latest`, download the 3 assets, `sha256sum` vs `dist/` | prerelease=true, 3 assets, latest still v0.2.4, hashes identical, companion URL HTTP 200 | PASS | `047cfd24…`, `5779f58a…`, `9adfee6a…` identical; release page screenshot (Pre-release badge, 3 assets) | 2026-10-19 |
+| T-118 | 0.2.6 fast release gate on the merged source (main's security tests included) | auto | `python tests/run_all.py` | "Fast release gate passed." with 0.2.6 everywhere | PASS | 114 Python tests OK (skipped=2), 77/77 JS (incl. `background-security`, `sidepanel-navigation`, `snapshot-escaping`) | 2026-10-20 |
+| T-119 | Main's panel guarantee kept with the session service: a temporary failure never reloads a loaded dashboard | auto | `node --test tests/sidepanel-navigation.test.mjs` | 12/12, incl. "a temporary session API failure does not reload the existing iframe" | PASS | harness adapted to the 0.2.6 imports (D-008) | 2026-10-20 |
+| T-120 | Chromium acceptance on 0.2.6 (companion / legacy headless / nothing answers) | auto (Chromium) | `CHROME_BINARY=… python tests/e2e_chromium.py` | 16 checks green | PASS | run output, 16 checks | 2026-10-20 |
+| T-121 | Snapshot escaping through a real broker and the loaded extension | auto (Chromium) | `python tests/e2e_snapshot_escape.py` | 6 exact labels; old-code control: 3 mismatches | PASS | 8/8 runs after waiting for extension-side pairing (race seen on unmodified main: 1 failure in 7) | 2026-10-20 |
+| T-122 | POSIX companion installer | auto | `sh tests/e2e_installer_posix.sh` | shared home + named profile installed | PASS | "POSIX companion install passed" | 2026-10-20 |
+| T-123 | 0.2.6 archives: content, Store check, packaged pair acceptance | auto | `python scripts/build_release.py --skip-tests`; `node scripts/check-store-build.mjs <extracted zip>`; `python tests/e2e_packaged_release.py` | zip carries main's fixes + session service; OK with the known `<all_urls>` warning; packaged acceptance passes | PASS | chrome zip sha256 `08e2645a…eb414b5`, companion `80fc7bc4…36aeb6`; "Packaged release pair acceptance passed: 0.2.6" | 2026-10-20 |
+| T-124 | Real Hermes acceptance on 0.2.6 | auto/opt-in (real model) | `python tests/e2e_real_hermes.py …` | `CONNECTOR_E2E_OK` | BLOCKED | Hermes refuses a second gateway per OS user while the owner's live multiplexer runs (exit 75; exit 78 with `XDG_STATE_HOME` isolation). Companion code unchanged since the 3 green 0.2.5 runs (T-114) | 2026-10-20 |
 
 Statuses: `TODO` · `IN PROGRESS` · `PASS` · `FAIL` · `BLOCKED` · `N/A` (with reason).
