@@ -39,7 +39,7 @@ SHA-256 `08e2645a409523ea6c037ce0d4633988c8efbf3a9c2702e828ec18d36eb414b5`) and
 ### Not rerun on 0.2.6
 
 The real-model acceptance (`tests/e2e_real_hermes.py`) cannot start a test gateway on the
-owner's machine while his live multiplexing Hermes gateway runs: Hermes allows one gateway per
+owner's machine while the owner's live multiplexing Hermes gateway runs: Hermes allows one gateway per
 OS user (exit 75; exit 78 with an isolated `XDG_STATE_HOME`). The 0.2.5 build passed it three
 times; the companion code is unchanged in 0.2.6.
 

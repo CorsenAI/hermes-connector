@@ -17,8 +17,8 @@
   `release-notes-0.2.6.md`.
 - `main` (local and GitHub) = `8f54e7a`; the release branch contains it, so `main` can be
   fast-forwarded at the Store cutover.
-- The owner's machine runs companion 0.2.4 on purpose (D-005): companion 0.2.6 would stop his
-  Store-installed 0.2.4 Chromes until the Store ships 0.2.6.
+- The owner's machine runs companion 0.2.4 on purpose (D-005): companion 0.2.6 would stop the
+  owner's Store-installed 0.2.4 Chromes until the Store ships 0.2.6.
 
 ## Next action
 
@@ -33,8 +33,3 @@
 ## Blockers
 
 - Store upload needs the owner's browser (Chrome forbids extensions on Web Store pages).
-
-## Hygiene
-
-- A classic GitHub token (`public_repo`, expires 2026-10-26) created on 2026-10-19 sits in the
-  profile `.env` as `GITHUB_TOKEN`; delete it on GitHub once 0.2.6 is promoted.

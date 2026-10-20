@@ -162,7 +162,7 @@ that predated those fixes; it is superseded by 0.2.6 and was never submitted to 
       isolated Chromium acceptance (companion / legacy headless / nothing-answers scenarios) pass.
 - [x] Main's snapshot-escape acceptance (`tests/e2e_snapshot_escape.py`, 8/8 runs) and the POSIX
       installer exercise pass on the merged source.
-- [ ] Real Hermes acceptance rerun on 0.2.6. Not possible on the owner's machine while his live
+- [ ] Real Hermes acceptance rerun on 0.2.6. Not possible on the owner's machine while the owner's live
       multiplexing Hermes gateway runs (Hermes allows one gateway per OS user: exit 75, and 78 with
       an isolated lock directory). The 0.2.5 build passed it three times; the companion code is
       unchanged in 0.2.6 and the extension changes are covered by the Chromium acceptances.
