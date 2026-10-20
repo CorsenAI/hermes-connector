@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import { makeDashboardUrl, normalizeLoopbackUrl } from "../extension/src/dashboard-api.js";
+import { SOURCE_MODE, conversationNotice, discoverSessions,
+  sessionServiceUnavailableMessage } from "../extension/src/session-sources.js";
 
 const SOURCE = readFileSync(new URL("../extension/src/sidepanel.js", import.meta.url), "utf8");
 const BASE_URL = "http://127.0.0.1:9119/";
@@ -75,6 +77,7 @@ function loadPanel({ getStorage, sessions, source = SOURCE } = {}) {
     },
     fetch() { throw new Error("Unexpected network request in panel unit test"); },
     makeDashboardUrl, normalizeLoopbackUrl,
+    SOURCE_MODE, conversationNotice, discoverSessions, sessionServiceUnavailableMessage,
     DEFAULT_BRIDGE_URL: "ws://127.0.0.1:8767/",
     async listDashboardSessions(...args) {
       return sessions ? sessions(...args) : [{ id: SCOPE.sessionId, profile: SCOPE.profileId }];
@@ -82,10 +85,11 @@ function loadPanel({ getStorage, sessions, source = SOURCE } = {}) {
     setInterval(callback, delay) { intervals.push({ callback, delay }); return intervals.length; },
     requestAnimationFrame(callback) { callback(); },
   });
-  const imports = source.match(/^import .*;$/gm) || [];
-  assert.equal(imports.length, 2, "review the harness when panel imports change");
+  // Import statements may span several lines; the pure session-sources module is passed in as is.
+  const imports = source.match(/^import [^;]*;$/gm) || [];
+  assert.equal(imports.length, 3, "review the harness when panel imports change");
   assert.equal((source.match(/^init\(\);$/gm) || []).length, 1);
-  const executable = source.replace(/^import .*;$/gm, "").replace(/^init\(\);$/m, "");
+  const executable = source.replace(/^import [^;]*;$/gm, "").replace(/^init\(\);$/m, "");
   vm.runInContext(executable + `\n;globalThis.panelTest = {
     showDashboard, loadSessions, setSessionSource,
     setScope(scope) {

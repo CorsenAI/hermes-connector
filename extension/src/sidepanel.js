@@ -461,9 +461,9 @@ async function loadSessions() {
     if (generation !== sessionsLoadGeneration) return false;
     setSessionSource(SOURCE_MODE.DASHBOARD, configuredUrl);
     desktopMode.hidden = true;
-    // No source answered: never leave Chrome's "refused to connect" page in the panel.
+    // No source answered: hide the frame so Chrome's "refused to connect" page never shows, but
+    // keep its src — a temporary failure must not reload an already-loaded dashboard on recovery.
     frame.hidden = true;
-    frame.removeAttribute("src");
     hint.hidden = false;
     state.dashboardAvailable = false;
     state.sessionServiceMessage = unavailableMessage();
