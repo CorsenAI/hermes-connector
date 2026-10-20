@@ -72,10 +72,10 @@ second build. `python tests/e2e_packaged_release.py` → "Packaged release pair 
 0.2.5". House store-build check on the extracted extension: OK, one known `<all_urls>` warning
 (the reviewed permission set, justified in the listing).
 
-### Still to record for 0.2.5
+### Superseded
 
-- Owner smoke test in a signed-in Chrome profile.
-- Public GitHub `v0.2.5` release and Chrome Web Store review.
+This 0.2.5 build was published only as a GitHub prerelease and was never submitted to the
+Chrome Web Store: it predates the fixes published on `main` after 0.2.4. 0.2.6 replaces it.
 
 ## 0.2.4 Hermes Desktop compatibility release — 2026-09-02
 

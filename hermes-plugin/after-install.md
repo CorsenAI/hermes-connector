@@ -1,7 +1,7 @@
 # Hermes Connector installed
 
 Fully quit and reopen Hermes Desktop, or restart other running Hermes processes.
-Version 0.2.5 keeps the version-checked broker on port 8767 and lists your
+Version 0.2.6 keeps the version-checked broker on port 8767 and lists your
 Hermes sessions through this companion, so the Chrome side panel works with
 current Hermes releases whether or not a web dashboard is running. This applies
 to both Hermes Desktop and Hermes CLI.

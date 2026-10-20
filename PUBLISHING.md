@@ -32,8 +32,8 @@ separately under the same release version.
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
 - Complete video demo: `https://youtu.be/4akSq9cMmFw`
-- 0.2.5 release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5`
-- Companion 0.2.5: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip`
+- 0.2.6 release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.6`
+- Companion 0.2.6: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.6/hermes-connector-0.2.6-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
@@ -150,19 +150,24 @@ Desktop app; Web-dashboard mode uses the isolated iframe. Sensitive permissions
 can trigger manual review, so use deferred publishing and answer reviewer
 questions promptly.
 
-## 7. 0.2.5 release gates — session service (in progress, 2026-10-19)
+## 7. 0.2.6 release gates — session service + main's security fixes (in progress, 2026-10-20)
 
-- [x] Clean committed source on the release branch; Store and companion versions match (0.2.5).
+0.2.6 is the 0.2.5 session service merged with every fix published on `main` after 0.2.4
+(pairing confirmation, action input validation, snapshot escaping, dashboard reload guard,
+CodeQL and CI hardening). The GitHub `v0.2.5` prerelease of 2026-10-19 was built from a base
+that predated those fixes; it is superseded by 0.2.6 and was never submitted to the Store.
+
+- [x] Clean committed source on the release branch; Store and companion versions match (0.2.6).
 - [x] Fast gate (`tests/run_all.py`), broker relay/companion provider unit tests, and the
       isolated Chromium acceptance (companion / legacy headless / nothing-answers scenarios) pass.
 - [x] Real Hermes acceptance on a temporary home proves the session list arrives through
       the companion with no web dashboard running and that the model's `bridge_*` calls succeed.
 - [x] Packaged pair acceptance (`tests/e2e_packaged_release.py`) passes on the built archives.
-- [ ] Public GitHub `v0.2.5` prerelease serves the companion, Chrome ZIP, and release manifest
+- [ ] Public GitHub `v0.2.6` prerelease serves the companion, Chrome ZIP, and release manifest
       before Store review begins.
 - [ ] Store listing, reviewer note, privacy text, support page, and screenshots describe the
       same tested behavior.
-- [ ] Upload only `dist/hermes-connector-0.2.5-chrome.zip` to the existing Store item, complete
+- [ ] Upload only `dist/hermes-connector-0.2.6-chrome.zip` to the existing Store item, complete
       review, and publish the approved version publicly.
 
 ## 8. Completed 0.2.4 release gates — 2026-09-02

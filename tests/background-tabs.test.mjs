@@ -120,7 +120,7 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
       },
     },
     runtime: {
-      getManifest() { return { version: "0.2.5" }; },
+      getManifest() { return { version: "0.2.6" }; },
       onInstalled: simpleEvent(),
       onMessage: runtimeEvent,
       async sendMessage(message) { runtimeMessages.push(message); },
@@ -172,11 +172,11 @@ test("active-tab reporting rejects restricted pages without changing the scoped 
   await import(`../extension/src/background.js?active-tab=${Date.now()}`);
   const socket = await waitFor(() => FakeWebSocket.instances[0], "initial socket");
   await waitFor(() => socket.readyState === FakeWebSocket.OPEN, "socket open");
-  socket.emit({ type: "challenge", nonce: "server-nonce", protocol: 5, brokerVersion: "0.2.5" });
+  socket.emit({ type: "challenge", nonce: "server-nonce", protocol: 5, brokerVersion: "0.2.6" });
   const hello = await waitFor(() => socket.sent.find((message) => message.type === "hello"), "browser hello");
   const proof = await hmacHex(pairingCode, `broker:browser:${hello.browserId}:${hello.nonce}`);
   socket.emit({ type: "paired", ok: true, proof, protocol: 5,
-    brokerVersion: "0.2.5", brokerState: {} });
+    brokerVersion: "0.2.6", brokerState: {} });
   await waitFor(() => socket.sent.find((message) => message.type === "binding_sync"), "binding sync");
 
   assert.equal(runtimeEvent.listeners.length, 1);

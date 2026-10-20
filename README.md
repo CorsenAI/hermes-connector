@@ -11,7 +11,7 @@ automation browser or guessing which tab belongs to which task.
 · [Watch the complete installation and live browser-control demo](https://youtu.be/4akSq9cMmFw)
 · [Setup guide](https://corsenai.github.io/hermes-connector/)
 · [Choose the matching companion](https://corsenai.github.io/hermes-connector/support/#compatible-versions)
-· [0.2.5 release details](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5)
+· [0.2.6 release details](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.6)
 · [Get support](https://corsenai.github.io/hermes-connector/support/)
 · [Corsen AI](https://corsen.ai/)
 
@@ -20,22 +20,22 @@ automation browser or guessing which tab belongs to which task.
 
 ## Current release and compatibility
 
-The public Chrome Web Store build is **0.2.5**. Install the companion only after
+The public Chrome Web Store build is **0.2.6**. Install the companion only after
 checking the extension version in `chrome://extensions`; the Chrome extension
 and local companion must use exactly the same version.
 
-Version **0.2.5** is the [current public release](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.5).
+Version **0.2.6** is the [current public release](https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.6).
 The side panel now lists your Hermes sessions through the local companion
 itself, over the same authenticated loopback connection it already uses for
 browser actions. It therefore works with current Hermes releases, in which
 Hermes Desktop no longer exposes a separate per-profile backend, with or without
 a running web dashboard. The embedded dashboard mode is unchanged when you run
-`hermes dashboard`. Install companion 0.2.5 after Chrome explicitly shows
-extension 0.2.5.
+`hermes dashboard`. Install companion 0.2.6 after Chrome explicitly shows
+extension 0.2.6.
 
 | Chrome extension | Matching companion | Protocol / default broker | Status |
 | --- | --- | --- | --- |
-| 0.2.5 | [Companion 0.2.5](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.5/hermes-connector-0.2.5-companion.zip) | Protocol 5 / `127.0.0.1:8767` + companion session service | Current public Store pair |
+| 0.2.6 | [Companion 0.2.6](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.6/hermes-connector-0.2.6-companion.zip) | Protocol 5 / `127.0.0.1:8767` + companion session service | Current public Store pair |
 | 0.2.4 | [Companion 0.2.4](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip) | Protocol 5 / `127.0.0.1:8767` + automatic Hermes Desktop backend discovery | Legacy released pair; use only while Chrome still shows 0.2.4 |
 | 0.2.3 | [Companion 0.2.3](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.3/hermes-connector-0.2.3-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.3 |
 | 0.2.2 | [Companion 0.2.2](https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.2/hermes-connector-0.2.2-companion.zip) | Protocol 4 / `127.0.0.1:8766` | Legacy released pair; use only while Chrome still shows 0.2.2 |
@@ -63,7 +63,7 @@ is available on the [support page](https://corsenai.github.io/hermes-connector/s
 ## Your Hermes session, inside the Chrome you already use
 
 Hermes Connector keeps session selection and tab attachment in Chrome's side
-panel. The current 0.2.5 Store pair lists your Hermes sessions through the local
+panel. The current 0.2.6 Store pair lists your Hermes sessions through the local
 companion (Hermes Desktop or Hermes CLI) or embeds the local Hermes web
 dashboard when one is running: choose the session and attach tabs in the panel,
 then continue the conversation in Hermes. In both modes, the connector keeps
@@ -104,7 +104,7 @@ while each Hermes task receives only the tabs assigned to it.
 ## Quick start
 
 You need a local Hermes Agent installation, desktop Chrome 120 or newer, and the
-small Hermes Connector companion. Version 0.2.5 works with Hermes Desktop or the
+small Hermes Connector companion. Version 0.2.6 works with Hermes Desktop or the
 Hermes CLI directly, and with the local web dashboard when you run one. The extension's first-run screen detects your operating system,
 checks whether the companion is already reachable, and shows the appropriate
 Windows, macOS, or Linux instructions.

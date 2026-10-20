@@ -780,7 +780,7 @@ class BrokerRoutingTests(BrokerHarness):
         self.clients.append(websocket)
         challenge = json.loads(await websocket.recv())
         self.assertEqual(challenge["protocol"], 5)
-        self.assertEqual(challenge["brokerVersion"], "0.2.5")
+        self.assertEqual(challenge["brokerVersion"], "0.2.6")
         browser_id = "legacy-browser"
         await websocket.send(json.dumps({
             "type": "hello",
@@ -798,7 +798,7 @@ class BrokerRoutingTests(BrokerHarness):
 
 
 class BrokerQueryRelayTests(BrokerHarness):
-    """Browser -> broker -> companion session queries (0.2.5 session service)."""
+    """Browser -> broker -> companion session queries (0.2.6 session service)."""
 
     async def query(self, websocket, request_id: str = "q-1", kind: str = "list_sessions",
                     **extra) -> None:

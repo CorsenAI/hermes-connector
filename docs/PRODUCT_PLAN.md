@@ -10,7 +10,10 @@ Chrome profile through one authenticated loopback broker. The extension owns pai
 bindings; Hermes owns chat, profiles, sessions and the agent turn. No remote code, no telemetry,
 loopback only.
 
-## Release 0.2.5 — "works with current Hermes without the web dashboard" (approved 2026-10-19)
+## Release 0.2.6 — "works with current Hermes without the web dashboard" (approved 2026-10-19)
+
+Built first as 0.2.5 (GitHub prerelease only, never submitted to the Store) and renumbered 0.2.6
+on 2026-10-20 after merging the fixes published on `main` since 0.2.4 (decision D-007).
 
 Owner decision (2026-10-19): upgrade the product so the side panel keeps working with current
 Hermes releases, then update the public pages and the Chrome Web Store listing.
@@ -32,10 +35,10 @@ automatically. Result: "Hermes dashboard unavailable", empty session list, no ta
 | R3 | Only the fields the panel needs leave Hermes: `id`, `profile`, `title`, `display_name`, `source`, `last_active`, `is_active`. Never `cwd`, paths, costs or tokens. | Plugin unit test on the projection. |
 | R4 | When a web dashboard is reachable, 0.2.4 behaviour is kept (embedded chat). Otherwise the conversation continues in Hermes Desktop/CLI and the panel says so. | Chromium acceptance keeps the existing "dashboard" scenarios green. |
 | R5 | Clear status wording when nothing answers: say what to start (Hermes Desktop/CLI with the companion, or `hermes dashboard`). | Panel text review in the acceptance run. |
-| R6 | Extension and companion stay version-locked (0.2.5 ↔ 0.2.5); an older companion triggers the existing upgrade notice. | Release gate (`tests/run_all.py`) version checks. |
-| R7 | Public pages, README, PUBLISHING, store listing and ACCEPTANCE name 0.2.5 and the new companion download. | Release gate contract strings. |
+| R6 | Extension and companion stay version-locked (0.2.6 ↔ 0.2.6); an older companion triggers the existing upgrade notice. | Release gate (`tests/run_all.py`) version checks. |
+| R7 | Public pages, README, PUBLISHING, store listing and ACCEPTANCE name 0.2.6 and the new companion download. | Release gate contract strings. |
 
-### Out of scope (0.2.5)
+### Out of scope (0.2.6)
 
 - Embedding the Hermes chat without a web dashboard (would need an authenticated UI the gateway
   does not expose to extensions).
