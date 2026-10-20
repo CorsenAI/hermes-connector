@@ -173,7 +173,7 @@ export function buildSnapshot(maxChars) {
         count++;
         const ref = refFor(el);
         let line = "  ".repeat(Math.min(depth, 12)) + role;
-        if (name) line += ' "' + name.replace(/"/g, '\\"') + '"';
+        if (name) line += ' "' + name.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
         line += " [" + ref + "]";
         const href = el.getAttribute && el.getAttribute("href");
         if (href) line += ' href="' + SU(href) + '"';
