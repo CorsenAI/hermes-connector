@@ -22,7 +22,7 @@ import time
 from e2e_chromium import (
     EXTENSION, PLUGIN, Cdp, bridge_client, broker, find_chromium,
     fixture_server, free_port, require_ok, service_worker,
-    wait_client, wait_for_extension_apis, wait_for_targets,
+    wait_client, wait_for_companion_confirmation, wait_for_extension_apis, wait_for_targets,
 )
 
 LABELS = [
@@ -133,6 +133,9 @@ def live_snapshot(extension: Path, browser_binary: Path) -> dict:
                                            auto_start_broker=False).start()
         stack.callback(client.stop)
         wait_client(client, "snapshot-browser")
+        # The broker lists the browser before the extension has verified PAIRED; attaching earlier
+        # is refused with "pair this Chrome profile before attaching tabs".
+        wait_for_companion_confirmation(panel_cdp)
         attached = panel_cdp.evaluate(
             "chrome.runtime.sendMessage({cmd:'attachTab',profileId:'profile-a',"
             f"sessionId:'session-a',tabId:{tab_id}}})")
