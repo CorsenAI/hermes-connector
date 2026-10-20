@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run both live acceptances against the exact Chrome and companion ZIP pair."""
+"""Run live acceptances against the exact Chrome and companion ZIP pair."""
 
 from __future__ import annotations
 
@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         env = os.environ.copy()
         env["HERMES_EXTENSION_DIR"] = str(extracted)
         env["HERMES_PLUGIN_DIR"] = str(companion)
-        for test_script in ("e2e_chromium.py", "e2e_multi_browser.py"):
+        for test_script in ("e2e_chromium.py", "e2e_multi_browser.py", "e2e_snapshot_escape.py"):
             subprocess.run(
                 [sys.executable, str(ROOT / "tests" / test_script)],
                 cwd=ROOT,

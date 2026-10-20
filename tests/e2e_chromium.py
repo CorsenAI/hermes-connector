@@ -309,6 +309,40 @@ def wait_for_extension_apis(
     )
 
 
+def wait_for_companion_confirmation(
+    cdp: Cdp,
+    timeout: float = 15,
+    poll_interval: float = 0.1,
+) -> dict:
+    """Wait for the same authenticated capability required by notice dismissal.
+
+    Dashboard HTTP readiness does not imply that the broker handshake has
+    completed. Return only readiness booleans, never the credential-bearing
+    getState response, and never dismiss the notice as part of polling.
+    """
+    deadline = time.monotonic() + timeout
+    last = {"paired": False, "capability": False}
+    while True:
+        value = cdp.evaluate(
+            "(async()=>{const state=await chrome.runtime.sendMessage({cmd:'getState'});"
+            "return {paired:state?.paired===true,capability:!!state?.brokerState&&"
+            "Object.prototype.hasOwnProperty.call(state.brokerState,'agentBackends')};})()"
+        )
+        if isinstance(value, dict):
+            last = {key: value.get(key) is True for key in last}
+            if all(last.values()):
+                return last
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        if poll_interval:
+            time.sleep(min(poll_interval, remaining))
+    raise RuntimeError(
+        "Companion confirmation did not become ready; "
+        f"paired={last['paired']}; capability={last['capability']}"
+    )
+
+
 def service_worker(targets: list[dict]) -> dict:
     for target in targets:
         if target.get("type") == "service_worker" and target.get("url", "").endswith("/src/background.js"):
@@ -490,6 +524,11 @@ def run_live(browser_binary: Path, headed: bool) -> dict:
                     raise AssertionError(
                         f"first-run setup stayed visible after pairing configuration: {panel_state}"
                     )
+
+                # Session HTTP responses can arrive before the independent
+                # broker handshake. Dismissal correctly refuses that state.
+                # Observe authenticated capability before issuing one click.
+                wait_for_companion_confirmation(panel_cdp)
 
                 # Keep the known-good panel target attached while dismissing the
                 # notice. Reattaching immediately to an inactive extension page
