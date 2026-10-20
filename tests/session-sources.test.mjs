@@ -69,7 +69,7 @@ test("nothing answering yields every failure, never a throw", async () => {
 test("status wording names what to start", () => {
   const capable = { agentBackends: [], agentProfiles: [] };
   assert.match(sessionServiceUnavailableMessage({ paired: true, brokerState: {}, companionVersion: "0.2.6" }),
-    /Companion 0\.2\.5 required/);
+    /Companion 0\.2\.6 required/);
   assert.match(sessionServiceUnavailableMessage({ paired: false, brokerState: capable, companionVersion: "0.2.6" }),
     /pair the companion/);
   assert.match(sessionServiceUnavailableMessage({ paired: true, brokerState: capable, companionVersion: "0.2.6" }),

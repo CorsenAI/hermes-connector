@@ -194,8 +194,8 @@ class CompanionInstallerTests(unittest.TestCase):
 
                 installed_manifest = (target / "plugin.yaml").read_text(encoding="utf-8")
                 installed_broker = (target / "broker.py").read_text(encoding="utf-8")
-                self.assertRegex(installed_manifest, r"(?m)^version:\s*0\.2\.5\s*$")
-                self.assertRegex(installed_broker, r'(?m)^BROKER_VERSION\s*=\s*"0\.2\.5"\s*$')
+                self.assertRegex(installed_manifest, r"(?m)^version:\s*0\.2\.6\s*$")
+                self.assertRegex(installed_broker, r'(?m)^BROKER_VERSION\s*=\s*"0\.2\.6"\s*$')
                 self.assertRegex(installed_broker, r"(?m)^PROTOCOL_VERSION\s*=\s*5\s*$")
                 self.assertRegex(installed_broker, r"(?m)^DEFAULT_PORT\s*=\s*8767\s*$")
 

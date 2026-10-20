@@ -253,7 +253,7 @@ test("actions stay bound to their authenticated socket and current tab authoriza
   assert.equal(unversioned.sent.some((message) => message.type === "hello"), false);
   assert.match(
     runtimeMessages.findLast((message) => message.cmd === "pairDenied").reason,
-    /companion 0\.2\.5 is required/i,
+    /companion 0\.2\.6 is required/i,
   );
 
   await runtime({ cmd: "connect", browserName: "Test Chrome" });
