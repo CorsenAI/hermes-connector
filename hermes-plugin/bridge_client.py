@@ -21,6 +21,11 @@ except ImportError:  # pragma: no cover - reported in status
     websockets = None
 
 from . import broker
+from . import sessions
+
+# A session listing fans out over every profile's store; keep the companion responsive even when
+# a store is slow, and leave headroom under the broker's own relay timeout.
+QUERY_ANSWER_TIMEOUT_SECONDS = 10.0
 
 
 def _open_append_fd(path: Path) -> int:
@@ -139,7 +144,8 @@ class BridgeClient:
 
     def __init__(self, profile_id: str, root: Optional[str | Path] = None,
                  host: str = broker.DEFAULT_HOST, port: Optional[int] = None,
-                 auto_start_broker: bool = True, backend_metadata_provider=None):
+                 auto_start_broker: bool = True, backend_metadata_provider=None,
+                 session_provider=None):
         self.profile_id = broker.clean_id(profile_id or "default", "profileId")
         self.root = broker.hermes_root(str(root)) if root else broker.hermes_root()
         self.host = host
@@ -147,6 +153,8 @@ class BridgeClient:
         self.url = f"ws://{self.host}:{self.port}"
         self.auto_start_broker = auto_start_broker
         self._backend_metadata_provider = backend_metadata_provider
+        # (limit, profile_id) -> {"ok": bool, "data": ... | "error": ...}; answers panel queries.
+        self._session_provider = session_provider or self._default_session_provider
         self.process_id = f"{os.getpid()}-{secrets.token_hex(4)}"
         self.secret = broker.load_or_create_secret(self.root)
 
@@ -506,6 +514,8 @@ class BridgeClient:
                         future = self._pending.get(str(message.get("id") or ""))
                         if future is not None and not future.done():
                             future.set_result(message)
+                    elif kind == "agent_query":
+                        asyncio.create_task(self._answer_query(websocket, message))
             finally:
                 if backend_task is not None:
                     backend_task.cancel()
@@ -555,6 +565,56 @@ class BridgeClient:
                 }))
                 return
             await asyncio.sleep(0.1)
+
+    # -- panel queries relayed by the broker ------------------------------
+
+    def _default_session_provider(self, limit: int, profile_id: str) -> dict:
+        del profile_id  # every companion lists all profiles; the hint only picks the responder
+        return sessions.list_sessions(limit)
+
+    def build_query_answer(self, message: dict) -> dict:
+        """Synchronous, exception-free answer to one ``agent_query`` frame."""
+
+        answer: dict = {"type": "agent_query_result", "id": str(message.get("id") or "")[:160]}
+        kind = str(message.get("kind") or "")
+        if kind not in broker.SUPPORTED_QUERY_KINDS:
+            answer.update(ok=False, error=f"unsupported query kind: {kind[:40]}")
+            return answer
+        try:
+            limit = int(message.get("limit") or broker.MAX_QUERY_LIMIT)
+        except (TypeError, ValueError):
+            limit = broker.MAX_QUERY_LIMIT
+        limit = min(max(limit, 1), broker.MAX_QUERY_LIMIT)
+        try:
+            result = self._session_provider(limit, self.profile_id)
+        except Exception as exc:  # noqa: BLE001 - a listing failure must never reach Hermes
+            answer.update(ok=False, error=f"the Hermes session listing failed: {type(exc).__name__}")
+            return answer
+        if isinstance(result, dict) and result.get("ok") and isinstance(result.get("data"), (dict, list)):
+            answer.update(ok=True, data=result["data"])
+        else:
+            error = result.get("error") if isinstance(result, dict) else None
+            answer.update(ok=False, error=str(error or "the Hermes session listing returned nothing")[:300])
+        return answer
+
+    async def _answer_query(self, websocket: Any, message: dict) -> None:
+        try:
+            answer = await asyncio.wait_for(
+                asyncio.to_thread(self.build_query_answer, message),
+                timeout=QUERY_ANSWER_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            answer = {"type": "agent_query_result", "id": str(message.get("id") or "")[:160],
+                      "ok": False, "error": "the Hermes session listing timed out"}
+        except Exception as exc:  # noqa: BLE001
+            answer = {"type": "agent_query_result", "id": str(message.get("id") or "")[:160],
+                      "ok": False, "error": f"the Hermes session listing failed: {type(exc).__name__}"}
+        if self.conn is not websocket:
+            return
+        try:
+            await websocket.send(json.dumps(answer))
+        except Exception:
+            pass
 
     @staticmethod
     def _parse(raw: Any) -> dict:

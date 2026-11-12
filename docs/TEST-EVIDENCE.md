@@ -1,5 +1,125 @@
 # Test evidence
 
+## 0.2.6 — session service merged with main's fixes — 2026-10-20
+
+### Why 0.2.6
+
+The 0.2.5 build (GitHub prerelease of 2026-10-19, never submitted to the Store) was made from a
+base frozen at 0.2.4 (`bfd9bc2`). Twenty-six commits had been published on `main` since then,
+including fixes in shipped extension code: pairing accepted only on a literal `ok: true`, bounded
+and validated `wait.ms`, validated `key.ref` with authorization rechecked before key actions,
+backslash escaping in snapshots, and no dashboard reload on every 15-second poll. 0.2.6 is the
+0.2.5 session service merged with all of them.
+
+### Integration findings
+
+- Textual merge: clean. Semantic conflict: main's "a temporary session API failure does not reload
+  the existing iframe" against 0.2.5's "no broken page when nothing answers". Resolved by hiding the
+  frame without removing its `src`.
+- Main's panel test harness assumed single-line imports; adapted to the 0.2.6 module imports.
+- `tests/e2e_snapshot_escape.py` attached before the extension had verified `PAIRED` (fails on
+  unmodified `main` too: 1 run in 7). It now waits for extension-side pairing: 8/8 runs.
+
+### Automated evidence (Linux, Hermes venv Python 3.14, Node 26, Chrome for Testing 153)
+
+| Gate | Command | Result |
+|---|---|---|
+| Fast release gate (version lock 0.2.6, permissions, CSP, contract strings, artwork, leakage, line endings) | `python tests/run_all.py` | 114 Python tests OK (skipped=2), 77/77 JS, "Fast release gate passed." |
+| Isolated Chromium acceptance | `CHROME_BINARY=… python tests/e2e_chromium.py` | 16 checks, including the three session-source scenarios |
+| Snapshot escaping through broker + extension | `python tests/e2e_snapshot_escape.py` | 8/8: 6 exact labels; old-code control 3 mismatches |
+| POSIX installer | `sh tests/e2e_installer_posix.sh` | passed |
+| Packaged pair acceptance | `python tests/e2e_packaged_release.py` | "Packaged release pair acceptance passed: 0.2.6" |
+| Store build check | `node scripts/check-store-build.mjs <extracted chrome zip>` | OK, one known `<all_urls>` warning |
+
+`python scripts/build_release.py --skip-tests` → `hermes-connector-0.2.6-chrome.zip` (63 585 bytes,
+SHA-256 `08e2645a409523ea6c037ce0d4633988c8efbf3a9c2702e828ec18d36eb414b5`) and
+`hermes-connector-0.2.6-companion.zip` (37 849 bytes, SHA-256
+`80fc7bc42e9f7e5d9a02c81f79b3f132b08fc29db47d167db365df3bbc36aeb6`).
+
+### Not rerun on 0.2.6
+
+The real-model acceptance (`tests/e2e_real_hermes.py`) cannot start a test gateway on the
+development machine while its live multiplexing Hermes gateway runs: Hermes allows one gateway per
+OS user (exit 75; exit 78 with an isolated `XDG_STATE_HOME`). The 0.2.5 build passed it three
+times; the companion code is unchanged in 0.2.6.
+
+## 0.2.5 companion session service — 2026-10-19
+
+### Why 0.2.5 is required
+
+Hermes releases from October 2026 serve Hermes Desktop through one gateway-hosted
+loopback API for every profile. That API deliberately never publishes the
+dashboard session token (`gateway/run_api.py`, "the gateway-hosted listener never
+publishes it") and never runs the headless `hermes serve` backend whose dynamic
+port 0.2.4 discovered. Consequently the 0.2.4 side panel can be paired, the
+`bridge_*` tools can be installed, and the panel still shows "Hermes dashboard
+unavailable" with Chrome's `127.0.0.1 refused to connect` page, unless the user
+separately keeps `hermes dashboard` running. Reproduced on a live install with the
+unmodified 0.2.4 extension: the panel lists sessions as soon as a dashboard listens
+on `127.0.0.1:9119`, and nothing otherwise.
+
+Release 0.2.5 lets the panel ask a connected companion for the session list over
+the paired broker socket (`browser_query` → `agent_query` →
+`agent_query_result` → `browser_query_result`). The companion lists sessions
+in-process from Hermes' own store and forwards seven label/identity fields only.
+The web-dashboard mode and the legacy headless-backend mode are unchanged.
+
+### Automated evidence (Linux, Hermes venv Python 3.14, Node 26)
+
+| Gate | Command | Result |
+|---|---|---|
+| Python suites (broker relay, companion provider/projection, installer, release, routing) | `python -m unittest discover -s tests -p "test_*.py"` | 94 tests, OK (skipped=2) |
+| Extension unit tests (pure source order, background query path, bindings, CDP) | `node --test tests/*.test.mjs` | 27 tests, 27 pass, 0 fail |
+| Fast release gate (version lock 0.2.5, permissions, loopback CSP, contract strings, artwork, leakage, line endings) | `python tests/run_all.py` | "Fast release gate passed." |
+| Isolated Chromium acceptance (Playwright Chromium 1243, headless) | `CHROME_BINARY=… python tests/e2e_chromium.py` | 16 checks, including: companion session service replaced the unavailable Web dashboard; legacy headless discovery still works when the companion listing fails; no session source reported honestly without a broken page |
+
+The Chromium run drives the real extension in a real browser with the real
+`BridgeClient` as companion (deterministic session provider), a real broker
+process on an ephemeral port, and a fixture dashboard. Scenario A starves `/chat`
+and expects the panel to show "Hermes connected through the companion" with the
+companion's sessions and status `Ready · Hermes + Chrome`; scenario B makes the
+companion listing fail and expects the legacy `Hermes Desktop connected` path;
+scenario C starves every HTTP source and expects the status line
+"Hermes sessions unavailable · the companion did not answer…", the hint visible and
+the dashboard frame hidden, then full recovery to `Ready · Hermes + Chrome`.
+
+### Live provider measurement
+
+On the live install (24 profiles), the companion's default provider returned 5
+projected rows through Hermes' aggregated listing in 0.66 s and through the direct
+read-only store fallback in 0.06 s; projected keys were exactly
+`display_name, id, is_active, last_active, profile, source, title`.
+
+### Real Hermes acceptance (opt-in, real model turn)
+
+`tests/e2e_real_hermes.py` on a temporary Hermes home (clean `HERMES_*` environment, companion
+0.2.5 installed **and enabled**, broker on an ephemeral port, no web dashboard reachable: the
+panel's dashboard address points at a closed loopback port). Three consecutive green runs on
+2026-10-19 with a small hosted model:
+
+- the real Hermes CLI turn, served by the gateway Hermes auto-starts for that home, called
+  `bridge_status`, `bridge_current_url` and `bridge_read` on the attached `https://example.com/`
+  tab and answered `CONNECTOR_E2E_OK`;
+- while that process was alive, the real side panel listed the real session through the
+  companion (`sessionListVia: companion`, status `Ready · Hermes + Chrome`, card "Hermes
+  connected through the companion");
+- the test stops the auto-started gateway at teardown; no test process outlived the run.
+
+### Packaged pair
+
+`python scripts/build_release.py --skip-tests` → `hermes-connector-0.2.5-chrome.zip`
+(62 966 bytes, SHA-256 `047cfd24a76766c6ceaedb58d72a4b5b2544667f9ac0411f76b34ac3649a7f07`) and
+`hermes-connector-0.2.5-companion.zip` (36 809 bytes, SHA-256
+`5779f58a8265cd11f7bd46b0e2855569bffde2d071c81002b44c0187ec944e93`); identical hashes on a
+second build. `python tests/e2e_packaged_release.py` → "Packaged release pair acceptance passed:
+0.2.5". House store-build check on the extracted extension: OK, one known `<all_urls>` warning
+(the reviewed permission set, justified in the listing).
+
+### Superseded
+
+This 0.2.5 build was published only as a GitHub prerelease and was never submitted to the
+Chrome Web Store: it predates the fixes published on `main` after 0.2.4. 0.2.6 replaces it.
+
 ## 0.2.4 Hermes Desktop compatibility release — 2026-09-02
 
 ### Why 0.2.4 is required

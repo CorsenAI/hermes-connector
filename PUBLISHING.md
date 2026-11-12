@@ -32,8 +32,8 @@ separately under the same release version.
 - Privacy: `https://corsenai.github.io/hermes-connector/privacy/`
 - Support and installation: `https://corsenai.github.io/hermes-connector/support/`
 - Complete video demo: `https://youtu.be/4akSq9cMmFw`
-- 0.2.4 release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.4`
-- Companion 0.2.4: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.4/hermes-connector-0.2.4-companion.zip`
+- 0.2.6 release details: `https://github.com/CorsenAI/hermes-connector/releases/tag/v0.2.6`
+- Companion 0.2.6: `https://github.com/CorsenAI/hermes-connector/releases/download/v0.2.6/hermes-connector-0.2.6-companion.zip`
 - Source: `https://github.com/CorsenAI/hermes-connector`
 - Support email: `hello@corsen.ai`
 
@@ -150,7 +150,31 @@ Desktop app; Web-dashboard mode uses the isolated iframe. Sensitive permissions
 can trigger manual review, so use deferred publishing and answer reviewer
 questions promptly.
 
-## 7. Completed 0.2.4 release gates — 2026-09-02
+## 7. 0.2.6 release gates — session service + main's security fixes (in progress, 2026-10-20)
+
+0.2.6 is the 0.2.5 session service merged with every fix published on `main` after 0.2.4
+(pairing confirmation, action input validation, snapshot escaping, dashboard reload guard,
+CodeQL and CI hardening). The GitHub `v0.2.5` prerelease of 2026-10-19 was built from a base
+that predated those fixes; it is superseded by 0.2.6 and was never submitted to the Store.
+
+- [x] Clean committed source on the release branch; Store and companion versions match (0.2.6).
+- [x] Fast gate (`tests/run_all.py`), broker relay/companion provider unit tests, and the
+      isolated Chromium acceptance (companion / legacy headless / nothing-answers scenarios) pass.
+- [x] Main's snapshot-escape acceptance (`tests/e2e_snapshot_escape.py`, 8/8 runs) and the POSIX
+      installer exercise pass on the merged source.
+- [ ] Real Hermes acceptance rerun on 0.2.6. Not possible on the development machine while its live
+      multiplexing Hermes gateway runs (Hermes allows one gateway per OS user: exit 75, and 78 with
+      an isolated lock directory). The 0.2.5 build passed it three times; the companion code is
+      unchanged in 0.2.6 and the extension changes are covered by the Chromium acceptances.
+- [x] Packaged pair acceptance (`tests/e2e_packaged_release.py`) passes on the built archives.
+- [ ] Public GitHub `v0.2.6` prerelease serves the companion, Chrome ZIP, and release manifest
+      before Store review begins.
+- [ ] Store listing, reviewer note, privacy text, support page, and screenshots describe the
+      same tested behavior.
+- [ ] Upload only `dist/hermes-connector-0.2.6-chrome.zip` to the existing Store item, complete
+      review, and publish the approved version publicly.
+
+## 8. Completed 0.2.4 release gates — 2026-09-02
 
 - [x] Clean committed/tagged 0.2.4 source; Store and companion versions match.
 - [x] Fast gate, isolated Chromium, and packaged-pair acceptance pass.
@@ -173,7 +197,7 @@ The existing Chrome Web Store item publicly serves 0.2.4. The matching GitHub
 release is normal and marked Latest, and Pages publishes the matching 0.2.4
 setup, companion, upgrade, and compatibility guidance.
 
-## 8. Historical 0.2.3 release gates
+## 9. Historical 0.2.3 release gates
 
 - [x] Clean committed/tagged source; Store and companion versions match.
 - [x] Fast gate and isolated live Chromium test pass from the packaged source.
@@ -189,7 +213,7 @@ setup, companion, upgrade, and compatibility guidance.
 - [x] Submit for review with deferred publishing; publish only after approval
       and final artifact/hash verification.
 
-## 9. Historical 0.2.3 approval, public cutover, and verification
+## 10. Historical 0.2.3 approval, public cutover, and verification
 
 The existing Chrome Web Store item now publicly serves 0.2.3. The public
 GitHub `v0.2.3` release is normal and marked Latest, its original tag and three
