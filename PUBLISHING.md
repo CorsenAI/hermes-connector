@@ -150,7 +150,7 @@ Desktop app; Web-dashboard mode uses the isolated iframe. Sensitive permissions
 can trigger manual review, so use deferred publishing and answer reviewer
 questions promptly.
 
-## 7. 0.2.6 release gates — session service + main's security fixes (in progress, 2026-10-20)
+## 7. Completed 0.2.6 release gates and public cutover — session service + main's security fixes
 
 0.2.6 is the 0.2.5 session service merged with every fix published on `main` after 0.2.4
 (pairing confirmation, action input validation, snapshot escaping, dashboard reload guard,
@@ -165,16 +165,37 @@ that predated those fixes; it is superseded by 0.2.6 and was never submitted to 
 - [ ] Real Hermes acceptance rerun on 0.2.6. Not possible on the development machine while its live
       multiplexing Hermes gateway runs (Hermes allows one gateway per OS user: exit 75, and 78 with
       an isolated lock directory). The 0.2.5 build passed it three times; the companion code is
-      unchanged in 0.2.6 and the extension changes are covered by the Chromium acceptances.
+      unchanged in 0.2.6 and the extension changes are covered by the Chromium acceptances. Still
+      open after the public cutover.
 - [x] Packaged pair acceptance (`tests/e2e_packaged_release.py`) passes on the built archives.
-- [ ] Public GitHub `v0.2.6` prerelease serves the companion, Chrome ZIP, and release manifest
-      before Store review begins.
+- [x] Public GitHub `v0.2.6` release serves the companion, Chrome ZIP, and release manifest. The
+      two archives date from the prerelease of 2026-10-20, before the Store update; the release
+      manifest now attached dates from 2026-11-07, and its SHA-256 values match both archives.
 - [ ] Store listing, reviewer note, privacy text, support page, and screenshots describe the
       same tested behavior.
-- [ ] Upload only `dist/hermes-connector-0.2.6-chrome.zip` to the existing Store item, complete
-      review, and publish the approved version publicly.
+- [x] Upload only `dist/hermes-connector-0.2.6-chrome.zip` to the existing Store item, complete
+      review, and publish the approved version publicly. The existing item serves 0.2.6; its
+      listing was last updated on 2026-10-22.
 
-## 8. Completed 0.2.4 release gates — 2026-09-02
+Public cutover, completed 2026-11-12:
+
+- [x] The documentation cutover makes 0.2.6 the public/current pair on the product page, the
+      support page and the README, moves 0.2.4 to legacy in the compatibility tables, and sets
+      the homepage JSON-LD version and download URL to 0.2.6. It reached `main` with the release
+      branch (#19).
+- [x] The complete release gate passes on the cutover commit on Windows, macOS, and Ubuntu.
+- [x] Pages serves the cutover documentation.
+- [x] GitHub `v0.2.6` is promoted from prerelease to a normal release and marked Latest; its tag
+      and three assets are unchanged by the promotion.
+- [x] The public Store endpoint serves version 0.2.6 for the existing extension ID.
+- [x] The source-bound CodeQL review of `broker.py --show-code` is rebound to the 0.2.6 source
+      (#20), and the full push analysis of `main` passes.
+
+The existing Chrome Web Store item publicly serves 0.2.6. The matching GitHub release is normal
+and marked Latest, and Pages publishes the matching 0.2.6 setup, companion, and compatibility
+guidance.
+
+## 8. Historical 0.2.4 release gates — 2026-09-02
 
 - [x] Clean committed/tagged 0.2.4 source; Store and companion versions match.
 - [x] Fast gate, isolated Chromium, and packaged-pair acceptance pass.
@@ -193,9 +214,9 @@ that predated those fixes; it is superseded by 0.2.6 and was never submitted to 
 - [x] Upload only `dist/hermes-connector-0.2.4-chrome.zip` to the existing Store
       item, complete review, and publish the approved version publicly.
 
-The existing Chrome Web Store item publicly serves 0.2.4. The matching GitHub
-release is normal and marked Latest, and Pages publishes the matching 0.2.4
-setup, companion, upgrade, and compatibility guidance.
+At that cutover the existing Chrome Web Store item publicly served 0.2.4, the
+matching GitHub release was normal and marked Latest, and Pages published the
+matching 0.2.4 setup, companion, upgrade, and compatibility guidance.
 
 ## 9. Historical 0.2.3 release gates
 
