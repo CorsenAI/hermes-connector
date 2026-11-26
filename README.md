@@ -262,4 +262,8 @@ builds are isolated under `dist/dev/` and must not be uploaded to the Store.
 - [Source code and releases](https://github.com/CorsenAI/hermes-connector)
 - [Corsen AI official website](https://corsen.ai/)
 
+## More from Corsen AI
+
+- [WebMCP Explorer](https://github.com/CorsenAI/webmcp-explorer) — discover, run and security-review the WebMCP tools a website exposes to AI agents, on Chrome, Android, iPhone and iPad.
+
 Hermes Connector is released under the [MIT License](LICENSE).
